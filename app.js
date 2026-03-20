@@ -87,7 +87,6 @@ const baseCharHomeVoiceDefs = [
   ["bond10", "絆10"],
   ["eventActive", "イベント開催時"],
   ["newYear", "年始"],
-  ["birthday", "誕生日"],
   ["homeEnter", "ホームに入った時"]
 ];
 
@@ -255,6 +254,34 @@ function pickLine(card) {
   return card.catch || "カードを集めて世界を広げよう。";
 }
 
+function getEffectiveVoiceLines(card, baseChar) {
+  const voiceLines = {};
+  baseCharVoiceLineDefs.forEach(([key]) => {
+    voiceLines[key] = card?.voiceLines?.[key] || baseChar?.voiceLines?.[key] || "";
+  });
+  return voiceLines;
+}
+
+function getEffectiveHomeVoices(card, baseChar) {
+  const homeVoices = {};
+  baseCharHomeVoiceDefs.forEach(([key]) => {
+    homeVoices[key] = card?.homeVoices?.[key] || baseChar?.homeVoices?.[key] || "";
+  });
+  return homeVoices;
+}
+
+function getEffectiveHomeOpinions(card, baseChar) {
+  return (card?.homeOpinions || []).length > 0 ? (card.homeOpinions || []) : (baseChar?.homeOpinions || []);
+}
+
+function getEffectiveHomeConversations(card, baseChar) {
+  return (card?.homeConversations || []).length > 0 ? (card.homeConversations || []) : (baseChar?.homeConversations || []);
+}
+
+function getEffectiveHomeBirthdays(card, baseChar) {
+  return (card?.homeBirthdays || []).length > 0 ? (card.homeBirthdays || []) : (baseChar?.homeBirthdays || []);
+}
+
 function setupHomeInteractions() {
   ["home-char-1", "home-speech"].forEach(id => {
     document.getElementById(id).addEventListener("click", () => triggerHomeDialogue(1));
@@ -347,8 +374,15 @@ function chooseHomeDialogue(card1, card2, reason = "refresh", tappedIndex = 1) {
 }
 
 function pickHomeVoice(baseChar, card, reason, eventActive) {
-  const homeVoices = baseChar?.homeVoices || {};
+  const homeVoices = getEffectiveHomeVoices(card, baseChar);
   if (reason === "enter" && eventActive && homeVoices.eventActive) return homeVoices.eventActive;
+  if (baseChar && isBaseCharBirthdayToday(baseChar)) {
+    const birthdayLines = getEffectiveHomeBirthdays(card, baseChar)
+      .filter(item => item.targetBaseCharId === baseChar.id)
+      .map(item => item.text)
+      .filter(Boolean);
+    if (birthdayLines.length > 0) return birthdayLines[Math.floor(Math.random() * birthdayLines.length)];
+  }
   if (reason === "enter" && homeVoices.homeEnter) return homeVoices.homeEnter;
 
   const pool = Object.values(homeVoices).filter(Boolean);
@@ -359,7 +393,17 @@ function pickHomeVoice(baseChar, card, reason, eventActive) {
 function pickHomeRelationDialogue(actorCard, actorBaseChar, partnerCard, partnerBaseChar) {
   if (!actorCard || !actorBaseChar || !partnerCard || !partnerBaseChar) return null;
   const targetId = partnerBaseChar.id;
-  const opinions = (actorBaseChar.homeOpinions || [])
+  const birthdays = isBaseCharBirthdayToday(partnerBaseChar)
+    ? getEffectiveHomeBirthdays(actorCard, actorBaseChar)
+      .filter(item => item.targetBaseCharId === targetId)
+      .map(item => ({
+        primaryName: actorCard.name,
+        primaryText: item.text,
+        secondaryName: partnerCard.name,
+        secondaryText: ""
+      }))
+    : [];
+  const opinions = getEffectiveHomeOpinions(actorCard, actorBaseChar)
     .filter(item => item.targetBaseCharId === targetId)
     .map(item => ({
       primaryName: actorCard.name,
@@ -367,7 +411,7 @@ function pickHomeRelationDialogue(actorCard, actorBaseChar, partnerCard, partner
       secondaryName: partnerCard.name,
       secondaryText: ""
     }));
-  const conversations = (actorBaseChar.homeConversations || [])
+  const conversations = getEffectiveHomeConversations(actorCard, actorBaseChar)
     .filter(item => item.targetBaseCharId === targetId)
     .map(item => ({
       primaryName: actorCard.name,
@@ -375,7 +419,7 @@ function pickHomeRelationDialogue(actorCard, actorBaseChar, partnerCard, partner
       secondaryName: partnerCard.name,
       secondaryText: item.partnerText || ""
     }));
-  const pool = [...opinions, ...conversations].filter(item => item.primaryText || item.secondaryText);
+  const pool = [...birthdays, ...opinions, ...conversations].filter(item => item.primaryText || item.secondaryText);
   if (pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
@@ -391,6 +435,21 @@ function applyHomeDialogue() {
 
 function isHomeEventActive() {
   return gachas.length > 0 || stories.some(story => story.type === "event");
+}
+
+function isBaseCharBirthdayToday(baseChar) {
+  if (!baseChar?.birthday) return false;
+  const today = new Date();
+  const key = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return baseChar.birthday === key;
+}
+
+function normalizeBirthday(value) {
+  const raw = String(value || "").trim().replace(/\//g, "-");
+  if (!raw) return "";
+  const match = raw.match(/^(\d{1,2})-(\d{1,2})$/);
+  if (!match) return "";
+  return `${match[1].padStart(2, "0")}-${match[2].padStart(2, "0")}`;
 }
 
 function loadHomeConfig() {
@@ -990,11 +1049,10 @@ function renderCardDetailVoices(char) {
   const wrap = document.getElementById("card-detail-voices");
   const list = document.getElementById("card-detail-voice-list");
   const baseChar = char.baseCharId ? getBaseCharById(char.baseCharId) : null;
-  const voiceEntries = baseChar
-    ? baseCharVoiceLineDefs
-        .map(([key, label]) => ({ label, text: baseChar.voiceLines?.[key] || "" }))
-        .filter(item => item.text)
-    : [];
+  const mergedVoiceLines = getEffectiveVoiceLines(char, baseChar);
+  const voiceEntries = baseCharVoiceLineDefs
+    .map(([key, label]) => ({ label, text: mergedVoiceLines[key] || "" }))
+    .filter(item => item.text);
 
   list.innerHTML = "";
   if (voiceEntries.length === 0) {
@@ -1210,10 +1268,16 @@ function setupForms() {
   document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
   document.getElementById("add-home-opinion-btn").addEventListener("click", () => addHomeOpinionInput());
   document.getElementById("add-home-conversation-btn").addEventListener("click", () => addHomeConversationInput());
+  document.getElementById("add-home-birthday-btn").addEventListener("click", () => addHomeBirthdayInput());
+  document.getElementById("add-card-home-opinion-btn").addEventListener("click", () => addCardHomeOpinionInput());
+  document.getElementById("add-card-home-conversation-btn").addEventListener("click", () => addCardHomeConversationInput());
+  document.getElementById("add-card-home-birthday-btn").addEventListener("click", () => addCardHomeBirthdayInput());
   document.querySelector("#story-form select[name='type']").addEventListener("change", handleStoryTypeChange);
 
   renderBaseCharVoiceLineFields();
   renderBaseCharHomeVoiceLineFields();
+  renderCardVoiceLineFields();
+  renderCardHomeVoiceLineFields();
   renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
@@ -1314,6 +1378,71 @@ function addHomeConversationInput(item = null) {
   list.appendChild(row);
 }
 
+function addHomeBirthdayInput(item = null) {
+  const list = document.getElementById("home-birthday-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="home-birthday-target">
+      <option value="">誕生日のキャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="home-birthday-text" rows="2" maxlength="200" placeholder="そのキャラの誕生日用セリフ">${esc(item?.text || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
+}
+
+function addCardHomeOpinionInput(item = null) {
+  const list = document.getElementById("card-home-opinion-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="card-home-opinion-target">
+      <option value="">相手キャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="card-home-opinion-text" rows="2" maxlength="200" placeholder="そのキャラについての所感">${esc(item?.text || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
+}
+
+function addCardHomeConversationInput(item = null) {
+  const list = document.getElementById("card-home-conversation-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="card-home-conversation-target">
+      <option value="">相手キャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="card-home-conversation-self" rows="2" maxlength="200" placeholder="自分のセリフ">${esc(item?.selfText || "")}</textarea>
+    <textarea name="card-home-conversation-partner" rows="2" maxlength="200" placeholder="相手のセリフ">${esc(item?.partnerText || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
+}
+
+function addCardHomeBirthdayInput(item = null) {
+  const list = document.getElementById("card-home-birthday-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="card-home-birthday-target">
+      <option value="">誕生日のキャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="card-home-birthday-text" rows="2" maxlength="200" placeholder="そのキャラの誕生日用セリフ">${esc(item?.text || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
+}
+
 async function collectExpressions() {
   const items = document.querySelectorAll("#expression-list .expression-item");
   const expressions = [];
@@ -1384,16 +1513,19 @@ async function handleBaseCharSubmit(e) {
   const homeVoices = collectBaseCharHomeVoiceLines();
   const homeOpinions = collectHomeOpinions();
   const homeConversations = collectHomeConversations();
+  const homeBirthdays = collectHomeBirthdays();
   const baseChar = {
     id: editState.baseCharId || crypto.randomUUID(),
     name: form.name.value.trim(),
     description: form.description.value.trim(),
+    birthday: normalizeBirthday(form.birthday.value),
     color: form.color.value || "#a29bfe",
     portrait: portrait || makeBaseCharFallback(form.name.value.trim(), form.color.value),
     voiceLines,
     homeVoices,
     homeOpinions,
     homeConversations,
+    homeBirthdays,
     variants,
     expressions
   };
@@ -1413,6 +1545,11 @@ async function handleCharacterSubmit(e) {
   const imageFile = form.image.files[0];
   const image = imageFile ? await readFileAsDataUrl(imageFile) : (existing?.image || "");
   const lines = form.lines.value.split("\n").map(l => l.trim()).filter(Boolean);
+  const voiceLines = collectCardVoiceLines();
+  const homeVoices = collectCardHomeVoiceLines();
+  const homeOpinions = collectCardHomeOpinions();
+  const homeConversations = collectCardHomeConversations();
+  const homeBirthdays = collectCardHomeBirthdays();
   const char = {
     id: editState.characterId || crypto.randomUUID(),
     name: form.name.value.trim(),
@@ -1421,7 +1558,12 @@ async function handleCharacterSubmit(e) {
     rarity: form.rarity.value,
     attribute: form.attribute.value.trim() || "未設定",
     image: image || makeFallbackImage(form.name.value.trim(), form.rarity.value),
-    lines
+    lines,
+    voiceLines,
+    homeVoices,
+    homeOpinions,
+    homeConversations,
+    homeBirthdays
   };
   upsertItem(characters, char);
   saveLocal("socia-characters", characters);
@@ -1699,6 +1841,7 @@ function beginBaseCharEdit(id) {
   const form = document.getElementById("base-char-form");
   form.name.value = baseChar.name || "";
   form.description.value = baseChar.description || "";
+  form.birthday.value = baseChar.birthday || "";
   form.color.value = baseChar.color || "#a29bfe";
   document.getElementById("base-char-preview").hidden = false;
   document.getElementById("base-char-preview-img").src = baseChar.portrait;
@@ -1710,8 +1853,10 @@ function beginBaseCharEdit(id) {
   renderBaseCharHomeVoiceLineFields(baseChar.homeVoices || {});
   document.getElementById("home-opinion-list").innerHTML = "";
   document.getElementById("home-conversation-list").innerHTML = "";
+  document.getElementById("home-birthday-list").innerHTML = "";
   (baseChar.homeOpinions || []).forEach(item => addHomeOpinionInput(item));
   (baseChar.homeConversations || []).forEach(item => addHomeConversationInput(item));
+  (baseChar.homeBirthdays || []).forEach(item => addHomeBirthdayInput(item));
   if (baseChar.variants?.length) {
     baseChar.variants.forEach(v => addVariantInput(v));
   }
@@ -1733,6 +1878,14 @@ function beginCharacterEdit(id) {
   form.rarity.value = char.rarity || "SR";
   form.attribute.value = char.attribute || "";
   form.lines.value = (char.lines || []).join("\n");
+  renderCardVoiceLineFields(char.voiceLines || {});
+  renderCardHomeVoiceLineFields(char.homeVoices || {});
+  document.getElementById("card-home-opinion-list").innerHTML = "";
+  document.getElementById("card-home-conversation-list").innerHTML = "";
+  document.getElementById("card-home-birthday-list").innerHTML = "";
+  (char.homeOpinions || []).forEach(item => addCardHomeOpinionInput(item));
+  (char.homeConversations || []).forEach(item => addCardHomeConversationInput(item));
+  (char.homeBirthdays || []).forEach(item => addCardHomeBirthdayInput(item));
   document.getElementById("char-preview").hidden = false;
   document.getElementById("char-preview-img").src = char.image || makeFallbackImage(char.name, char.rarity);
   updateEditorSubmitLabels();
@@ -1795,6 +1948,7 @@ function resetBaseCharForm() {
   renderBaseCharHomeVoiceLineFields();
   document.getElementById("home-opinion-list").innerHTML = "";
   document.getElementById("home-conversation-list").innerHTML = "";
+  document.getElementById("home-birthday-list").innerHTML = "";
   updateEditorSubmitLabels();
 }
 
@@ -1803,6 +1957,11 @@ function resetCharacterForm() {
   const form = document.getElementById("character-form");
   form.reset();
   form.rarity.value = "SR";
+  renderCardVoiceLineFields();
+  renderCardHomeVoiceLineFields();
+  document.getElementById("card-home-opinion-list").innerHTML = "";
+  document.getElementById("card-home-conversation-list").innerHTML = "";
+  document.getElementById("card-home-birthday-list").innerHTML = "";
   document.getElementById("char-preview").hidden = true;
   updateEditorSubmitLabels();
 }
@@ -1878,9 +2037,10 @@ function populateBaseCharSelects() {
     : collectStoryVariantAssignments();
   renderStoryVariantDefaults(currentAssignments);
 
-  document.querySelectorAll("#home-opinion-list select[name='home-opinion-target'], #home-conversation-list select[name='home-conversation-target']").forEach(select => {
+  document.querySelectorAll("#home-opinion-list select[name='home-opinion-target'], #home-conversation-list select[name='home-conversation-target'], #home-birthday-list select[name='home-birthday-target'], #card-home-opinion-list select[name='card-home-opinion-target'], #card-home-conversation-list select[name='card-home-conversation-target'], #card-home-birthday-list select[name='card-home-birthday-target']").forEach(select => {
     const currentValue = select.value;
-    select.innerHTML = '<option value="">相手キャラを選択</option>' +
+    const placeholder = select.name.endsWith("birthday-target") ? "誕生日のキャラを選択" : "相手キャラを選択";
+    select.innerHTML = `<option value="">${placeholder}</option>` +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
@@ -1910,44 +2070,66 @@ function buildGachaRateSummary(rates = {}) {
   return ["N", "R", "SR", "SSR", "UR"].map(rarity => `${rarity} ${rates[rarity] || 0}%`).join(" / ");
 }
 
-function renderBaseCharVoiceLineFields(values = {}) {
-  const container = document.getElementById("voice-line-fields");
+function renderVoiceLineFields(containerId, prefix, defs, values = {}) {
+  const container = document.getElementById(containerId);
   if (!container) return;
-  container.innerHTML = baseCharVoiceLineDefs.map(([key, label]) => `
+  container.innerHTML = defs.map(([key, label]) => `
     <label>
       ${label}
-      <textarea name="voice-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
+      <textarea name="${prefix}-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
     </label>
   `).join("");
 }
 
-function collectBaseCharVoiceLines() {
+function collectVoiceLineFields(containerId, prefix, defs) {
   const voiceLines = {};
-  baseCharVoiceLineDefs.forEach(([key]) => {
-    const input = document.querySelector(`#voice-line-fields [name="voice-${key}"]`);
+  defs.forEach(([key]) => {
+    const input = document.querySelector(`#${containerId} [name="${prefix}-${key}"]`);
     voiceLines[key] = input ? input.value.trim() : "";
   });
   return voiceLines;
 }
 
+function renderBaseCharVoiceLineFields(values = {}) {
+  renderVoiceLineFields("voice-line-fields", "voice", baseCharVoiceLineDefs, values);
+}
+
+function collectBaseCharVoiceLines() {
+  return collectVoiceLineFields("voice-line-fields", "voice", baseCharVoiceLineDefs);
+}
+
+function renderCardVoiceLineFields(values = {}) {
+  renderVoiceLineFields("card-voice-line-fields", "card-voice", baseCharVoiceLineDefs, values);
+}
+
+function collectCardVoiceLines() {
+  return collectVoiceLineFields("card-voice-line-fields", "card-voice", baseCharVoiceLineDefs);
+}
+
 function renderBaseCharHomeVoiceLineFields(values = {}) {
-  const container = document.getElementById("home-voice-line-fields");
-  if (!container) return;
-  container.innerHTML = baseCharHomeVoiceDefs.map(([key, label]) => `
-    <label>
-      ${label}
-      <textarea name="home-voice-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
-    </label>
-  `).join("");
+  renderVoiceLineFields("home-voice-line-fields", "home-voice", baseCharHomeVoiceDefs, values);
 }
 
 function collectBaseCharHomeVoiceLines() {
-  const homeVoices = {};
-  baseCharHomeVoiceDefs.forEach(([key]) => {
-    const input = document.querySelector(`#home-voice-line-fields [name="home-voice-${key}"]`);
-    homeVoices[key] = input ? input.value.trim() : "";
+  return collectVoiceLineFields("home-voice-line-fields", "home-voice", baseCharHomeVoiceDefs);
+}
+
+function renderCardHomeVoiceLineFields(values = {}) {
+  renderVoiceLineFields("card-home-voice-line-fields", "card-home-voice", baseCharHomeVoiceDefs, values);
+}
+
+function collectCardHomeVoiceLines() {
+  return collectVoiceLineFields("card-home-voice-line-fields", "card-home-voice", baseCharHomeVoiceDefs);
+}
+
+function collectRelationLines(listSelector, fieldMap) {
+  return Array.from(document.querySelectorAll(`${listSelector} .relation-line-item`)).map(item => {
+    const entry = {};
+    Object.entries(fieldMap).forEach(([key, selector]) => {
+      entry[key] = item.querySelector(selector).value.trim();
+    });
+    return entry;
   });
-  return homeVoices;
 }
 
 function collectHomeOpinions() {
@@ -1957,12 +2139,41 @@ function collectHomeOpinions() {
   })).filter(item => item.targetBaseCharId && item.text);
 }
 
+function collectCardHomeOpinions() {
+  return Array.from(document.querySelectorAll("#card-home-opinion-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='card-home-opinion-target']").value,
+    text: item.querySelector("[name='card-home-opinion-text']").value.trim()
+  })).filter(item => item.targetBaseCharId && item.text);
+}
+
 function collectHomeConversations() {
   return Array.from(document.querySelectorAll("#home-conversation-list .relation-line-item")).map(item => ({
     targetBaseCharId: item.querySelector("[name='home-conversation-target']").value,
     selfText: item.querySelector("[name='home-conversation-self']").value.trim(),
     partnerText: item.querySelector("[name='home-conversation-partner']").value.trim()
   })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
+}
+
+function collectCardHomeConversations() {
+  return Array.from(document.querySelectorAll("#card-home-conversation-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='card-home-conversation-target']").value,
+    selfText: item.querySelector("[name='card-home-conversation-self']").value.trim(),
+    partnerText: item.querySelector("[name='card-home-conversation-partner']").value.trim()
+  })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
+}
+
+function collectHomeBirthdays() {
+  return Array.from(document.querySelectorAll("#home-birthday-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='home-birthday-target']").value,
+    text: item.querySelector("[name='home-birthday-text']").value.trim()
+  })).filter(item => item.targetBaseCharId && item.text);
+}
+
+function collectCardHomeBirthdays() {
+  return Array.from(document.querySelectorAll("#card-home-birthday-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='card-home-birthday-target']").value,
+    text: item.querySelector("[name='card-home-birthday-text']").value.trim()
+  })).filter(item => item.targetBaseCharId && item.text);
 }
 
 function upsertItem(collection, nextItem) {

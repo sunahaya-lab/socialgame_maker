@@ -294,6 +294,10 @@
             <input name="description" type="text" maxlength="80" placeholder="キャラの一言説明">
           </label>
           <label>
+            誕生日
+            <input name="birthday" type="text" maxlength="5" placeholder="08-15">
+          </label>
+          <label>
             テーマカラー
             <input name="color" type="color" value="#a29bfe">
           </label>
@@ -331,6 +335,11 @@
             <h4>かけあい</h4>
             <div id="home-conversation-list" class="relation-line-list"></div>
             <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ かけあい追加</button>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>誕生日</h4>
+            <div id="home-birthday-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ 誕生日セリフ追加</button>
           </div>
           <button type="submit" class="btn-primary">ベースキャラを登録</button>
         </form>
@@ -384,6 +393,29 @@
             セリフ (1行ずつ改行で複数登録)
             <textarea name="lines" rows="3" maxlength="500" placeholder="あなたのために&#10;今日も一日がんばろう&#10;また会えてうれしい"></textarea>
           </label>
+          <div class="voice-lines-editor">
+            <h4>カード固有ボイス</h4>
+            <div id="card-voice-line-fields" class="voice-line-fields"></div>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>カード固有ホームボイス</h4>
+            <div id="card-home-voice-line-fields" class="voice-line-fields"></div>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>カード固有「〇〇について」</h4>
+            <div id="card-home-opinion-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-card-home-opinion-btn">+ 相手キャラについて追加</button>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>カード固有かけあい</h4>
+            <div id="card-home-conversation-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-card-home-conversation-btn">+ かけあい追加</button>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>カード固有誕生日</h4>
+            <div id="card-home-birthday-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ 誕生日セリフ追加</button>
+          </div>
           <button type="submit" class="btn-primary">カードを登録</button>
         </form>
 
