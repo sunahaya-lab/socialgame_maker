@@ -223,7 +223,8 @@ function sanitizeStory(input) {
   return {
     id: text(input.id, 80, `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     title: text(input.title, 60, "無題のストーリー"),
-    type: ["main", "event"].includes(input.type) ? input.type : "main",
+    type: ["main", "event", "character"].includes(input.type) ? input.type : "main",
+    entryId: input.entryId ? text(input.entryId, 80) : null,
     bgm: text(input.bgm, 500, ""),
     variantAssignments: Array.isArray(input.variantAssignments) ? input.variantAssignments.slice(0, 50).map(v => ({
       characterId: v.characterId ? text(v.characterId, 80) : null,

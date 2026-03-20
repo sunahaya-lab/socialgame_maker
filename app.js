@@ -6,6 +6,9 @@ let currentScreen = "home";
 let currentStoryType = "main";
 let activeGacha = null;
 let storyReaderState = null;
+let homeConfigDraft = null;
+let activeHomeConfigTarget = 1;
+let homeConfigDrag = null;
 
 const editState = {
   baseCharId: null,
@@ -148,6 +151,12 @@ function renderHome() {
   const el2 = document.getElementById("home-char-2");
   const speech1 = document.getElementById("home-speech");
   const speech2 = document.getElementById("home-speech-2");
+  const front = config.front === 1 ? 1 : 2;
+  const back = front === 1 ? 2 : 1;
+  el1.classList.toggle("is-front", front === 1);
+  el1.classList.toggle("is-back", back === 1);
+  el2.classList.toggle("is-front", front === 2);
+  el2.classList.toggle("is-back", back === 2);
 
   if (card1) {
     el1.innerHTML = `<img src="${card1.image || makeFallbackImage(card1.name, card1.rarity)}" alt="${esc(card1.name)}">`;
@@ -201,9 +210,9 @@ function pickLine(card) {
 function loadHomeConfig() {
   try {
     const raw = localStorage.getItem("socia-home-config");
-    if (raw) return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, ...JSON.parse(raw) };
+    if (raw) return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, front: 2, ...JSON.parse(raw) };
   } catch {}
-  return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0 };
+  return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, front: 2 };
 }
 
 function saveHomeConfig(config) {
@@ -217,60 +226,105 @@ function setupHomeConfig() {
   const saveBtn = document.getElementById("home-config-save");
   const modeSelect = document.getElementById("home-mode-select");
   const char2Settings = document.getElementById("home-char-2-settings");
+  const scaleInput = document.getElementById("home-active-scale");
+  const resetBtn = document.getElementById("home-config-reset-char");
+  const swapDepthBtn = document.getElementById("home-config-swap-depth");
+  const stage = document.getElementById("home-config-stage");
 
   btn.addEventListener("click", () => {
     populateHomeCardSelects();
-    const config = loadHomeConfig();
-    modeSelect.value = String(config.mode);
-    document.getElementById("home-card-1").value = config.card1;
-    document.getElementById("home-card-2").value = config.card2;
-    setSlider("home-scale-1", config.scale1);
-    setSlider("home-x-1", config.x1);
-    setSlider("home-y-1", config.y1);
-    setSlider("home-scale-2", config.scale2);
-    setSlider("home-x-2", config.x2);
-    setSlider("home-y-2", config.y2);
-    char2Settings.hidden = config.mode !== 2;
+    homeConfigDraft = { ...loadHomeConfig() };
+    activeHomeConfigTarget = 1;
+    syncHomeConfigForm();
     panel.hidden = false;
   });
 
   closeBtn.addEventListener("click", () => { panel.hidden = true; });
 
   modeSelect.addEventListener("change", () => {
-    char2Settings.hidden = modeSelect.value !== "2";
+    homeConfigDraft.mode = Number(modeSelect.value);
+    if (homeConfigDraft.mode !== 2) activeHomeConfigTarget = 1;
+    syncHomeConfigForm();
   });
 
-  ["home-scale-1", "home-x-1", "home-y-1", "home-scale-2", "home-x-2", "home-y-2"].forEach(id => {
-    const input = document.getElementById(id);
-    const valSpan = document.getElementById(id + "-val");
-    input.addEventListener("input", () => {
-      valSpan.textContent = id.includes("scale") ? input.value + "%" : input.value;
-    });
+  document.getElementById("home-card-1").addEventListener("change", event => {
+    if (!homeConfigDraft) return;
+    homeConfigDraft.card1 = event.target.value;
+    renderHomeConfigStage();
   });
+
+  document.getElementById("home-card-2").addEventListener("change", event => {
+    if (!homeConfigDraft) return;
+    homeConfigDraft.card2 = event.target.value;
+    renderHomeConfigStage();
+  });
+
+  document.getElementById("home-config-target-1").addEventListener("click", () => {
+    activeHomeConfigTarget = 1;
+    syncHomeConfigForm();
+  });
+  document.getElementById("home-config-target-2").addEventListener("click", () => {
+    if (!homeConfigDraft || homeConfigDraft.mode !== 2) return;
+    activeHomeConfigTarget = 2;
+    syncHomeConfigForm();
+  });
+
+  scaleInput.addEventListener("input", event => {
+    if (!homeConfigDraft) return;
+    homeConfigDraft[`scale${activeHomeConfigTarget}`] = Number(event.target.value);
+    syncHomeConfigScale();
+    renderHomeConfigStage();
+  });
+
+  resetBtn.addEventListener("click", () => {
+    if (!homeConfigDraft) return;
+    const target = activeHomeConfigTarget;
+    homeConfigDraft[`scale${target}`] = 100;
+    homeConfigDraft[`x${target}`] = target === 1 ? -10 : 10;
+    homeConfigDraft[`y${target}`] = 0;
+    syncHomeConfigForm();
+  });
+
+  swapDepthBtn.addEventListener("click", () => {
+    if (!homeConfigDraft || homeConfigDraft.mode !== 2) return;
+    homeConfigDraft.front = homeConfigDraft.front === 1 ? 2 : 1;
+    renderHomeConfigStage();
+  });
+
+  stage.addEventListener("pointermove", event => updateHomeConfigDrag(event));
+  stage.addEventListener("pointerup", endHomeConfigDrag);
+  stage.addEventListener("pointercancel", endHomeConfigDrag);
+  stage.addEventListener("pointerleave", endHomeConfigDrag);
 
   saveBtn.addEventListener("click", () => {
-    const config = {
-      mode: Number(modeSelect.value),
-      card1: document.getElementById("home-card-1").value,
-      card2: document.getElementById("home-card-2").value,
-      scale1: Number(document.getElementById("home-scale-1").value),
-      x1: Number(document.getElementById("home-x-1").value),
-      y1: Number(document.getElementById("home-y-1").value),
-      scale2: Number(document.getElementById("home-scale-2").value),
-      x2: Number(document.getElementById("home-x-2").value),
-      y2: Number(document.getElementById("home-y-2").value)
-    };
-    saveHomeConfig(config);
+    if (!homeConfigDraft) return;
+    saveHomeConfig(homeConfigDraft);
     panel.hidden = true;
     renderHome();
     showToast("ホーム設定を保存しました。");
   });
 }
 
-function setSlider(id, value) {
-  const input = document.getElementById(id);
-  input.value = value;
-  document.getElementById(id + "-val").textContent = id.includes("scale") ? value + "%" : String(value);
+function syncHomeConfigForm() {
+  if (!homeConfigDraft) return;
+  document.getElementById("home-mode-select").value = String(homeConfigDraft.mode);
+  document.getElementById("home-card-1").value = homeConfigDraft.card1;
+  document.getElementById("home-card-2").value = homeConfigDraft.card2;
+  document.getElementById("home-char-2-settings").hidden = homeConfigDraft.mode !== 2;
+  document.getElementById("home-config-target-1").classList.toggle("active", activeHomeConfigTarget === 1);
+  document.getElementById("home-config-target-2").classList.toggle("active", activeHomeConfigTarget === 2);
+  document.getElementById("home-config-target-2").disabled = homeConfigDraft.mode !== 2;
+  document.getElementById("home-config-swap-depth").disabled = homeConfigDraft.mode !== 2;
+  syncHomeConfigScale();
+  renderHomeConfigStage();
+}
+
+function syncHomeConfigScale() {
+  if (!homeConfigDraft) return;
+  const scaleInput = document.getElementById("home-active-scale");
+  const value = homeConfigDraft[`scale${activeHomeConfigTarget}`];
+  scaleInput.value = value;
+  document.getElementById("home-active-scale-val").textContent = `${value}%`;
 }
 
 function populateHomeCardSelects() {
@@ -281,6 +335,114 @@ function populateHomeCardSelects() {
       characters.map(c => `<option value="${esc(c.id)}">${esc(c.rarity)} ${esc(c.name)}</option>`).join("");
     select.value = current;
   });
+}
+
+function renderHomeConfigStage() {
+  if (!homeConfigDraft) return;
+  renderHomeConfigStageChar(1);
+  renderHomeConfigStageChar(2);
+}
+
+function renderHomeConfigStageChar(index) {
+  const stageChar = document.getElementById(`home-config-stage-char-${index}`);
+  const isVisible = index === 1 || homeConfigDraft.mode === 2;
+  if (!isVisible) {
+    stageChar.innerHTML = "";
+    stageChar.classList.add("is-hidden");
+    return;
+  }
+
+  const cardId = homeConfigDraft[`card${index}`];
+  const card = characters.find(item => item.id === cardId) || (index === 1 ? characters[0] : null);
+  if (!card) {
+    stageChar.innerHTML = `<div class="home-config-stage-empty">カード未選択</div>`;
+  } else {
+    stageChar.innerHTML = `<img src="${card.image || makeFallbackImage(card.name, card.rarity)}" alt="${esc(card.name)}">`;
+  }
+
+  stageChar.classList.remove("is-hidden");
+  stageChar.classList.toggle("is-active", activeHomeConfigTarget === index);
+  stageChar.classList.toggle("is-front", homeConfigDraft.front === index);
+  stageChar.classList.toggle("is-back", homeConfigDraft.front !== index);
+  stageChar.dataset.label = `キャラ${index}`;
+  stageChar.style.transform = `translateX(${homeConfigDraft[`x${index}`]}%) scale(${homeConfigDraft[`scale${index}`] / 100})`;
+  stageChar.style.bottom = `${32 + homeConfigDraft[`y${index}`] * 2.2}px`;
+
+  stageChar.onpointerdown = event => beginHomeConfigDrag(event, index);
+}
+
+function beginHomeConfigDrag(event, index) {
+  if (!homeConfigDraft) return;
+  activeHomeConfigTarget = index;
+  syncHomeConfigForm();
+  const stage = document.getElementById("home-config-stage");
+  homeConfigDrag = {
+    index,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    initialX: homeConfigDraft[`x${index}`],
+    initialY: homeConfigDraft[`y${index}`],
+    initialScale: homeConfigDraft[`scale${index}`],
+    width: stage.clientWidth,
+    height: stage.clientHeight,
+    pointers: new Map([[event.pointerId, { x: event.clientX, y: event.clientY }]]),
+    pinchDistance: null
+  };
+  event.currentTarget.classList.add("is-dragging");
+  event.currentTarget.setPointerCapture(event.pointerId);
+}
+
+function updateHomeConfigDrag(event) {
+  if (!homeConfigDrag || !homeConfigDraft) return;
+  homeConfigDrag.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (homeConfigDrag.pointers.size >= 2) {
+    const [a, b] = [...homeConfigDrag.pointers.values()];
+    const distance = Math.hypot(a.x - b.x, a.y - b.y);
+    if (!homeConfigDrag.pinchDistance) {
+      homeConfigDrag.pinchDistance = distance;
+      homeConfigDrag.initialScale = homeConfigDraft[`scale${homeConfigDrag.index}`];
+      return;
+    }
+    const nextScale = homeConfigDrag.initialScale * (distance / homeConfigDrag.pinchDistance);
+    homeConfigDraft[`scale${homeConfigDrag.index}`] = Math.round(clamp(nextScale, 50, 200));
+    syncHomeConfigScale();
+    renderHomeConfigStage();
+    return;
+  }
+  if (homeConfigDrag.pointerId !== event.pointerId) return;
+  const dx = event.clientX - homeConfigDrag.startX;
+  const dy = event.clientY - homeConfigDrag.startY;
+  const nextX = homeConfigDrag.initialX + (dx / homeConfigDrag.width) * 100;
+  const nextY = homeConfigDrag.initialY - (dy / homeConfigDrag.height) * 90;
+  homeConfigDraft[`x${homeConfigDrag.index}`] = clamp(nextX, -60, 60);
+  homeConfigDraft[`y${homeConfigDrag.index}`] = clamp(nextY, -30, 50);
+  renderHomeConfigStage();
+}
+
+function endHomeConfigDrag(event) {
+  if (!homeConfigDrag) return;
+  if (event) {
+    homeConfigDrag.pointers.delete(event.pointerId);
+    if (homeConfigDrag.pointers.size > 0 && event.pointerId !== homeConfigDrag.pointerId) return;
+    if (homeConfigDrag.pointers.size > 0 && event.pointerId === homeConfigDrag.pointerId) {
+      const [remaining] = homeConfigDrag.pointers.values();
+      homeConfigDrag.startX = remaining.x;
+      homeConfigDrag.startY = remaining.y;
+      homeConfigDrag.initialX = homeConfigDraft[`x${homeConfigDrag.index}`];
+      homeConfigDrag.initialY = homeConfigDraft[`y${homeConfigDrag.index}`];
+      homeConfigDrag.initialScale = homeConfigDraft[`scale${homeConfigDrag.index}`];
+      homeConfigDrag.pinchDistance = null;
+      return;
+    }
+  }
+  const el = document.getElementById(`home-config-stage-char-${homeConfigDrag.index}`);
+  el.classList.remove("is-dragging");
+  homeConfigDrag = null;
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function setupGachaButtons() {
@@ -427,16 +589,24 @@ function renderStoryList() {
 
   empty.hidden = true;
   filtered.forEach(story => {
+    const linkedCard = story.entryId ? characters.find(char => char.id === story.entryId) : null;
     const item = document.createElement("div");
     item.className = "story-item";
     item.innerHTML = `
-      <p class="story-item-type">${story.type === "main" ? "MAIN STORY" : "EVENT STORY"}</p>
+      <p class="story-item-type">${getStoryTypeLabel(story.type)}</p>
       <h4>${esc(story.title)}</h4>
-      <p>${story.scenes?.length || 0} scenes</p>
+      <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} scenes</p>
     `;
     item.addEventListener("click", () => openStoryReader(story));
     list.appendChild(item);
   });
+}
+
+function getStoryTypeLabel(type) {
+  if (type === "main") return "MAIN STORY";
+  if (type === "event") return "EVENT STORY";
+  if (type === "character") return "CHARACTER STORY";
+  return "STORY";
 }
 
 function setupStoryReader() {
@@ -625,7 +795,32 @@ function showCardDetail(char) {
   document.getElementById("card-detail-name").textContent = char.name;
   document.getElementById("card-detail-catch").textContent = char.catch || "";
   document.getElementById("card-detail-attr").textContent = char.attribute || "";
+  renderCardDetailStories(char);
   document.getElementById("card-detail").hidden = false;
+}
+
+function renderCardDetailStories(char) {
+  const wrap = document.getElementById("card-detail-stories");
+  const list = document.getElementById("card-detail-story-list");
+  const linkedStories = stories.filter(story => story.type === "character" && story.entryId === char.id);
+  list.innerHTML = "";
+  if (linkedStories.length === 0) {
+    wrap.hidden = true;
+    return;
+  }
+
+  wrap.hidden = false;
+  linkedStories.forEach(story => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "card-detail-story-btn";
+    button.textContent = story.title;
+    button.addEventListener("click", () => {
+      document.getElementById("card-detail").hidden = true;
+      openStoryReader(story);
+    });
+    list.appendChild(button);
+  });
 }
 
 function setupEditorTabs() {
@@ -720,15 +915,16 @@ function renderEditorStoryList() {
   }
 
   stories.forEach(story => {
+    const linkedCard = story.entryId ? characters.find(char => char.id === story.entryId) : null;
     const item = document.createElement("div");
     item.className = "editor-record-item";
     item.innerHTML = `
       <div class="editor-record-item-top">
-        <span class="editor-record-badge">${story.type === "main" ? "MAIN" : "EVENT"}</span>
+        <span class="editor-record-badge">${story.type === "main" ? "MAIN" : story.type === "event" ? "EVENT" : "CHARA"}</span>
         <span class="editor-record-meta">${story.scenes?.length || 0} scenes</span>
       </div>
       <h5>${esc(story.title)}</h5>
-      <p>${esc(buildStorySummary(story))}</p>
+      <p>${esc(linkedCard ? `${linkedCard.name} / ${buildStorySummary(story)}` : buildStorySummary(story))}</p>
       <div class="editor-record-actions">
         <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
         <button class="editor-inline-btn" type="button" data-action="read">閲覧</button>
@@ -797,6 +993,7 @@ function setupForms() {
   document.getElementById("add-scene-btn").addEventListener("click", () => addSceneInput());
   document.getElementById("add-expression-btn").addEventListener("click", () => addExpressionInput());
   document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
+  document.querySelector("#story-form select[name='type']").addEventListener("change", handleStoryTypeChange);
 
   renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
@@ -988,6 +1185,7 @@ async function handleStorySubmit(e) {
     id: editState.storyId || crypto.randomUUID(),
     title: form.title.value.trim(),
     type: form.type.value,
+    entryId: form.entryId.value || null,
     bgm: form.bgm.value.trim(),
     variantAssignments: collectStoryVariantAssignments(),
     scenes
@@ -1280,7 +1478,9 @@ function beginStoryEdit(id) {
   const form = document.getElementById("story-form");
   form.title.value = story.title || "";
   form.type.value = story.type || "main";
+  form.entryId.value = story.entryId || "";
   form.bgm.value = story.bgm || "";
+  handleStoryTypeChange();
   renderStoryVariantDefaults(story.variantAssignments || []);
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
@@ -1339,6 +1539,7 @@ function resetStoryForm() {
   editState.storyId = null;
   const form = document.getElementById("story-form");
   form.reset();
+  handleStoryTypeChange();
   renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
@@ -1392,10 +1593,25 @@ function populateBaseCharSelects() {
     select.value = currentValue;
   });
 
+  const storyCardSelect = document.getElementById("story-character-select");
+  if (storyCardSelect) {
+    const currentValue = storyCardSelect.value;
+    storyCardSelect.innerHTML = '<option value="">カードを選択</option>' +
+      characters.map(char => `<option value="${esc(char.id)}">${esc(char.rarity)} ${esc(char.name)}</option>`).join("");
+    storyCardSelect.value = currentValue;
+  }
+
   const currentAssignments = editState.storyId
     ? (stories.find(story => story.id === editState.storyId)?.variantAssignments || [])
     : collectStoryVariantAssignments();
   renderStoryVariantDefaults(currentAssignments);
+}
+
+function handleStoryTypeChange() {
+  const type = document.querySelector("#story-form select[name='type']").value;
+  const wrap = document.getElementById("story-character-select-wrap");
+  if (!wrap) return;
+  wrap.hidden = type !== "character";
 }
 
 function getBaseCharById(id) {
