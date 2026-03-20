@@ -1,0 +1,9 @@
+{
+  "name": "socia-maker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Instant fake social-game generator",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

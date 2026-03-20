@@ -1,0 +1,18 @@
+[
+  {
+    "id": "20edad82-67ea-4040-a936-50a522878c23",
+    "title": "星喰いピックアップ",
+    "description": "SSR ミオ 出現率UP！",
+    "bannerImage": "",
+    "featured": [
+      "060e70a2-96d3-4752-a0b0-1cb4a651bbae"
+    ],
+    "rates": {
+      "N": 40,
+      "R": 30,
+      "SR": 20,
+      "SSR": 8,
+      "UR": 2
+    }
+  }
+]
