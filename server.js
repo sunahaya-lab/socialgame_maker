@@ -173,12 +173,48 @@ function sanitizeBaseChar(input) {
   const text = (value, maxLength, fallback = "") =>
     String(value || fallback).slice(0, maxLength).trim();
   const color = /^#[0-9a-fA-F]{6}$/.test(input.color) ? input.color : "#a29bfe";
+  const voiceLineKeys = [
+    "gain", "evolve", "levelUp1", "levelUp2", "levelUp3",
+    "leaderAssign", "subLeaderAssign", "normalAssign",
+    "battleStart1", "battleStart2", "battleWave1", "battleWave2",
+    "mainSkill1", "mainSkill2", "mainSkill3",
+    "subSkill1", "subSkill2", "subSkill3",
+    "special1", "special2", "special3",
+    "retreat1", "retreat2", "retreat3",
+    "victory1", "victory2", "victory3"
+  ];
+  const voiceLines = {};
+  for (const key of voiceLineKeys) {
+    voiceLines[key] = text(input.voiceLines?.[key], 200, "");
+  }
+  const homeVoiceLineKeys = [
+    "talk1", "talk2", "talk3",
+    "evolutionTalk1", "evolutionTalk2", "evolutionTalk3",
+    "bond1", "bond2", "bond3", "bond4", "bond5",
+    "bond6", "bond7", "bond8", "bond9", "bond10",
+    "eventActive", "newYear", "birthday", "homeEnter"
+  ];
+  const homeVoices = {};
+  for (const key of homeVoiceLineKeys) {
+    homeVoices[key] = text(input.homeVoices?.[key], 200, "");
+  }
   return {
     id: text(input.id, 80, `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     name: text(input.name, 30, "名称未設定"),
     description: text(input.description, 80, ""),
     color,
     portrait: text(input.portrait, 2_000_000, ""),
+    voiceLines,
+    homeVoices,
+    homeOpinions: Array.isArray(input.homeOpinions) ? input.homeOpinions.slice(0, 20).map(item => ({
+      targetBaseCharId: item.targetBaseCharId ? text(item.targetBaseCharId, 80) : null,
+      text: text(item.text, 200, "")
+    })).filter(item => item.targetBaseCharId && item.text) : [],
+    homeConversations: Array.isArray(input.homeConversations) ? input.homeConversations.slice(0, 20).map(item => ({
+      targetBaseCharId: item.targetBaseCharId ? text(item.targetBaseCharId, 80) : null,
+      selfText: text(item.selfText, 200, ""),
+      partnerText: text(item.partnerText, 200, "")
+    })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText)) : [],
     variants: Array.isArray(input.variants) ? input.variants.slice(0, 20).map(v => ({
       name: text(v.name, 30, "イベント差分"),
       image: text(v.image, 2_000_000, "")
@@ -197,6 +233,7 @@ function sanitizeEntry(input) {
   return {
     id: text(input.id, 80, `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     name: text(input.name, 40, "名称未設定"),
+    baseCharId: input.baseCharId ? text(input.baseCharId, 80) : null,
     catch: text(input.catch, 120, "説明なし"),
     rarity,
     attribute: text(input.attribute, 24, "未分類"),

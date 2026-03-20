@@ -256,6 +256,10 @@
           <h3 id="card-detail-name"></h3>
           <p id="card-detail-catch"></p>
           <p class="card-detail-attr" id="card-detail-attr"></p>
+          <div class="card-detail-voices" id="card-detail-voices" hidden>
+            <h4>キャラボイス</h4>
+            <div id="card-detail-voice-list" class="card-detail-voice-list"></div>
+          </div>
           <div class="card-detail-stories" id="card-detail-stories" hidden>
             <h4>キャラストーリー</h4>
             <div id="card-detail-story-list" class="card-detail-story-list"></div>
@@ -309,6 +313,24 @@
             <h4>イベント差分立ち絵</h4>
             <div id="variant-list" class="expression-list"></div>
             <button type="button" class="btn-secondary" id="add-variant-btn">+ イベント立ち絵を追加</button>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>キャラセリフ</h4>
+            <div id="voice-line-fields" class="voice-line-fields"></div>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>ホームボイス</h4>
+            <div id="home-voice-line-fields" class="voice-line-fields"></div>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>〇〇について</h4>
+            <div id="home-opinion-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-home-opinion-btn">+ 相手キャラについて追加</button>
+          </div>
+          <div class="voice-lines-editor">
+            <h4>かけあい</h4>
+            <div id="home-conversation-list" class="relation-line-list"></div>
+            <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ かけあい追加</button>
           </div>
           <button type="submit" class="btn-primary">ベースキャラを登録</button>
         </form>

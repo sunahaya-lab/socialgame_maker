@@ -119,7 +119,7 @@ body {
   left: 50%;
   transform: translateX(-60%);
   z-index: 1;
-  pointer-events: none;
+  pointer-events: auto;
   transition: transform 0.3s, bottom 0.3s;
 }
 .home-character-2 {
@@ -1154,14 +1154,39 @@ body {
   padding-top: 12px;
   border-top: 1px solid var(--panel-border);
 }
+.card-detail-voices {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.card-detail-voices h4,
 .card-detail-stories h4 {
   font-size: 0.82rem;
   margin-bottom: 8px;
   color: var(--text);
 }
+.card-detail-voice-list,
 .card-detail-story-list {
   display: grid;
   gap: 8px;
+}
+.card-detail-voice-item {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+}
+.card-detail-voice-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--accent-light);
+  margin-bottom: 4px;
+}
+.card-detail-voice-text {
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.5;
+  margin: 0;
 }
 .card-detail-story-btn {
   width: 100%;
@@ -1510,9 +1535,32 @@ body {
 
 /* ===== Expression Editor ===== */
 .expressions-editor h4,
-.variants-editor h4 {
+.variants-editor h4,
+.voice-lines-editor h4 {
   font-size: 0.9rem;
   margin-bottom: 8px;
+}
+.voice-line-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.voice-line-fields label {
+  margin-bottom: 0;
+}
+.relation-line-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.relation-line-item {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--panel-border);
 }
 .expression-list {
   display: grid;

@@ -9,6 +9,7 @@ let storyReaderState = null;
 let homeConfigDraft = null;
 let activeHomeConfigTarget = 1;
 let homeConfigDrag = null;
+let homeDialogueState = null;
 
 const editState = {
   baseCharId: null,
@@ -37,6 +38,59 @@ const palettes = {
   N: ["#1a1a1a", "#b2bec3", "#dfe6e9"]
 };
 
+const baseCharVoiceLineDefs = [
+  ["gain", "獲得"],
+  ["evolve", "進化"],
+  ["levelUp1", "レベルアップ1"],
+  ["levelUp2", "レベルアップ2"],
+  ["levelUp3", "レベルアップ3"],
+  ["leaderAssign", "リーダー編成"],
+  ["subLeaderAssign", "サブリーダー編成"],
+  ["normalAssign", "通常編成"],
+  ["battleStart1", "バトル開始1"],
+  ["battleStart2", "バトル開始2"],
+  ["battleWave1", "バトルwave切り替え1"],
+  ["battleWave2", "バトルwave切り替え2"],
+  ["mainSkill1", "メインスキル1"],
+  ["mainSkill2", "メインスキル2"],
+  ["mainSkill3", "メインスキル3"],
+  ["subSkill1", "サブスキル1"],
+  ["subSkill2", "サブスキル2"],
+  ["subSkill3", "サブスキル3"],
+  ["special1", "必殺技1"],
+  ["special2", "必殺技2"],
+  ["special3", "必殺技3"],
+  ["retreat1", "撤退時1"],
+  ["retreat2", "撤退時2"],
+  ["retreat3", "撤退時3"],
+  ["victory1", "勝利1"],
+  ["victory2", "勝利2"],
+  ["victory3", "勝利3"]
+];
+
+const baseCharHomeVoiceDefs = [
+  ["talk1", "会話1"],
+  ["talk2", "会話2"],
+  ["talk3", "会話3"],
+  ["evolutionTalk1", "進化会話1"],
+  ["evolutionTalk2", "進化会話2"],
+  ["evolutionTalk3", "進化会話3"],
+  ["bond1", "絆1"],
+  ["bond2", "絆2"],
+  ["bond3", "絆3"],
+  ["bond4", "絆4"],
+  ["bond5", "絆5"],
+  ["bond6", "絆6"],
+  ["bond7", "絆7"],
+  ["bond8", "絆8"],
+  ["bond9", "絆9"],
+  ["bond10", "絆10"],
+  ["eventActive", "イベント開催時"],
+  ["newYear", "年始"],
+  ["birthday", "誕生日"],
+  ["homeEnter", "ホームに入った時"]
+];
+
 void init();
 
 async function init() {
@@ -50,6 +104,7 @@ async function init() {
   setupForms();
   setupPreviews();
   setupHomeConfig();
+  setupHomeInteractions();
 
   await loadAllData();
   renderAll();
@@ -63,6 +118,7 @@ function setupNavigation() {
 }
 
 function navigateTo(screen) {
+  const previousScreen = currentScreen;
   currentScreen = screen;
   document.querySelectorAll(".screen").forEach(screenEl => screenEl.classList.remove("active"));
   document.getElementById(`screen-${screen}`).classList.add("active");
@@ -71,7 +127,7 @@ function navigateTo(screen) {
     btn.classList.toggle("active", btn.dataset.go === screen);
   });
 
-  if (screen === "home") renderHome();
+  if (screen === "home") renderHome(previousScreen === "home" ? "refresh" : "enter");
   if (screen === "gacha") renderGachaScreen();
   if (screen === "story") renderStoryScreen();
   if (screen === "collection") renderCollectionScreen();
@@ -131,11 +187,11 @@ function getScopedStorageKey(key) {
 }
 
 function renderAll() {
-  renderHome();
+  renderHome("refresh");
   renderEditorScreen();
 }
 
-function renderHome() {
+function renderHome(reason = "refresh") {
   document.getElementById("home-char-count").textContent = String(characters.length);
   document.getElementById("home-story-count").textContent = String(stories.length);
   document.getElementById("home-gacha-count").textContent = String(gachas.length);
@@ -162,15 +218,8 @@ function renderHome() {
     el1.innerHTML = `<img src="${card1.image || makeFallbackImage(card1.name, card1.rarity)}" alt="${esc(card1.name)}">`;
     el1.style.transform = `translateX(${config.x1}%) scale(${config.scale1 / 100})`;
     el1.style.bottom = `${60 + config.y1 * 3}px`;
-    const line1 = pickLine(card1);
-    document.getElementById("home-speech-name").textContent = card1.name;
-    document.getElementById("home-speech-text").textContent = line1;
-    speech1.hidden = false;
   } else {
     el1.innerHTML = "";
-    document.getElementById("home-speech-name").textContent = "";
-    document.getElementById("home-speech-text").textContent = "まずは編集画面でカードを登録してください。";
-    speech1.hidden = false;
   }
 
   if (card2) {
@@ -178,14 +227,9 @@ function renderHome() {
     el2.style.transform = `translateX(${config.x2}%) scale(${config.scale2 / 100})`;
     el2.style.bottom = `${60 + config.y2 * 3}px`;
     el2.style.display = "";
-    const line2 = pickLine(card2);
-    document.getElementById("home-speech-name-2").textContent = card2.name;
-    document.getElementById("home-speech-text-2").textContent = line2;
-    speech2.hidden = false;
   } else {
     el2.innerHTML = "";
     el2.style.display = "none";
-    speech2.hidden = true;
   }
 
   const eventBanner = document.getElementById("home-event-banner");
@@ -200,11 +244,153 @@ function renderHome() {
   } else {
     eventBanner.style.display = "none";
   }
+
+  syncHomeDialogue(card1, card2, reason);
+  speech1.hidden = !card1;
+  speech2.hidden = !card2 || !homeDialogueState?.secondaryText;
 }
 
 function pickLine(card) {
   if (card.lines?.length) return card.lines[Math.floor(Math.random() * card.lines.length)];
   return card.catch || "カードを集めて世界を広げよう。";
+}
+
+function setupHomeInteractions() {
+  ["home-char-1", "home-speech"].forEach(id => {
+    document.getElementById(id).addEventListener("click", () => triggerHomeDialogue(1));
+  });
+  ["home-char-2", "home-speech-2"].forEach(id => {
+    document.getElementById(id).addEventListener("click", () => triggerHomeDialogue(2));
+  });
+}
+
+function triggerHomeDialogue(index) {
+  if (currentScreen !== "home") return;
+  const config = loadHomeConfig();
+  const { card1, card2 } = resolveHomeCards(config);
+  chooseHomeDialogue(card1, card2, "tap", index);
+  applyHomeDialogue();
+}
+
+function resolveHomeCards(config) {
+  return {
+    card1: characters.find(c => c.id === config.card1) || characters[0] || null,
+    card2: config.mode === 2 ? (characters.find(c => c.id === config.card2) || null) : null
+  };
+}
+
+function syncHomeDialogue(card1, card2, reason) {
+  const cardIdsMatch = homeDialogueState && homeDialogueState.card1Id === (card1?.id || null) && homeDialogueState.card2Id === (card2?.id || null);
+  if (!card1) {
+    homeDialogueState = {
+      card1Id: null,
+      card2Id: null,
+      primaryName: "",
+      primaryText: "まずは編集画面でカードを登録してください。",
+      secondaryName: "",
+      secondaryText: ""
+    };
+    applyHomeDialogue();
+    return;
+  }
+
+  if (!cardIdsMatch || reason === "enter" || !homeDialogueState) {
+    chooseHomeDialogue(card1, card2, reason);
+  }
+  applyHomeDialogue();
+}
+
+function chooseHomeDialogue(card1, card2, reason = "refresh", tappedIndex = 1) {
+  const baseChar1 = card1?.baseCharId ? getBaseCharById(card1.baseCharId) : null;
+  const baseChar2 = card2?.baseCharId ? getBaseCharById(card2.baseCharId) : null;
+  const eventActive = isHomeEventActive();
+
+  let primaryName = card1?.name || "";
+  let primaryText = pickHomeVoice(baseChar1, card1, reason, eventActive);
+  let secondaryName = card2?.name || "";
+  let secondaryText = card2 ? pickHomeVoice(baseChar2, card2, reason, eventActive) : "";
+
+  if (reason === "tap" && card1 && tappedIndex) {
+    const actorCard = tappedIndex === 1 ? card1 : card2;
+    const actorBaseChar = tappedIndex === 1 ? baseChar1 : baseChar2;
+    const partnerCard = tappedIndex === 1 ? card2 : card1;
+    const partnerBaseChar = tappedIndex === 1 ? baseChar2 : baseChar1;
+    const relationResult = pickHomeRelationDialogue(actorCard, actorBaseChar, partnerCard, partnerBaseChar);
+    if (relationResult) {
+      if (tappedIndex === 1) {
+        primaryName = relationResult.primaryName;
+        primaryText = relationResult.primaryText;
+        secondaryName = relationResult.secondaryName;
+        secondaryText = relationResult.secondaryText;
+      } else {
+        primaryName = relationResult.secondaryName || primaryName;
+        primaryText = relationResult.secondaryText || primaryText;
+        secondaryName = relationResult.primaryName;
+        secondaryText = relationResult.primaryText;
+      }
+    } else if (tappedIndex === 2 && actorCard) {
+      primaryName = actorCard.name;
+      primaryText = pickHomeVoice(actorBaseChar, actorCard, "tap", eventActive);
+      secondaryName = card1?.name || "";
+      secondaryText = card1 ? pickHomeVoice(baseChar1, card1, "refresh", eventActive) : "";
+    }
+  }
+
+  homeDialogueState = {
+    card1Id: card1?.id || null,
+    card2Id: card2?.id || null,
+    primaryName,
+    primaryText,
+    secondaryName,
+    secondaryText
+  };
+}
+
+function pickHomeVoice(baseChar, card, reason, eventActive) {
+  const homeVoices = baseChar?.homeVoices || {};
+  if (reason === "enter" && eventActive && homeVoices.eventActive) return homeVoices.eventActive;
+  if (reason === "enter" && homeVoices.homeEnter) return homeVoices.homeEnter;
+
+  const pool = Object.values(homeVoices).filter(Boolean);
+  if (pool.length > 0) return pool[Math.floor(Math.random() * pool.length)];
+  return pickLine(card);
+}
+
+function pickHomeRelationDialogue(actorCard, actorBaseChar, partnerCard, partnerBaseChar) {
+  if (!actorCard || !actorBaseChar || !partnerCard || !partnerBaseChar) return null;
+  const targetId = partnerBaseChar.id;
+  const opinions = (actorBaseChar.homeOpinions || [])
+    .filter(item => item.targetBaseCharId === targetId)
+    .map(item => ({
+      primaryName: actorCard.name,
+      primaryText: item.text,
+      secondaryName: partnerCard.name,
+      secondaryText: ""
+    }));
+  const conversations = (actorBaseChar.homeConversations || [])
+    .filter(item => item.targetBaseCharId === targetId)
+    .map(item => ({
+      primaryName: actorCard.name,
+      primaryText: item.selfText || "",
+      secondaryName: partnerCard.name,
+      secondaryText: item.partnerText || ""
+    }));
+  const pool = [...opinions, ...conversations].filter(item => item.primaryText || item.secondaryText);
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function applyHomeDialogue() {
+  document.getElementById("home-speech-name").textContent = homeDialogueState?.primaryName || "";
+  document.getElementById("home-speech-text").textContent = homeDialogueState?.primaryText || "";
+  document.getElementById("home-speech-name-2").textContent = homeDialogueState?.secondaryName || "";
+  document.getElementById("home-speech-text-2").textContent = homeDialogueState?.secondaryText || "";
+  document.getElementById("home-speech").hidden = !homeDialogueState?.primaryText;
+  document.getElementById("home-speech-2").hidden = !homeDialogueState?.secondaryText;
+}
+
+function isHomeEventActive() {
+  return gachas.length > 0 || stories.some(story => story.type === "event");
 }
 
 function loadHomeConfig() {
@@ -795,8 +981,37 @@ function showCardDetail(char) {
   document.getElementById("card-detail-name").textContent = char.name;
   document.getElementById("card-detail-catch").textContent = char.catch || "";
   document.getElementById("card-detail-attr").textContent = char.attribute || "";
+  renderCardDetailVoices(char);
   renderCardDetailStories(char);
   document.getElementById("card-detail").hidden = false;
+}
+
+function renderCardDetailVoices(char) {
+  const wrap = document.getElementById("card-detail-voices");
+  const list = document.getElementById("card-detail-voice-list");
+  const baseChar = char.baseCharId ? getBaseCharById(char.baseCharId) : null;
+  const voiceEntries = baseChar
+    ? baseCharVoiceLineDefs
+        .map(([key, label]) => ({ label, text: baseChar.voiceLines?.[key] || "" }))
+        .filter(item => item.text)
+    : [];
+
+  list.innerHTML = "";
+  if (voiceEntries.length === 0) {
+    wrap.hidden = true;
+    return;
+  }
+
+  wrap.hidden = false;
+  voiceEntries.forEach(item => {
+    const row = document.createElement("div");
+    row.className = "card-detail-voice-item";
+    row.innerHTML = `
+      <span class="card-detail-voice-label">${esc(item.label)}</span>
+      <p class="card-detail-voice-text">${esc(item.text)}</p>
+    `;
+    list.appendChild(row);
+  });
 }
 
 function renderCardDetailStories(char) {
@@ -993,8 +1208,12 @@ function setupForms() {
   document.getElementById("add-scene-btn").addEventListener("click", () => addSceneInput());
   document.getElementById("add-expression-btn").addEventListener("click", () => addExpressionInput());
   document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
+  document.getElementById("add-home-opinion-btn").addEventListener("click", () => addHomeOpinionInput());
+  document.getElementById("add-home-conversation-btn").addEventListener("click", () => addHomeConversationInput());
   document.querySelector("#story-form select[name='type']").addEventListener("change", handleStoryTypeChange);
 
+  renderBaseCharVoiceLineFields();
+  renderBaseCharHomeVoiceLineFields();
   renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
@@ -1060,6 +1279,39 @@ function addVariantInput(variant = null) {
   });
   item.querySelector(".expression-remove").addEventListener("click", () => item.remove());
   list.appendChild(item);
+}
+
+function addHomeOpinionInput(item = null) {
+  const list = document.getElementById("home-opinion-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="home-opinion-target">
+      <option value="">相手キャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="home-opinion-text" rows="2" maxlength="200" placeholder="そのキャラについての所感">${esc(item?.text || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
+}
+
+function addHomeConversationInput(item = null) {
+  const list = document.getElementById("home-conversation-list");
+  const row = document.createElement("div");
+  row.className = "relation-line-item";
+  row.innerHTML = `
+    <select name="home-conversation-target">
+      <option value="">相手キャラを選択</option>
+      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
+    </select>
+    <textarea name="home-conversation-self" rows="2" maxlength="200" placeholder="自分のセリフ">${esc(item?.selfText || "")}</textarea>
+    <textarea name="home-conversation-partner" rows="2" maxlength="200" placeholder="相手のセリフ">${esc(item?.partnerText || "")}</textarea>
+    <button type="button" class="expression-remove">削除</button>
+  `;
+  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
+  list.appendChild(row);
 }
 
 async function collectExpressions() {
@@ -1128,12 +1380,20 @@ async function handleBaseCharSubmit(e) {
   const portrait = portraitFile ? await readFileAsDataUrl(portraitFile) : (existing?.portrait || "");
   const expressions = await collectExpressions();
   const variants = await collectVariants();
+  const voiceLines = collectBaseCharVoiceLines();
+  const homeVoices = collectBaseCharHomeVoiceLines();
+  const homeOpinions = collectHomeOpinions();
+  const homeConversations = collectHomeConversations();
   const baseChar = {
     id: editState.baseCharId || crypto.randomUUID(),
     name: form.name.value.trim(),
     description: form.description.value.trim(),
     color: form.color.value || "#a29bfe",
     portrait: portrait || makeBaseCharFallback(form.name.value.trim(), form.color.value),
+    voiceLines,
+    homeVoices,
+    homeOpinions,
+    homeConversations,
     variants,
     expressions
   };
@@ -1156,6 +1416,7 @@ async function handleCharacterSubmit(e) {
   const char = {
     id: editState.characterId || crypto.randomUUID(),
     name: form.name.value.trim(),
+    baseCharId: form.baseCharId.value || null,
     catch: form.catch.value.trim(),
     rarity: form.rarity.value,
     attribute: form.attribute.value.trim() || "未設定",
@@ -1445,6 +1706,12 @@ function beginBaseCharEdit(id) {
   exprList.innerHTML = "";
   const variantList = document.getElementById("variant-list");
   variantList.innerHTML = "";
+  renderBaseCharVoiceLineFields(baseChar.voiceLines || {});
+  renderBaseCharHomeVoiceLineFields(baseChar.homeVoices || {});
+  document.getElementById("home-opinion-list").innerHTML = "";
+  document.getElementById("home-conversation-list").innerHTML = "";
+  (baseChar.homeOpinions || []).forEach(item => addHomeOpinionInput(item));
+  (baseChar.homeConversations || []).forEach(item => addHomeConversationInput(item));
   if (baseChar.variants?.length) {
     baseChar.variants.forEach(v => addVariantInput(v));
   }
@@ -1460,6 +1727,7 @@ function beginCharacterEdit(id) {
   if (!char) return;
   editState.characterId = id;
   const form = document.getElementById("character-form");
+  form.baseCharId.value = char.baseCharId || "";
   form.name.value = char.name || "";
   form.catch.value = char.catch || "";
   form.rarity.value = char.rarity || "SR";
@@ -1523,6 +1791,10 @@ function resetBaseCharForm() {
   document.getElementById("base-char-preview").hidden = true;
   document.getElementById("expression-list").innerHTML = "";
   document.getElementById("variant-list").innerHTML = "";
+  renderBaseCharVoiceLineFields();
+  renderBaseCharHomeVoiceLineFields();
+  document.getElementById("home-opinion-list").innerHTML = "";
+  document.getElementById("home-conversation-list").innerHTML = "";
   updateEditorSubmitLabels();
 }
 
@@ -1605,6 +1877,13 @@ function populateBaseCharSelects() {
     ? (stories.find(story => story.id === editState.storyId)?.variantAssignments || [])
     : collectStoryVariantAssignments();
   renderStoryVariantDefaults(currentAssignments);
+
+  document.querySelectorAll("#home-opinion-list select[name='home-opinion-target'], #home-conversation-list select[name='home-conversation-target']").forEach(select => {
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">相手キャラを選択</option>' +
+      baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
+    select.value = currentValue;
+  });
 }
 
 function handleStoryTypeChange() {
@@ -1629,6 +1908,61 @@ function buildStorySummary(story) {
 
 function buildGachaRateSummary(rates = {}) {
   return ["N", "R", "SR", "SSR", "UR"].map(rarity => `${rarity} ${rates[rarity] || 0}%`).join(" / ");
+}
+
+function renderBaseCharVoiceLineFields(values = {}) {
+  const container = document.getElementById("voice-line-fields");
+  if (!container) return;
+  container.innerHTML = baseCharVoiceLineDefs.map(([key, label]) => `
+    <label>
+      ${label}
+      <textarea name="voice-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
+    </label>
+  `).join("");
+}
+
+function collectBaseCharVoiceLines() {
+  const voiceLines = {};
+  baseCharVoiceLineDefs.forEach(([key]) => {
+    const input = document.querySelector(`#voice-line-fields [name="voice-${key}"]`);
+    voiceLines[key] = input ? input.value.trim() : "";
+  });
+  return voiceLines;
+}
+
+function renderBaseCharHomeVoiceLineFields(values = {}) {
+  const container = document.getElementById("home-voice-line-fields");
+  if (!container) return;
+  container.innerHTML = baseCharHomeVoiceDefs.map(([key, label]) => `
+    <label>
+      ${label}
+      <textarea name="home-voice-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
+    </label>
+  `).join("");
+}
+
+function collectBaseCharHomeVoiceLines() {
+  const homeVoices = {};
+  baseCharHomeVoiceDefs.forEach(([key]) => {
+    const input = document.querySelector(`#home-voice-line-fields [name="home-voice-${key}"]`);
+    homeVoices[key] = input ? input.value.trim() : "";
+  });
+  return homeVoices;
+}
+
+function collectHomeOpinions() {
+  return Array.from(document.querySelectorAll("#home-opinion-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='home-opinion-target']").value,
+    text: item.querySelector("[name='home-opinion-text']").value.trim()
+  })).filter(item => item.targetBaseCharId && item.text);
+}
+
+function collectHomeConversations() {
+  return Array.from(document.querySelectorAll("#home-conversation-list .relation-line-item")).map(item => ({
+    targetBaseCharId: item.querySelector("[name='home-conversation-target']").value,
+    selfText: item.querySelector("[name='home-conversation-self']").value.trim(),
+    partnerText: item.querySelector("[name='home-conversation-partner']").value.trim()
+  })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
 }
 
 function upsertItem(collection, nextItem) {
