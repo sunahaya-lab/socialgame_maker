@@ -157,8 +157,7 @@
           <span>N: 40%</span>
           <span>R: 30%</span>
           <span>SR: 20%</span>
-          <span>SSR: 8%</span>
-          <span>UR: 2%</span>
+          <span>SSR: 10%</span>
         </div>
 
         <div class="gacha-buttons">
@@ -231,14 +230,7 @@
         <h2>図鑑</h2>
       </div>
 
-      <div class="collection-filters">
-        <button class="collection-filter active" data-rarity="all">ALL</button>
-        <button class="collection-filter" data-rarity="UR">UR</button>
-        <button class="collection-filter" data-rarity="SSR">SSR</button>
-        <button class="collection-filter" data-rarity="SR">SR</button>
-        <button class="collection-filter" data-rarity="R">R</button>
-        <button class="collection-filter" data-rarity="N">N</button>
-      </div>
+      <div class="collection-filters" id="collection-filters"></div>
 
       <div class="collection-grid" id="collection-grid"></div>
 
@@ -279,6 +271,7 @@
         <button class="editor-tab" data-editor-tab="character">カード</button>
         <button class="editor-tab" data-editor-tab="story">ストーリー</button>
         <button class="editor-tab" data-editor-tab="gacha">ガチャ</button>
+        <button class="editor-tab" data-editor-tab="system">システム</button>
       </div>
 
       <div class="editor-panel active" id="editor-base-char">
@@ -318,6 +311,8 @@
             <div id="variant-list" class="expression-list"></div>
             <button type="button" class="btn-secondary" id="add-variant-btn">+ イベント立ち絵を追加</button>
           </div>
+          <details class="editor-collapsible">
+            <summary>セリフ設定</summary>
           <div class="voice-lines-editor">
             <h4>キャラセリフ</h4>
             <div id="voice-line-fields" class="voice-line-fields"></div>
@@ -341,6 +336,7 @@
             <div id="home-birthday-list" class="relation-line-list"></div>
             <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ 誕生日セリフ追加</button>
           </div>
+          </details>
           <button type="submit" class="btn-primary">ベースキャラを登録</button>
         </form>
 
@@ -370,13 +366,7 @@
           </label>
           <label>
             レアリティ
-            <select name="rarity">
-              <option value="N">N</option>
-              <option value="R">R</option>
-              <option value="SR" selected>SR</option>
-              <option value="SSR">SSR</option>
-              <option value="UR">UR</option>
-            </select>
+            <select name="rarity" id="character-rarity-select"></select>
           </label>
           <label>
             属性
@@ -389,10 +379,8 @@
           <div class="editor-preview" id="char-preview" hidden>
             <img id="char-preview-img" alt="カードプレビュー">
           </div>
-          <label>
-            セリフ (1行ずつ改行で複数登録)
-            <textarea name="lines" rows="3" maxlength="500" placeholder="あなたのために&#10;今日も一日がんばろう&#10;また会えてうれしい"></textarea>
-          </label>
+          <details class="editor-collapsible">
+            <summary>カードボイス設定</summary>
           <div class="voice-lines-editor">
             <h4>カード固有ボイス</h4>
             <div id="card-voice-line-fields" class="voice-line-fields"></div>
@@ -416,6 +404,7 @@
             <div id="card-home-birthday-list" class="relation-line-list"></div>
             <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ 誕生日セリフ追加</button>
           </div>
+          </details>
           <button type="submit" class="btn-primary">カードを登録</button>
         </form>
 
@@ -490,13 +479,7 @@
           </div>
 
           <h4>排出率</h4>
-          <div class="rate-inputs">
-            <label>N <input name="rateN" type="number" min="0" max="100" value="40">%</label>
-            <label>R <input name="rateR" type="number" min="0" max="100" value="30">%</label>
-            <label>SR <input name="rateSR" type="number" min="0" max="100" value="20">%</label>
-            <label>SSR <input name="rateSSR" type="number" min="0" max="100" value="8">%</label>
-            <label>UR <input name="rateUR" type="number" min="0" max="100" value="2">%</label>
-          </div>
+          <div class="rate-inputs" id="gacha-rate-inputs"></div>
 
           <button type="submit" class="btn-primary">ガチャを登録</button>
         </form>
@@ -505,6 +488,28 @@
           <h4>登録済みガチャ</h4>
           <div id="editor-gacha-list" class="editor-record-list"></div>
         </div>
+      </div>
+
+      <div class="editor-panel" id="editor-system">
+        <p class="editor-desc">UI の設定やレアリティ方式を管理します。現在はレアリティ方式の切り替えに対応しています。</p>
+
+        <form id="system-form" class="editor-form">
+          <label>
+            レアリティ方式
+            <select name="rarityMode">
+              <option value="classic4">R方式4段階 (N / R / SR / SSR)</option>
+              <option value="stars5">星5段階 (★ から ★★★★★)</option>
+            </select>
+          </label>
+
+          <div class="system-preview">
+            <h4>プレビュー</h4>
+            <div class="system-preview-list" id="system-rarity-preview"></div>
+          </div>
+
+          <p class="editor-note">星方式では最大段階を「★★★★★」で表示します。</p>
+          <button type="submit" class="btn-primary">システム設定を保存</button>
+        </form>
       </div>
     </div>
 

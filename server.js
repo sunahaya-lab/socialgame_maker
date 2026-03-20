@@ -11,7 +11,8 @@ const dataFiles = {
   baseChars: path.join(dataDir, "base-chars.json"),
   entries: path.join(dataDir, "entries.json"),
   stories: path.join(dataDir, "stories.json"),
-  gachas: path.join(dataDir, "gachas.json")
+  gachas: path.join(dataDir, "gachas.json"),
+  system: path.join(dataDir, "system.json")
 };
 
 const mimeTypes = {
@@ -48,6 +49,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === "/api/gachas") {
       await handleCollection(req, res, "gachas", "gachas", room);
+      return;
+    }
+    if (url.pathname === "/api/system") {
+      await handleSystem(req, res, room);
       return;
     }
 
@@ -137,11 +142,50 @@ function ensureDataFiles() {
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }
-  for (const file of Object.values(dataFiles)) {
+  for (const [key, file] of Object.entries(dataFiles)) {
     if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, "[]", "utf8");
+      fs.writeFileSync(file, key === "system" ? JSON.stringify(defaultSystemConfig(), null, 2) : "[]", "utf8");
     }
   }
+}
+
+async function handleSystem(req, res, room) {
+  setCors(res);
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  const dataPath = resolveDataPath("system", room);
+
+  if (req.method === "GET") {
+    const raw = await fs.promises.readFile(dataPath, "utf8");
+    const item = (() => {
+      try {
+        return sanitizeSystemConfig(JSON.parse(raw));
+      } catch {
+        return defaultSystemConfig();
+      }
+    })();
+    res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ system: item }));
+    return;
+  }
+
+  if (req.method === "POST") {
+    const body = await readBody(req);
+    const input = JSON.parse(body || "{}");
+    const item = sanitizeSystemConfig(input);
+    await fs.promises.writeFile(dataPath, JSON.stringify(item, null, 2), "utf8");
+    res.writeHead(201, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ system: item }));
+    return;
+  }
+
+  res.writeHead(405, { "Content-Type": "application/json; charset=utf-8" });
+  res.end(JSON.stringify({ error: "Method not allowed" }));
 }
 
 async function readData(key) {
@@ -234,7 +278,8 @@ function sanitizeBaseChar(input) {
 function sanitizeEntry(input) {
   const text = (value, maxLength, fallback = "") =>
     String(value || fallback).slice(0, maxLength).trim();
-  const rarity = ["N", "R", "SR", "SSR", "UR"].includes(input.rarity) ? input.rarity : "SR";
+  const allowedRarities = ["N", "R", "SR", "SSR", "UR", "STAR1", "STAR2", "STAR3", "STAR4", "STAR5", "1", "2", "3", "4", "5"];
+  const rarity = allowedRarities.includes(String(input.rarity || "").toUpperCase()) ? String(input.rarity).toUpperCase() : "SR";
   const voiceLineKeys = [
     "gain", "evolve", "levelUp1", "levelUp2", "levelUp3",
     "leaderAssign", "subLeaderAssign", "normalAssign",
@@ -321,8 +366,10 @@ function sanitizeGacha(input) {
     String(value || fallback).slice(0, maxLength).trim();
 
   const rates = {};
-  for (const r of ["N", "R", "SR", "SSR", "UR"]) {
-    rates[r] = Math.max(0, Math.min(100, Number(input.rates?.[r]) || 0));
+  for (const [key, value] of Object.entries(input.rates || {})) {
+    const safeKey = String(key || "").toUpperCase().slice(0, 16);
+    if (!safeKey) continue;
+    rates[safeKey] = Math.max(0, Math.min(100, Number(value) || 0));
   }
 
   return {
@@ -335,15 +382,36 @@ function sanitizeGacha(input) {
   };
 }
 
+function sanitizeSystemConfig(input) {
+  const rarityMode = input?.rarityMode === "stars5" ? "stars5" : "classic4";
+  return {
+    rarityMode
+  };
+}
+
+function defaultSystemConfig() {
+  return {
+    rarityMode: "classic4"
+  };
+}
+
 function resolveDataPath(fileKey, room) {
   if (!room) return dataFiles[fileKey];
   const safeRoom = room.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
   if (!safeRoom) return dataFiles[fileKey];
   const roomDir = path.join(dataDir, safeRoom);
   if (!fs.existsSync(roomDir)) fs.mkdirSync(roomDir, { recursive: true });
-  const fileNames = { baseChars: "base-chars.json", entries: "entries.json", stories: "stories.json", gachas: "gachas.json" };
+  const fileNames = {
+    baseChars: "base-chars.json",
+    entries: "entries.json",
+    stories: "stories.json",
+    gachas: "gachas.json",
+    system: "system.json"
+  };
   const filePath = path.join(roomDir, fileNames[fileKey]);
-  if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, "[]", "utf8");
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, fileKey === "system" ? JSON.stringify(defaultSystemConfig(), null, 2) : "[]", "utf8");
+  }
   return filePath;
 }
 

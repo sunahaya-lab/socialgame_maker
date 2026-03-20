@@ -2,6 +2,7 @@ let baseChars = [];
 let characters = [];
 let stories = [];
 let gachas = [];
+let systemConfig = getDefaultSystemConfig();
 let currentScreen = "home";
 let currentStoryType = "main";
 let activeGacha = null;
@@ -27,16 +28,119 @@ const API = {
   baseChars: "/api/base-chars",
   characters: "/api/entries",
   stories: "/api/stories",
-  gachas: "/api/gachas"
+  gachas: "/api/gachas",
+  system: "/api/system"
 };
 
-const palettes = {
-  UR: ["#2d0a0a", "#ff6b6b", "#ff9999"],
-  SSR: ["#2d2200", "#ffd447", "#ffe680"],
-  SR: ["#1a1040", "#a29bfe", "#c8c3ff"],
-  R: ["#0a1a2d", "#74b9ff", "#a0d8ff"],
-  N: ["#1a1a1a", "#b2bec3", "#dfe6e9"]
+const rarityPalettes = {
+  1: ["#1a1a1a", "#b2bec3", "#dfe6e9"],
+  2: ["#0a1a2d", "#74b9ff", "#a0d8ff"],
+  3: ["#1a1040", "#a29bfe", "#c8c3ff"],
+  4: ["#2d2200", "#ffd447", "#ffe680"],
+  5: ["#2d0a0a", "#ff6b6b", "#ff9999"]
 };
+
+const rarityModes = {
+  classic4: {
+    id: "classic4",
+    tiers: [
+      { value: "N", rank: 1, label: "N" },
+      { value: "R", rank: 2, label: "R" },
+      { value: "SR", rank: 3, label: "SR" },
+      { value: "SSR", rank: 4, label: "SSR" }
+    ],
+    fallback: "SR",
+    defaultRates: { N: 40, R: 30, SR: 20, SSR: 10 }
+  },
+  stars5: {
+    id: "stars5",
+    tiers: [
+      { value: "STAR1", rank: 1, label: "★" },
+      { value: "STAR2", rank: 2, label: "★★" },
+      { value: "STAR3", rank: 3, label: "★★★" },
+      { value: "STAR4", rank: 4, label: "★★★★" },
+      { value: "STAR5", rank: 5, label: "★★★★★" }
+    ],
+    fallback: "STAR3",
+    defaultRates: { STAR1: 40, STAR2: 30, STAR3: 15, STAR4: 10, STAR5: 5 }
+  }
+};
+
+const rarityRankMap = {
+  N: 1,
+  R: 2,
+  SR: 3,
+  SSR: 4,
+  UR: 5,
+  STAR1: 1,
+  STAR2: 2,
+  STAR3: 3,
+  STAR4: 4,
+  STAR5: 5,
+  "1": 1,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5
+};
+
+function getDefaultSystemConfig() {
+  return { rarityMode: "classic4" };
+}
+
+function getRarityModeConfig(mode = systemConfig?.rarityMode) {
+  return rarityModes[mode] || rarityModes.classic4;
+}
+
+function getRarityRank(value) {
+  return rarityRankMap[String(value || "").toUpperCase()] || 1;
+}
+
+function getRarityValueByRank(rank, mode = systemConfig?.rarityMode) {
+  const config = getRarityModeConfig(mode);
+  const maxRank = config.tiers[config.tiers.length - 1].rank;
+  const safeRank = Math.max(1, Math.min(maxRank, rank));
+  return config.tiers.find(tier => tier.rank === safeRank)?.value || config.fallback;
+}
+
+function normalizeRarityValue(value, mode = systemConfig?.rarityMode) {
+  return getRarityValueByRank(getRarityRank(value), mode);
+}
+
+function getRarityLabel(value, mode = systemConfig?.rarityMode) {
+  const config = getRarityModeConfig(mode);
+  const normalized = normalizeRarityValue(value, mode);
+  return config.tiers.find(tier => tier.value === normalized)?.label || normalized;
+}
+
+function getRarityCssClass(value) {
+  return `rarity-tier-${getRarityRank(normalizeRarityValue(value))}`;
+}
+
+function getCurrentRarityValues() {
+  return getRarityModeConfig().tiers.map(tier => tier.value);
+}
+
+function getDefaultRates(mode = systemConfig?.rarityMode) {
+  return { ...getRarityModeConfig(mode).defaultRates };
+}
+
+function normalizeRates(rates = {}, mode = systemConfig?.rarityMode) {
+  const config = getRarityModeConfig(mode);
+  const normalized = {};
+  config.tiers.forEach(tier => {
+    normalized[tier.value] = 0;
+  });
+  Object.entries(rates || {}).forEach(([key, value]) => {
+    const mapped = normalizeRarityValue(key, mode);
+    normalized[mapped] = (normalized[mapped] || 0) + (Number(value) || 0);
+  });
+  return normalized;
+}
+
+function getScopedKey(key) {
+  return getScopedStorageKey(key);
+}
 
 const baseCharVoiceLineDefs = [
   ["gain", "獲得"],
@@ -134,22 +238,28 @@ function navigateTo(screen) {
 }
 
 async function loadAllData() {
-  const [loadedBaseChars, loadedCharacters, loadedStories, loadedGachas] = await Promise.all([
+  const [loadedBaseChars, loadedCharacters, loadedStories, loadedGachas, loadedSystem] = await Promise.all([
     fetchJSON(apiUrl(API.baseChars)).then(data => data.baseChars || []).catch(() => loadLocal("socia-base-chars", [])),
     fetchJSON(apiUrl(API.characters)).then(data => data.entries || []).catch(() => loadLocal("socia-characters", [])),
     fetchJSON(apiUrl(API.stories)).then(data => data.stories || []).catch(() => loadLocal("socia-stories", [])),
-    fetchJSON(apiUrl(API.gachas)).then(data => data.gachas || []).catch(() => loadLocal("socia-gachas", []))
+    fetchJSON(apiUrl(API.gachas)).then(data => data.gachas || []).catch(() => loadLocal("socia-gachas", [])),
+    fetchJSON(apiUrl(API.system)).then(data => data.system || getDefaultSystemConfig()).catch(() => loadLocal("socia-system", getDefaultSystemConfig()))
   ]);
 
   baseChars = loadedBaseChars;
   characters = loadedCharacters;
   stories = loadedStories;
   gachas = loadedGachas;
+  systemConfig = {
+    ...getDefaultSystemConfig(),
+    ...(loadedSystem || {})
+  };
 
   saveLocal("socia-base-chars", baseChars);
   saveLocal("socia-characters", characters);
   saveLocal("socia-stories", stories);
   saveLocal("socia-gachas", gachas);
+  saveLocal("socia-system", systemConfig);
 }
 
 async function fetchJSON(url) {
@@ -186,6 +296,7 @@ function getScopedStorageKey(key) {
 }
 
 function renderAll() {
+  renderCollectionFilters();
   renderHome("refresh");
   renderEditorScreen();
 }
@@ -744,16 +855,16 @@ function showActiveGacha() {
   document.getElementById("gacha-active-title").textContent = gacha.title;
   document.getElementById("gacha-active-desc").textContent = gacha.description || "";
 
-  const rates = gacha.rates || { N: 40, R: 30, SR: 20, SSR: 8, UR: 2 };
+  const rates = normalizeRates(gacha.rates || getDefaultRates());
   document.getElementById("gacha-rates").innerHTML =
-    ["N", "R", "SR", "SSR", "UR"].map(rarity => `<span>${rarity}: ${rates[rarity] || 0}%</span>`).join("");
+    getRarityModeConfig().tiers.map(tier => `<span>${getRarityLabel(tier.value)}: ${rates[tier.value] || 0}%</span>`).join("");
 }
 
 function pullGacha(count) {
   if (characters.length === 0) return;
 
   const gacha = gachas[activeGacha];
-  const rates = gacha?.rates || { N: 40, R: 30, SR: 20, SSR: 8, UR: 2 };
+  const rates = normalizeRates(gacha?.rates || getDefaultRates());
 
   document.getElementById("gacha-overlay").hidden = false;
   document.getElementById("gacha-active-area").hidden = true;
@@ -764,7 +875,7 @@ function pullGacha(count) {
 
     for (let i = 0; i < count; i += 1) {
       const rarity = rollRarity(rates);
-      const pool = characters.filter(char => char.rarity === rarity);
+      const pool = characters.filter(char => normalizeRarityValue(char.rarity) === rarity);
       const char = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : characters[Math.floor(Math.random() * characters.length)];
       results.push({ ...char, rolledRarity: rarity });
     }
@@ -776,11 +887,12 @@ function pullGacha(count) {
 function rollRarity(rates) {
   const roll = Math.random() * 100;
   let cumulative = 0;
-  for (const rarity of ["UR", "SSR", "SR", "R", "N"]) {
-    cumulative += rates[rarity] || 0;
-    if (roll < cumulative) return rarity;
+  const tiers = [...getRarityModeConfig().tiers].sort((a, b) => b.rank - a.rank);
+  for (const tier of tiers) {
+    cumulative += rates[tier.value] || 0;
+    if (roll < cumulative) return tier.value;
   }
-  return "N";
+  return getRarityModeConfig().tiers[0].value;
 }
 
 function showGachaResults(results) {
@@ -790,12 +902,12 @@ function showGachaResults(results) {
 
   results.forEach((char, index) => {
     const card = document.createElement("div");
-    card.className = `gacha-result-card rarity-${char.rolledRarity || char.rarity}`;
+    card.className = `gacha-result-card ${getRarityCssClass(char.rolledRarity || char.rarity)}`;
     card.style.animationDelay = `${index * 0.1}s`;
     card.innerHTML = `
       <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
       <div class="gacha-result-info">
-        <p class="gacha-result-rarity">${esc(char.rolledRarity || char.rarity)}</p>
+        <p class="gacha-result-rarity">${esc(getRarityLabel(char.rolledRarity || char.rarity))}</p>
         <p class="gacha-result-name">${esc(char.name)}</p>
       </div>
     `;
@@ -985,20 +1097,37 @@ function closeStoryReader() {
 }
 
 function setupCollectionFilters() {
-  document.querySelectorAll(".collection-filter").forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".collection-filter").forEach(item => item.classList.remove("active"));
-      btn.classList.add("active");
-      renderCollectionScreen(btn.dataset.rarity);
-    });
+  const wrap = document.getElementById("collection-filters");
+  wrap.addEventListener("click", e => {
+    const btn = e.target.closest(".collection-filter");
+    if (!btn) return;
+    document.querySelectorAll(".collection-filter").forEach(item => item.classList.remove("active"));
+    btn.classList.add("active");
+    renderCollectionScreen(btn.dataset.rarity);
   });
+}
+
+function renderCollectionFilters(active = "all") {
+  const wrap = document.getElementById("collection-filters");
+  if (!wrap) return;
+  const buttons = [{ value: "all", label: "ALL" }].concat(
+    getRarityModeConfig().tiers.slice().sort((a, b) => b.rank - a.rank).map(tier => ({
+      value: tier.value,
+      label: getRarityLabel(tier.value)
+    }))
+  );
+  wrap.innerHTML = buttons.map(item =>
+    `<button class="collection-filter${item.value === active ? " active" : ""}" data-rarity="${item.value}">${esc(item.label)}</button>`
+  ).join("");
 }
 
 function renderCollectionScreen(filterRarity) {
   const grid = document.getElementById("collection-grid");
   const empty = document.getElementById("collection-empty");
-  const activeFilter = filterRarity || document.querySelector(".collection-filter.active")?.dataset.rarity || "all";
-  const filtered = activeFilter === "all" ? characters : characters.filter(char => char.rarity === activeFilter);
+  const requestedFilter = filterRarity || document.querySelector(".collection-filter.active")?.dataset.rarity || "all";
+  const activeFilter = requestedFilter === "all" ? "all" : normalizeRarityValue(requestedFilter);
+  renderCollectionFilters(activeFilter);
+  const filtered = activeFilter === "all" ? characters : characters.filter(char => normalizeRarityValue(char.rarity) === activeFilter);
 
   grid.innerHTML = "";
   if (characters.length === 0) {
@@ -1009,11 +1138,11 @@ function renderCollectionScreen(filterRarity) {
   empty.hidden = true;
   filtered.forEach(char => {
     const card = document.createElement("div");
-    card.className = `collection-card rarity-${char.rarity}`;
+    card.className = `collection-card ${getRarityCssClass(char.rarity)}`;
     card.innerHTML = `
       <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
       <div class="collection-card-info">
-        <span class="collection-card-rarity ${char.rarity}">${esc(char.rarity)}</span>
+        <span class="collection-card-rarity ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
         <p class="collection-card-name">${esc(char.name)}</p>
       </div>
     `;
@@ -1036,7 +1165,7 @@ function setupCardDetail() {
 function showCardDetail(char) {
   document.getElementById("card-detail-image").innerHTML =
     `<img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">`;
-  document.getElementById("card-detail-rarity").textContent = char.rarity;
+  document.getElementById("card-detail-rarity").textContent = getRarityLabel(char.rarity);
   document.getElementById("card-detail-name").textContent = char.name;
   document.getElementById("card-detail-catch").textContent = char.catch || "";
   document.getElementById("card-detail-attr").textContent = char.attribute || "";
@@ -1104,6 +1233,7 @@ function setupEditorTabs() {
       tab.classList.add("active");
       document.getElementById(`editor-${tab.dataset.editorTab}`).classList.add("active");
       if (tab.dataset.editorTab === "gacha") renderGachaPoolChars(getEditingFeaturedIds());
+      if (tab.dataset.editorTab === "system") renderSystemForm();
     });
   });
 }
@@ -1113,9 +1243,46 @@ function renderEditorScreen() {
   renderEditorCharacterList();
   renderEditorStoryList();
   renderEditorGachaList();
+  renderSystemForm();
   renderGachaPoolChars(getEditingFeaturedIds());
+  renderCollectionFilters();
   populateBaseCharSelects();
   updateEditorSubmitLabels();
+}
+
+function renderSystemForm() {
+  const form = document.getElementById("system-form");
+  if (!form) return;
+  form.rarityMode.value = systemConfig.rarityMode || "classic4";
+  renderSystemPreview();
+  renderCharacterRarityOptions(document.getElementById("character-form")?.rarity.value);
+  renderGachaRateInputs(editState.gachaId ? gachas.find(gacha => gacha.id === editState.gachaId)?.rates : null);
+}
+
+function renderSystemPreview() {
+  const list = document.getElementById("system-rarity-preview");
+  if (!list) return;
+  list.innerHTML = getRarityModeConfig().tiers.map(tier =>
+    `<span class="system-rarity-chip ${getRarityCssClass(tier.value)}">${esc(getRarityLabel(tier.value))}</span>`
+  ).join("");
+}
+
+function renderCharacterRarityOptions(selectedValue) {
+  const select = document.getElementById("character-rarity-select");
+  if (!select) return;
+  const normalized = normalizeRarityValue(selectedValue || getRarityModeConfig().fallback);
+  select.innerHTML = getRarityModeConfig().tiers.map(tier =>
+    `<option value="${tier.value}"${tier.value === normalized ? " selected" : ""}>${esc(getRarityLabel(tier.value))}</option>`
+  ).join("");
+}
+
+function renderGachaRateInputs(values) {
+  const wrap = document.getElementById("gacha-rate-inputs");
+  if (!wrap) return;
+  const rates = normalizeRates(values || getDefaultRates());
+  wrap.innerHTML = getRarityModeConfig().tiers.map(tier =>
+    `<label>${esc(getRarityLabel(tier.value))} <input name="rate-${tier.value}" type="number" min="0" max="100" value="${rates[tier.value] || 0}">%</label>`
+  ).join("");
 }
 
 function renderBaseCharList() {
@@ -1157,12 +1324,12 @@ function renderEditorCharacterList() {
 
   characters.forEach(char => {
     const item = document.createElement("div");
-    item.className = `editor-record-card rarity-${char.rarity}`;
+    item.className = `editor-record-card ${getRarityCssClass(char.rarity)}`;
     item.innerHTML = `
       <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
       <div class="editor-record-card-body">
         <div class="editor-record-item-top">
-          <span class="editor-record-badge ${char.rarity}">${esc(char.rarity)}</span>
+          <span class="editor-record-badge ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
           <span class="editor-record-meta">${esc(char.attribute || "-")}</span>
         </div>
         <h5>${esc(char.name)}</h5>
@@ -1251,7 +1418,7 @@ function renderGachaPoolChars(selectedIds = []) {
     item.dataset.charId = char.id;
     item.innerHTML = `
       <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-      <span>${esc(char.rarity)} ${esc(char.name)}</span>
+      <span>${esc(getRarityLabel(char.rarity))} ${esc(char.name)}</span>
     `;
     item.addEventListener("click", () => item.classList.toggle("selected"));
     container.appendChild(item);
@@ -1263,6 +1430,8 @@ function setupForms() {
   document.getElementById("character-form").addEventListener("submit", handleCharacterSubmit);
   document.getElementById("story-form").addEventListener("submit", handleStorySubmit);
   document.getElementById("gacha-form").addEventListener("submit", handleGachaSubmit);
+  document.getElementById("system-form").addEventListener("submit", handleSystemSubmit);
+  document.querySelector("#system-form select[name='rarityMode']").addEventListener("change", handleSystemModePreview);
   document.getElementById("add-scene-btn").addEventListener("click", () => addSceneInput());
   document.getElementById("add-expression-btn").addEventListener("click", () => addExpressionInput());
   document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
@@ -1279,6 +1448,7 @@ function setupForms() {
   renderCardVoiceLineFields();
   renderCardHomeVoiceLineFields();
   renderStoryVariantDefaults();
+  renderSystemForm();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
   addSceneInput();
@@ -1544,7 +1714,6 @@ async function handleCharacterSubmit(e) {
   const existing = editState.characterId ? characters.find(item => item.id === editState.characterId) : null;
   const imageFile = form.image.files[0];
   const image = imageFile ? await readFileAsDataUrl(imageFile) : (existing?.image || "");
-  const lines = form.lines.value.split("\n").map(l => l.trim()).filter(Boolean);
   const voiceLines = collectCardVoiceLines();
   const homeVoices = collectCardHomeVoiceLines();
   const homeOpinions = collectCardHomeOpinions();
@@ -1555,10 +1724,10 @@ async function handleCharacterSubmit(e) {
     name: form.name.value.trim(),
     baseCharId: form.baseCharId.value || null,
     catch: form.catch.value.trim(),
-    rarity: form.rarity.value,
+    rarity: normalizeRarityValue(form.rarity.value),
     attribute: form.attribute.value.trim() || "未設定",
     image: image || makeFallbackImage(form.name.value.trim(), form.rarity.value),
-    lines,
+    lines: existing?.lines || [],
     voiceLines,
     homeVoices,
     homeOpinions,
@@ -1615,13 +1784,10 @@ async function handleGachaSubmit(e) {
     description: form.description.value.trim(),
     bannerImage,
     featured,
-    rates: {
-      N: Number(form.rateN.value) || 0,
-      R: Number(form.rateR.value) || 0,
-      SR: Number(form.rateSR.value) || 0,
-      SSR: Number(form.rateSSR.value) || 0,
-      UR: Number(form.rateUR.value) || 0
-    }
+    rates: getRarityModeConfig().tiers.reduce((acc, tier) => {
+      acc[tier.value] = Number(form.querySelector(`[name="rate-${tier.value}"]`)?.value) || 0;
+      return acc;
+    }, {})
   };
   upsertItem(gachas, gacha);
   saveLocal("socia-gachas", gachas);
@@ -1630,6 +1796,29 @@ async function handleGachaSubmit(e) {
   renderHome();
   renderEditorGachaList();
   showToast(`${gacha.title} を${existing ? "更新" : "登録"}しました。`);
+}
+
+function handleSystemModePreview(e) {
+  systemConfig = {
+    ...systemConfig,
+    rarityMode: e.target.value === "stars5" ? "stars5" : "classic4"
+  };
+  renderSystemForm();
+  if (currentScreen === "collection") renderCollectionScreen();
+}
+
+async function handleSystemSubmit(e) {
+  e.preventDefault();
+  const form = e.target;
+  systemConfig = {
+    rarityMode: form.rarityMode.value === "stars5" ? "stars5" : "classic4"
+  };
+  saveLocal("socia-system", systemConfig);
+  try { await postJSON(apiUrl(API.system), systemConfig); } catch {}
+  renderAll();
+  if (currentScreen === "gacha") renderGachaScreen();
+  if (currentScreen === "collection") renderCollectionScreen();
+  showToast("システム設定を保存しました");
 }
 
 function collectStoryScenes() {
@@ -1875,9 +2064,8 @@ function beginCharacterEdit(id) {
   form.baseCharId.value = char.baseCharId || "";
   form.name.value = char.name || "";
   form.catch.value = char.catch || "";
-  form.rarity.value = char.rarity || "SR";
+  renderCharacterRarityOptions(char.rarity || getRarityModeConfig().fallback);
   form.attribute.value = char.attribute || "";
-  form.lines.value = (char.lines || []).join("\n");
   renderCardVoiceLineFields(char.voiceLines || {});
   renderCardHomeVoiceLineFields(char.homeVoices || {});
   document.getElementById("card-home-opinion-list").innerHTML = "";
@@ -1918,11 +2106,7 @@ function beginGachaEdit(id) {
   const form = document.getElementById("gacha-form");
   form.title.value = gacha.title || "";
   form.description.value = gacha.description || "";
-  form.rateN.value = gacha.rates?.N ?? 40;
-  form.rateR.value = gacha.rates?.R ?? 30;
-  form.rateSR.value = gacha.rates?.SR ?? 20;
-  form.rateSSR.value = gacha.rates?.SSR ?? 8;
-  form.rateUR.value = gacha.rates?.UR ?? 2;
+  renderGachaRateInputs(gacha.rates);
   renderGachaPoolChars(gacha.featured || []);
   updateEditorSubmitLabels();
   form.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1956,7 +2140,7 @@ function resetCharacterForm() {
   editState.characterId = null;
   const form = document.getElementById("character-form");
   form.reset();
-  form.rarity.value = "SR";
+  renderCharacterRarityOptions(getRarityModeConfig().fallback);
   renderCardVoiceLineFields();
   renderCardHomeVoiceLineFields();
   document.getElementById("card-home-opinion-list").innerHTML = "";
@@ -1982,11 +2166,7 @@ function resetGachaForm() {
   editState.gachaId = null;
   const form = document.getElementById("gacha-form");
   form.reset();
-  form.rateN.value = 40;
-  form.rateR.value = 30;
-  form.rateSR.value = 20;
-  form.rateSSR.value = 8;
-  form.rateUR.value = 2;
+  renderGachaRateInputs(getDefaultRates());
   renderGachaPoolChars();
   updateEditorSubmitLabels();
 }
@@ -2028,7 +2208,7 @@ function populateBaseCharSelects() {
   if (storyCardSelect) {
     const currentValue = storyCardSelect.value;
     storyCardSelect.innerHTML = '<option value="">カードを選択</option>' +
-      characters.map(char => `<option value="${esc(char.id)}">${esc(char.rarity)} ${esc(char.name)}</option>`).join("");
+      characters.map(char => `<option value="${esc(char.id)}">${esc(getRarityLabel(char.rarity))} ${esc(char.name)}</option>`).join("");
     storyCardSelect.value = currentValue;
   }
 
@@ -2067,7 +2247,10 @@ function buildStorySummary(story) {
 }
 
 function buildGachaRateSummary(rates = {}) {
-  return ["N", "R", "SR", "SSR", "UR"].map(rarity => `${rarity} ${rates[rarity] || 0}%`).join(" / ");
+  const normalized = normalizeRates(rates);
+  return getRarityModeConfig().tiers
+    .map(tier => `${getRarityLabel(tier.value)} ${normalized[tier.value] || 0}%`)
+    .join(" / ");
 }
 
 function renderVoiceLineFields(containerId, prefix, defs, values = {}) {
@@ -2204,8 +2387,9 @@ function makeBaseCharFallback(name, color) {
 }
 
 function makeFallbackImage(name, rarity) {
-  const colors = palettes[rarity] || palettes.N;
+  const colors = rarityPalettes[getRarityRank(normalizeRarityValue(rarity))] || rarityPalettes[1];
   const safeName = esc(name);
+  const rarityLabel = getRarityLabel(rarity);
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">
       <defs>
@@ -2218,7 +2402,7 @@ function makeFallbackImage(name, rarity) {
       <rect width="300" height="400" fill="url(#g)"/>
       <circle cx="240" cy="60" r="60" fill="rgba(255,255,255,0.1)"/>
       <circle cx="60" cy="340" r="80" fill="rgba(255,255,255,0.06)"/>
-      <text x="20" y="50" fill="white" font-size="24" font-weight="bold" font-family="Arial">${rarity}</text>
+      <text x="20" y="50" fill="white" font-size="24" font-weight="bold" font-family="Arial">${rarityLabel}</text>
       <text x="20" y="360" fill="white" font-size="22" font-family="Arial">${safeName}</text>
     </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
