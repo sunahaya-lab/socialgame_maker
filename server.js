@@ -32,21 +32,22 @@ ensureDataFiles();
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    const room = url.searchParams.get("room") || null;
 
     if (url.pathname === "/api/base-chars") {
-      await handleCollection(req, res, "baseChars", "baseChars");
+      await handleCollection(req, res, "baseChars", "baseChars", room);
       return;
     }
     if (url.pathname === "/api/entries") {
-      await handleCollection(req, res, "entries", "entries");
+      await handleCollection(req, res, "entries", "entries", room);
       return;
     }
     if (url.pathname === "/api/stories") {
-      await handleCollection(req, res, "stories", "stories");
+      await handleCollection(req, res, "stories", "stories", room);
       return;
     }
     if (url.pathname === "/api/gachas") {
-      await handleCollection(req, res, "gachas", "gachas");
+      await handleCollection(req, res, "gachas", "gachas", room);
       return;
     }
 
@@ -61,7 +62,7 @@ server.listen(port, () => {
   console.log(`Socia Maker server running at http://localhost:${port}`);
 });
 
-async function handleCollection(req, res, fileKey, jsonKey) {
+async function handleCollection(req, res, fileKey, jsonKey, room) {
   setCors(res);
 
   if (req.method === "OPTIONS") {
@@ -70,8 +71,11 @@ async function handleCollection(req, res, fileKey, jsonKey) {
     return;
   }
 
+  const dataPath = resolveDataPath(fileKey, room);
+
   if (req.method === "GET") {
-    const items = await readData(fileKey);
+    const raw = await fs.promises.readFile(dataPath, "utf8");
+    const items = (() => { try { const d = JSON.parse(raw); return Array.isArray(d) ? d : []; } catch { return []; } })();
     res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ [jsonKey]: items }));
     return;
@@ -80,7 +84,8 @@ async function handleCollection(req, res, fileKey, jsonKey) {
   if (req.method === "POST") {
     const body = await readBody(req);
     const input = JSON.parse(body || "{}");
-    const items = await readData(fileKey);
+    const raw = await fs.promises.readFile(dataPath, "utf8");
+    const items = (() => { try { const d = JSON.parse(raw); return Array.isArray(d) ? d : []; } catch { return []; } })();
 
     // Sanitize based on type
     const item = fileKey === "baseChars" ? sanitizeBaseChar(input) :
@@ -95,7 +100,7 @@ async function handleCollection(req, res, fileKey, jsonKey) {
       items.unshift(item);
     }
 
-    await writeData(fileKey, items);
+    await fs.promises.writeFile(dataPath, JSON.stringify(items, null, 2), "utf8");
     res.writeHead(201, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ [fileKey === "entries" ? "entry" : fileKey.slice(0, -1)]: item }));
     return;
@@ -173,7 +178,15 @@ function sanitizeBaseChar(input) {
     name: text(input.name, 30, "名称未設定"),
     description: text(input.description, 80, ""),
     color,
-    portrait: text(input.portrait, 2_000_000, "")
+    portrait: text(input.portrait, 2_000_000, ""),
+    variants: Array.isArray(input.variants) ? input.variants.slice(0, 20).map(v => ({
+      name: text(v.name, 30, "イベント差分"),
+      image: text(v.image, 2_000_000, "")
+    })) : [],
+    expressions: Array.isArray(input.expressions) ? input.expressions.slice(0, 20).map(e => ({
+      name: text(e.name, 30, "通常"),
+      image: text(e.image, 2_000_000, "")
+    })) : []
   };
 }
 
@@ -187,7 +200,8 @@ function sanitizeEntry(input) {
     catch: text(input.catch, 120, "説明なし"),
     rarity,
     attribute: text(input.attribute, 24, "未分類"),
-    image: text(input.image, 2_000_000, "")
+    image: text(input.image, 2_000_000, ""),
+    lines: Array.isArray(input.lines) ? input.lines.slice(0, 20).map(l => text(l, 120, "")) .filter(Boolean) : []
   };
 }
 
@@ -196,15 +210,25 @@ function sanitizeStory(input) {
     String(value || fallback).slice(0, maxLength).trim();
 
   const scenes = Array.isArray(input.scenes) ? input.scenes.slice(0, 100).map(s => ({
+    characterId: s.characterId ? text(s.characterId, 80) : null,
     character: s.character ? text(s.character, 40) : null,
+    variantName: s.variantName ? text(s.variantName, 30) : null,
+    expressionName: s.expressionName ? text(s.expressionName, 30) : null,
     text: text(s.text, 500, "..."),
-    image: text(s.image, 2_000_000, "")
+    image: text(s.image, 2_000_000, ""),
+    bgm: s.bgm ? text(s.bgm, 500) : null,
+    background: s.background ? text(s.background, 2_000_000) : null
   })) : [];
 
   return {
     id: text(input.id, 80, `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     title: text(input.title, 60, "無題のストーリー"),
     type: ["main", "event"].includes(input.type) ? input.type : "main",
+    bgm: text(input.bgm, 500, ""),
+    variantAssignments: Array.isArray(input.variantAssignments) ? input.variantAssignments.slice(0, 50).map(v => ({
+      characterId: v.characterId ? text(v.characterId, 80) : null,
+      variantName: v.variantName ? text(v.variantName, 30) : null
+    })).filter(v => v.characterId && v.variantName) : [],
     scenes
   };
 }
@@ -226,6 +250,18 @@ function sanitizeGacha(input) {
     featured: Array.isArray(input.featured) ? input.featured.slice(0, 20).map(f => String(f).slice(0, 80)) : [],
     rates
   };
+}
+
+function resolveDataPath(fileKey, room) {
+  if (!room) return dataFiles[fileKey];
+  const safeRoom = room.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 40);
+  if (!safeRoom) return dataFiles[fileKey];
+  const roomDir = path.join(dataDir, safeRoom);
+  if (!fs.existsSync(roomDir)) fs.mkdirSync(roomDir, { recursive: true });
+  const fileNames = { baseChars: "base-chars.json", entries: "entries.json", stories: "stories.json", gachas: "gachas.json" };
+  const filePath = path.join(roomDir, fileNames[fileKey]);
+  if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, "[]", "utf8");
+  return filePath;
 }
 
 function setCors(res) {

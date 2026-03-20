@@ -11,9 +11,8 @@
     <div class="screen active" id="screen-home">
       <div class="home-bg" id="home-bg"></div>
 
-      <div class="home-character" id="home-character">
-        <img id="home-char-img" alt="" src="">
-      </div>
+      <div class="home-character" id="home-char-1"></div>
+      <div class="home-character home-character-2" id="home-char-2"></div>
 
       <div class="home-topbar">
         <div class="home-topbar-left">
@@ -40,13 +39,17 @@
       </div>
 
       <div class="home-side-left">
-        <button class="home-side-btn" id="home-news-btn">
-          <span class="home-side-icon">&#x1F4E2;</span>
-          <span>お知らせ</span>
+        <button class="home-side-btn" id="home-config-btn">
+          <span class="home-side-icon">&#x1F3A8;</span>
+          <span>配置</span>
         </button>
         <button class="home-side-btn" data-go="editor">
           <span class="home-side-icon">&#x2699;&#xFE0F;</span>
           <span>編集</span>
+        </button>
+        <button class="home-side-btn" id="share-btn">
+          <span class="home-side-icon">&#x1F517;</span>
+          <span>共有</span>
         </button>
       </div>
 
@@ -77,6 +80,51 @@
         <p class="home-speech-name" id="home-speech-name"></p>
         <p class="home-speech-text" id="home-speech-text">まずは編集画面でデータを登録してください。</p>
         <span class="home-speech-arrow"></span>
+      </div>
+
+      <div class="home-speech home-speech-2" id="home-speech-2" hidden>
+        <p class="home-speech-name" id="home-speech-name-2"></p>
+        <p class="home-speech-text" id="home-speech-text-2"></p>
+        <span class="home-speech-arrow"></span>
+      </div>
+
+      <div class="home-config-panel" id="home-config-panel" hidden>
+        <h4>ホーム画面設定</h4>
+        <label>
+          表示モード
+          <select id="home-mode-select">
+            <option value="1">1キャラ表示</option>
+            <option value="2">2キャラ表示（掛け合い）</option>
+          </select>
+        </label>
+        <label>
+          キャラ1
+          <select id="home-card-1"></select>
+        </label>
+        <div id="home-card-1-controls" class="home-char-controls">
+          <label>拡大率 <input type="range" id="home-scale-1" min="50" max="200" value="100">
+            <span id="home-scale-1-val">100%</span></label>
+          <label>X位置 <input type="range" id="home-x-1" min="-50" max="50" value="-10">
+            <span id="home-x-1-val">-10</span></label>
+          <label>Y位置 <input type="range" id="home-y-1" min="-50" max="50" value="0">
+            <span id="home-y-1-val">0</span></label>
+        </div>
+        <div id="home-char-2-settings" hidden>
+          <label>
+            キャラ2
+            <select id="home-card-2"></select>
+          </label>
+          <div class="home-char-controls">
+            <label>拡大率 <input type="range" id="home-scale-2" min="50" max="200" value="100">
+              <span id="home-scale-2-val">100%</span></label>
+            <label>X位置 <input type="range" id="home-x-2" min="-50" max="50" value="10">
+              <span id="home-x-2-val">10</span></label>
+            <label>Y位置 <input type="range" id="home-y-2" min="-50" max="50" value="0">
+              <span id="home-y-2-val">0</span></label>
+          </div>
+        </div>
+        <button class="btn-primary" id="home-config-save">設定を保存</button>
+        <button class="btn-secondary" id="home-config-close" style="margin-top:8px">閉じる</button>
       </div>
 
       <div class="home-ticker">
@@ -155,7 +203,12 @@
 
     <div class="story-reader" id="story-reader" hidden>
       <div class="story-reader-bg" id="story-reader-bg"></div>
+      <img class="story-reader-bg-img" id="story-reader-bg-img" alt="" hidden>
       <div class="story-reader-character" id="story-reader-character"></div>
+      <audio id="story-bgm" loop></audio>
+      <div class="story-reader-audio-ctrl" id="story-audio-ctrl" hidden>
+        <button type="button" id="bgm-toggle">&#x266B;</button>
+      </div>
       <div class="story-reader-textbox">
         <p class="story-reader-name" id="story-reader-name"></p>
         <p class="story-reader-text" id="story-reader-text"></p>
@@ -235,6 +288,16 @@
           <div class="editor-preview" id="base-char-preview" hidden>
             <img id="base-char-preview-img" alt="ベースキャラプレビュー">
           </div>
+          <div class="expressions-editor">
+            <h4>表情差分</h4>
+            <div id="expression-list" class="expression-list"></div>
+            <button type="button" class="btn-secondary" id="add-expression-btn">+ 表情を追加</button>
+          </div>
+          <div class="variants-editor">
+            <h4>イベント差分立ち絵</h4>
+            <div id="variant-list" class="expression-list"></div>
+            <button type="button" class="btn-secondary" id="add-variant-btn">+ イベント立ち絵を追加</button>
+          </div>
           <button type="submit" class="btn-primary">ベースキャラを登録</button>
         </form>
 
@@ -283,6 +346,10 @@
           <div class="editor-preview" id="char-preview" hidden>
             <img id="char-preview-img" alt="カードプレビュー">
           </div>
+          <label>
+            セリフ (1行ずつ改行で複数登録)
+            <textarea name="lines" rows="3" maxlength="500" placeholder="あなたのために&#10;今日も一日がんばろう&#10;また会えてうれしい"></textarea>
+          </label>
           <button type="submit" class="btn-primary">カードを登録</button>
         </form>
 
@@ -306,6 +373,14 @@
             </select>
           </label>
 
+          <label>
+            デフォルトBGM (URL)
+            <input name="bgm" type="url" placeholder="https://example.com/bgm.mp3">
+          </label>
+          <div class="story-variant-defaults">
+            <h4>イベント立ち絵の既定設定</h4>
+            <div id="story-variant-default-list" class="story-variant-default-list"></div>
+          </div>
           <div class="story-scenes-editor">
             <h4>シーン</h4>
             <div id="scene-list" class="scene-list"></div>

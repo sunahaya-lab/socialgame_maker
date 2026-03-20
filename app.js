@@ -14,6 +14,11 @@ const editState = {
   gachaId: null
 };
 
+const roomId = new URLSearchParams(location.search).get("room") || null;
+function apiUrl(path) {
+  return roomId ? `${path}?room=${encodeURIComponent(roomId)}` : path;
+}
+
 const API = {
   baseChars: "/api/base-chars",
   characters: "/api/entries",
@@ -41,6 +46,7 @@ async function init() {
   setupStoryReader();
   setupForms();
   setupPreviews();
+  setupHomeConfig();
 
   await loadAllData();
   renderAll();
@@ -71,10 +77,10 @@ function navigateTo(screen) {
 
 async function loadAllData() {
   const [loadedBaseChars, loadedCharacters, loadedStories, loadedGachas] = await Promise.all([
-    fetchJSON(API.baseChars).then(data => data.baseChars || []).catch(() => loadLocal("socia-base-chars", [])),
-    fetchJSON(API.characters).then(data => data.entries || []).catch(() => loadLocal("socia-characters", [])),
-    fetchJSON(API.stories).then(data => data.stories || []).catch(() => loadLocal("socia-stories", [])),
-    fetchJSON(API.gachas).then(data => data.gachas || []).catch(() => loadLocal("socia-gachas", []))
+    fetchJSON(apiUrl(API.baseChars)).then(data => data.baseChars || []).catch(() => loadLocal("socia-base-chars", [])),
+    fetchJSON(apiUrl(API.characters)).then(data => data.entries || []).catch(() => loadLocal("socia-characters", [])),
+    fetchJSON(apiUrl(API.stories)).then(data => data.stories || []).catch(() => loadLocal("socia-stories", [])),
+    fetchJSON(apiUrl(API.gachas)).then(data => data.gachas || []).catch(() => loadLocal("socia-gachas", []))
   ]);
 
   baseChars = loadedBaseChars;
@@ -106,7 +112,7 @@ async function postJSON(url, data) {
 
 function loadLocal(key, fallback) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(getScopedStorageKey(key));
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
@@ -114,7 +120,11 @@ function loadLocal(key, fallback) {
 }
 
 function saveLocal(key, data) {
-  localStorage.setItem(key, JSON.stringify(data));
+  localStorage.setItem(getScopedStorageKey(key), JSON.stringify(data));
+}
+
+function getScopedStorageKey(key) {
+  return roomId ? `${key}::room:${roomId}` : key;
 }
 
 function renderAll() {
@@ -130,18 +140,43 @@ function renderHome() {
   const level = Math.max(1, characters.length + stories.length * 2 + gachas.length * 3);
   document.getElementById("home-lv").textContent = String(level);
 
-  const charImg = document.getElementById("home-char-img");
-  if (characters.length > 0) {
-    const featured = characters[0];
-    charImg.src = featured.image || makeFallbackImage(featured.name, featured.rarity);
-    charImg.alt = featured.name;
-    document.getElementById("home-speech-name").textContent = featured.name;
-    document.getElementById("home-speech-text").textContent = featured.catch || "カードを集めて世界を広げよう。";
+  const config = loadHomeConfig();
+  const card1 = characters.find(c => c.id === config.card1) || characters[0] || null;
+  const card2 = config.mode === 2 ? (characters.find(c => c.id === config.card2) || null) : null;
+
+  const el1 = document.getElementById("home-char-1");
+  const el2 = document.getElementById("home-char-2");
+  const speech1 = document.getElementById("home-speech");
+  const speech2 = document.getElementById("home-speech-2");
+
+  if (card1) {
+    el1.innerHTML = `<img src="${card1.image || makeFallbackImage(card1.name, card1.rarity)}" alt="${esc(card1.name)}">`;
+    el1.style.transform = `translateX(${config.x1}%) scale(${config.scale1 / 100})`;
+    el1.style.bottom = `${60 + config.y1 * 3}px`;
+    const line1 = pickLine(card1);
+    document.getElementById("home-speech-name").textContent = card1.name;
+    document.getElementById("home-speech-text").textContent = line1;
+    speech1.hidden = false;
   } else {
-    charImg.src = "";
-    charImg.alt = "";
+    el1.innerHTML = "";
     document.getElementById("home-speech-name").textContent = "";
     document.getElementById("home-speech-text").textContent = "まずは編集画面でカードを登録してください。";
+    speech1.hidden = false;
+  }
+
+  if (card2) {
+    el2.innerHTML = `<img src="${card2.image || makeFallbackImage(card2.name, card2.rarity)}" alt="${esc(card2.name)}">`;
+    el2.style.transform = `translateX(${config.x2}%) scale(${config.scale2 / 100})`;
+    el2.style.bottom = `${60 + config.y2 * 3}px`;
+    el2.style.display = "";
+    const line2 = pickLine(card2);
+    document.getElementById("home-speech-name-2").textContent = card2.name;
+    document.getElementById("home-speech-text-2").textContent = line2;
+    speech2.hidden = false;
+  } else {
+    el2.innerHTML = "";
+    el2.style.display = "none";
+    speech2.hidden = true;
   }
 
   const eventBanner = document.getElementById("home-event-banner");
@@ -156,6 +191,96 @@ function renderHome() {
   } else {
     eventBanner.style.display = "none";
   }
+}
+
+function pickLine(card) {
+  if (card.lines?.length) return card.lines[Math.floor(Math.random() * card.lines.length)];
+  return card.catch || "カードを集めて世界を広げよう。";
+}
+
+function loadHomeConfig() {
+  try {
+    const raw = localStorage.getItem("socia-home-config");
+    if (raw) return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, ...JSON.parse(raw) };
+  } catch {}
+  return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0 };
+}
+
+function saveHomeConfig(config) {
+  localStorage.setItem("socia-home-config", JSON.stringify(config));
+}
+
+function setupHomeConfig() {
+  const btn = document.getElementById("home-config-btn");
+  const panel = document.getElementById("home-config-panel");
+  const closeBtn = document.getElementById("home-config-close");
+  const saveBtn = document.getElementById("home-config-save");
+  const modeSelect = document.getElementById("home-mode-select");
+  const char2Settings = document.getElementById("home-char-2-settings");
+
+  btn.addEventListener("click", () => {
+    populateHomeCardSelects();
+    const config = loadHomeConfig();
+    modeSelect.value = String(config.mode);
+    document.getElementById("home-card-1").value = config.card1;
+    document.getElementById("home-card-2").value = config.card2;
+    setSlider("home-scale-1", config.scale1);
+    setSlider("home-x-1", config.x1);
+    setSlider("home-y-1", config.y1);
+    setSlider("home-scale-2", config.scale2);
+    setSlider("home-x-2", config.x2);
+    setSlider("home-y-2", config.y2);
+    char2Settings.hidden = config.mode !== 2;
+    panel.hidden = false;
+  });
+
+  closeBtn.addEventListener("click", () => { panel.hidden = true; });
+
+  modeSelect.addEventListener("change", () => {
+    char2Settings.hidden = modeSelect.value !== "2";
+  });
+
+  ["home-scale-1", "home-x-1", "home-y-1", "home-scale-2", "home-x-2", "home-y-2"].forEach(id => {
+    const input = document.getElementById(id);
+    const valSpan = document.getElementById(id + "-val");
+    input.addEventListener("input", () => {
+      valSpan.textContent = id.includes("scale") ? input.value + "%" : input.value;
+    });
+  });
+
+  saveBtn.addEventListener("click", () => {
+    const config = {
+      mode: Number(modeSelect.value),
+      card1: document.getElementById("home-card-1").value,
+      card2: document.getElementById("home-card-2").value,
+      scale1: Number(document.getElementById("home-scale-1").value),
+      x1: Number(document.getElementById("home-x-1").value),
+      y1: Number(document.getElementById("home-y-1").value),
+      scale2: Number(document.getElementById("home-scale-2").value),
+      x2: Number(document.getElementById("home-x-2").value),
+      y2: Number(document.getElementById("home-y-2").value)
+    };
+    saveHomeConfig(config);
+    panel.hidden = true;
+    renderHome();
+    showToast("ホーム設定を保存しました。");
+  });
+}
+
+function setSlider(id, value) {
+  const input = document.getElementById(id);
+  input.value = value;
+  document.getElementById(id + "-val").textContent = id.includes("scale") ? value + "%" : String(value);
+}
+
+function populateHomeCardSelects() {
+  ["home-card-1", "home-card-2"].forEach(id => {
+    const select = document.getElementById(id);
+    const current = select.value;
+    select.innerHTML = '<option value="">自動（最新カード）</option>' +
+      characters.map(c => `<option value="${esc(c.id)}">${esc(c.rarity)} ${esc(c.name)}</option>`).join("");
+    select.value = current;
+  });
 }
 
 function setupGachaButtons() {
@@ -283,7 +408,9 @@ function setupStoryTabs() {
       renderStoryList();
     });
   });
-}function renderStoryScreen() {
+}
+
+function renderStoryScreen() {
   renderStoryList();
 }
 
@@ -323,6 +450,13 @@ function openStoryReader(story) {
     return;
   }
 
+  const audio = document.getElementById("story-bgm");
+  audio.pause();
+  audio.src = "";
+  audio.dataset.currentSrc = "";
+  document.getElementById("story-audio-ctrl").hidden = true;
+  document.getElementById("story-reader-bg-img").hidden = true;
+
   storyReaderState = { story, index: 0 };
   document.getElementById("story-reader").hidden = false;
   renderStoryScene();
@@ -335,7 +469,12 @@ function renderStoryScene() {
   const scene = story.scenes[index];
   const baseChar = scene.characterId ? getBaseCharById(scene.characterId) : null;
   const charName = baseChar ? baseChar.name : (scene.character || "Narration");
-  const portrait = baseChar?.portrait || scene.image || findCharacterImageByName(scene.character);
+
+  let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
+  if (baseChar && scene.expressionName && baseChar.expressions?.length) {
+    const expr = baseChar.expressions.find(e => e.name === scene.expressionName);
+    if (expr?.image) portrait = expr.image;
+  }
 
   const nameEl = document.getElementById("story-reader-name");
   nameEl.textContent = charName;
@@ -351,14 +490,60 @@ function renderStoryScene() {
     charEl.appendChild(img);
   }
 
-  document.getElementById("story-reader-bg").style.background = baseChar
-    ? `linear-gradient(180deg, ${baseChar.color}22 0%, #0a0a12 60%)`
-    : "linear-gradient(180deg, #1a1040 0%, #0a0a12 100%)";
+  // Background image
+  const bgImg = document.getElementById("story-reader-bg-img");
+  if (scene.background) {
+    bgImg.src = scene.background;
+    bgImg.hidden = false;
+    document.getElementById("story-reader-bg").style.background = "transparent";
+  } else {
+    bgImg.hidden = true;
+    document.getElementById("story-reader-bg").style.background = baseChar
+      ? `linear-gradient(180deg, ${baseChar.color}22 0%, #0a0a12 60%)`
+      : "linear-gradient(180deg, #1a1040 0%, #0a0a12 100%)";
+  }
+
+  // BGM handling
+  const audio = document.getElementById("story-bgm");
+  const audioCtrl = document.getElementById("story-audio-ctrl");
+  const sceneBgm = scene.bgm || (index === 0 ? story.bgm : null);
+  if (sceneBgm && audio.dataset.currentSrc !== sceneBgm) {
+    audio.src = sceneBgm;
+    audio.dataset.currentSrc = sceneBgm;
+    audio.play().catch(() => {});
+    document.getElementById("bgm-toggle").textContent = "\u23F8";
+    audioCtrl.hidden = false;
+  } else if (index === 0 && story.bgm && !audio.src) {
+    audio.src = story.bgm;
+    audio.dataset.currentSrc = story.bgm;
+    audio.play().catch(() => {});
+    document.getElementById("bgm-toggle").textContent = "\u23F8";
+    audioCtrl.hidden = false;
+  }
 
   const progress = ((index + 1) / story.scenes.length) * 100;
   const progressEl = document.getElementById("story-reader-progress");
   progressEl.style.width = `${progress}%`;
   progressEl.style.background = baseChar?.color || "var(--accent-light)";
+}
+
+function resolveScenePortrait(story, baseChar, scene) {
+  if (!baseChar) return "";
+  if (scene.variantName && baseChar.variants?.length) {
+    const variant = baseChar.variants.find(item => item.name === scene.variantName);
+    if (variant?.image) return variant.image;
+  }
+  const defaultVariantName = getStoryVariantName(story, baseChar.id);
+  if (defaultVariantName && baseChar.variants?.length) {
+    const variant = baseChar.variants.find(item => item.name === defaultVariantName);
+    if (variant?.image) return variant.image;
+  }
+  return baseChar.portrait || "";
+}
+
+function getStoryVariantName(story, characterId) {
+  if (!story?.variantAssignments?.length || !characterId) return "";
+  return story.variantAssignments.find(item => item.characterId === characterId)?.variantName || "";
 }
 
 function advanceStory() {
@@ -376,6 +561,11 @@ function advanceStory() {
 
 function closeStoryReader() {
   storyReaderState = null;
+  const audio = document.getElementById("story-bgm");
+  audio.pause();
+  audio.src = "";
+  audio.dataset.currentSrc = "";
+  document.getElementById("story-audio-ctrl").hidden = true;
   document.getElementById("story-reader").hidden = true;
 }
 
@@ -605,10 +795,132 @@ function setupForms() {
   document.getElementById("story-form").addEventListener("submit", handleStorySubmit);
   document.getElementById("gacha-form").addEventListener("submit", handleGachaSubmit);
   document.getElementById("add-scene-btn").addEventListener("click", () => addSceneInput());
+  document.getElementById("add-expression-btn").addEventListener("click", () => addExpressionInput());
+  document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
 
+  renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
   addSceneInput();
+
+  document.getElementById("share-btn").addEventListener("click", handleShare);
+  document.getElementById("bgm-toggle").addEventListener("click", toggleBgm);
+}
+
+function addExpressionInput(expr = null) {
+  const list = document.getElementById("expression-list");
+  const item = document.createElement("div");
+  item.className = "expression-item";
+  item.innerHTML = `
+    <input name="expr-name" type="text" maxlength="30" placeholder="笑顔" value="${esc(expr?.name || "")}">
+    <label class="upload-field expression-upload">
+      <input name="expr-image" type="file" accept="image/*">
+    </label>
+    ${expr?.image ? '<span class="expr-set">&#x2713;</span>' : ''}
+    <button type="button" class="expression-remove">&#x2715;</button>
+  `;
+  if (expr?.image) item.dataset.exprImage = expr.image;
+  const fileInput = item.querySelector("[name='expr-image']");
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    item.dataset.exprImage = await readFileAsDataUrl(file);
+    if (!item.querySelector(".expr-set")) {
+      const s = document.createElement("span");
+      s.className = "expr-set";
+      s.textContent = "\u2713";
+      fileInput.closest("label").after(s);
+    }
+  });
+  item.querySelector(".expression-remove").addEventListener("click", () => item.remove());
+  list.appendChild(item);
+}
+
+function addVariantInput(variant = null) {
+  const list = document.getElementById("variant-list");
+  const item = document.createElement("div");
+  item.className = "expression-item";
+  item.innerHTML = `
+    <input name="variant-name" type="text" maxlength="30" placeholder="イベント衣装" value="${esc(variant?.name || "")}">
+    <label class="upload-field expression-upload">
+      <input name="variant-image" type="file" accept="image/*">
+    </label>
+    ${variant?.image ? '<span class="expr-set">&#x2713;</span>' : ''}
+    <button type="button" class="expression-remove">&#x2715;</button>
+  `;
+  if (variant?.image) item.dataset.variantImage = variant.image;
+  const fileInput = item.querySelector("[name='variant-image']");
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    item.dataset.variantImage = await readFileAsDataUrl(file);
+    if (!item.querySelector(".expr-set")) {
+      const s = document.createElement("span");
+      s.className = "expr-set";
+      s.textContent = "\u2713";
+      fileInput.closest("label").after(s);
+    }
+  });
+  item.querySelector(".expression-remove").addEventListener("click", () => item.remove());
+  list.appendChild(item);
+}
+
+async function collectExpressions() {
+  const items = document.querySelectorAll("#expression-list .expression-item");
+  const expressions = [];
+  for (const item of items) {
+    const name = item.querySelector("[name='expr-name']").value.trim();
+    if (!name) continue;
+    const fileInput = item.querySelector("[name='expr-image']");
+    let image = item.dataset.exprImage || "";
+    if (fileInput.files[0]) {
+      image = await readFileAsDataUrl(fileInput.files[0]);
+    }
+    expressions.push({ name, image });
+  }
+  return expressions;
+}
+
+async function collectVariants() {
+  const items = document.querySelectorAll("#variant-list .expression-item");
+  const variants = [];
+  for (const item of items) {
+    const name = item.querySelector("[name='variant-name']").value.trim();
+    if (!name) continue;
+    const fileInput = item.querySelector("[name='variant-image']");
+    let image = item.dataset.variantImage || "";
+    if (fileInput.files[0]) {
+      image = await readFileAsDataUrl(fileInput.files[0]);
+    }
+    variants.push({ name, image });
+  }
+  return variants;
+}
+
+function handleShare() {
+  const id = roomId || crypto.randomUUID().slice(0, 8);
+  const url = new URL(location.href);
+  url.searchParams.set("room", id);
+  navigator.clipboard.writeText(url.toString()).then(() => {
+    showToast("共有URLをコピーしました！");
+  }).catch(() => {
+    prompt("共有URL:", url.toString());
+  });
+  if (!roomId) {
+    location.href = url.toString();
+  }
+}
+
+function toggleBgm() {
+  const audio = document.getElementById("story-bgm");
+  const btn = document.getElementById("bgm-toggle");
+  if (audio.paused) {
+    audio.play().catch(() => {});
+    btn.textContent = "\u23F8";
+  } else {
+    audio.pause();
+    btn.textContent = "\u266B";
+  }
 }
 
 async function handleBaseCharSubmit(e) {
@@ -617,16 +929,20 @@ async function handleBaseCharSubmit(e) {
   const existing = editState.baseCharId ? baseChars.find(item => item.id === editState.baseCharId) : null;
   const portraitFile = form.portrait.files[0];
   const portrait = portraitFile ? await readFileAsDataUrl(portraitFile) : (existing?.portrait || "");
+  const expressions = await collectExpressions();
+  const variants = await collectVariants();
   const baseChar = {
     id: editState.baseCharId || crypto.randomUUID(),
     name: form.name.value.trim(),
     description: form.description.value.trim(),
     color: form.color.value || "#a29bfe",
-    portrait: portrait || makeBaseCharFallback(form.name.value.trim(), form.color.value)
+    portrait: portrait || makeBaseCharFallback(form.name.value.trim(), form.color.value),
+    variants,
+    expressions
   };
   upsertItem(baseChars, baseChar);
   saveLocal("socia-base-chars", baseChars);
-  try { await postJSON(API.baseChars, baseChar); } catch {}
+  try { await postJSON(apiUrl(API.baseChars), baseChar); } catch {}
   resetBaseCharForm();
   renderBaseCharList();
   populateBaseCharSelects();
@@ -639,17 +955,19 @@ async function handleCharacterSubmit(e) {
   const existing = editState.characterId ? characters.find(item => item.id === editState.characterId) : null;
   const imageFile = form.image.files[0];
   const image = imageFile ? await readFileAsDataUrl(imageFile) : (existing?.image || "");
+  const lines = form.lines.value.split("\n").map(l => l.trim()).filter(Boolean);
   const char = {
     id: editState.characterId || crypto.randomUUID(),
     name: form.name.value.trim(),
     catch: form.catch.value.trim(),
     rarity: form.rarity.value,
     attribute: form.attribute.value.trim() || "未設定",
-    image: image || makeFallbackImage(form.name.value.trim(), form.rarity.value)
+    image: image || makeFallbackImage(form.name.value.trim(), form.rarity.value),
+    lines
   };
   upsertItem(characters, char);
   saveLocal("socia-characters", characters);
-  try { await postJSON(API.characters, char); } catch {}
+  try { await postJSON(apiUrl(API.characters), char); } catch {}
   resetCharacterForm();
   renderHome();
   renderEditorCharacterList();
@@ -670,11 +988,13 @@ async function handleStorySubmit(e) {
     id: editState.storyId || crypto.randomUUID(),
     title: form.title.value.trim(),
     type: form.type.value,
+    bgm: form.bgm.value.trim(),
+    variantAssignments: collectStoryVariantAssignments(),
     scenes
   };
   upsertItem(stories, story);
   saveLocal("socia-stories", stories);
-  try { await postJSON(API.stories, story); } catch {}
+  try { await postJSON(apiUrl(API.stories), story); } catch {}
   resetStoryForm();
   renderHome();
   renderEditorStoryList();
@@ -704,7 +1024,7 @@ async function handleGachaSubmit(e) {
   };
   upsertItem(gachas, gacha);
   saveLocal("socia-gachas", gachas);
-  try { await postJSON(API.gachas, gacha); } catch {}
+  try { await postJSON(apiUrl(API.gachas), gacha); } catch {}
   resetGachaForm();
   renderHome();
   renderEditorGachaList();
@@ -718,18 +1038,81 @@ function collectStoryScenes() {
     const text = item.querySelector("[name='scene-text']").value.trim();
     if (!text) return;
     const baseChar = charId ? getBaseCharById(charId) : null;
-    scenes.push({ characterId: charId || null, character: baseChar ? baseChar.name : null, text });
+    const variantSelect = item.querySelector("[name='scene-variant']");
+    const variantName = variantSelect ? variantSelect.value : null;
+    const exprSelect = item.querySelector("[name='scene-expression']");
+    const expressionName = exprSelect ? exprSelect.value : null;
+    const bgmInput = item.querySelector("[name='scene-bgm']");
+    const bgm = bgmInput ? bgmInput.value.trim() : null;
+    const bgData = item.dataset.background || null;
+    scenes.push({
+      characterId: charId || null,
+      character: baseChar ? baseChar.name : null,
+      variantName: variantName || null,
+      expressionName: expressionName || null,
+      text,
+      bgm: bgm || null,
+      background: bgData || null
+    });
   });
   return scenes;
+}
+
+function collectStoryVariantAssignments() {
+  return Array.from(document.querySelectorAll(".story-variant-default-item")).map(item => ({
+    characterId: item.dataset.characterId,
+    variantName: item.querySelector("[name='story-default-variant']").value
+  })).filter(item => item.characterId && item.variantName);
+}
+
+function renderStoryVariantDefaults(assignments = []) {
+  const list = document.getElementById("story-variant-default-list");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const candidates = baseChars.filter(baseChar => baseChar.variants?.length);
+  if (candidates.length === 0) {
+    list.innerHTML = '<p class="editor-record-empty">イベント差分立ち絵を持つベースキャラがまだありません。</p>';
+    return;
+  }
+
+  const assignmentMap = new Map(assignments.map(item => [item.characterId, item.variantName]));
+  candidates.forEach(baseChar => {
+    const item = document.createElement("div");
+    item.className = "story-variant-default-item";
+    item.dataset.characterId = baseChar.id;
+    item.innerHTML = `
+      <span class="story-variant-default-name">${esc(baseChar.name)}</span>
+      <select name="story-default-variant">
+        <option value="">既定なし</option>
+        ${baseChar.variants.map(variant =>
+          `<option value="${esc(variant.name)}"${assignmentMap.get(baseChar.id) === variant.name ? " selected" : ""}>${esc(variant.name)}</option>`
+        ).join("")}
+      </select>
+    `;
+    list.appendChild(item);
+  });
 }
 
 function addSceneInput(scene = null) {
   const list = document.getElementById("scene-list");
   const item = document.createElement("div");
   item.className = "scene-item";
+  if (scene?.background) item.dataset.background = scene.background;
   const options = baseChars.map(baseChar =>
     `<option value="${esc(baseChar.id)}"${scene?.characterId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`
   ).join("");
+  const selectedChar = scene?.characterId ? getBaseCharById(scene.characterId) : null;
+  const variantOptions = selectedChar?.variants?.length
+    ? selectedChar.variants.map(v =>
+        `<option value="${esc(v.name)}"${scene?.variantName === v.name ? " selected" : ""}>${esc(v.name)}</option>`
+      ).join("")
+    : "";
+  const exprOptions = selectedChar?.expressions?.length
+    ? selectedChar.expressions.map(e =>
+        `<option value="${esc(e.name)}"${scene?.expressionName === e.name ? " selected" : ""}>${esc(e.name)}</option>`
+      ).join("")
+    : "";
   item.innerHTML = `
     <label>
       キャラクター
@@ -739,13 +1122,97 @@ function addSceneInput(scene = null) {
       </select>
     </label>
     <label>
+      立ち絵
+      <select name="scene-variant">
+        <option value="">通常立ち絵</option>
+        ${variantOptions}
+      </select>
+    </label>
+    <label>
+      表情
+      <select name="scene-expression">
+        <option value="">デフォルト</option>
+        ${exprOptions}
+      </select>
+    </label>
+    <label>
       セリフ・地の文
       <textarea name="scene-text" maxlength="300" rows="2" placeholder="テキストを入力">${esc(scene?.text || "")}</textarea>
     </label>
-    <button type="button" class="scene-remove">削除</button>
+    <div class="scene-extras" ${scene?.bgm || scene?.background ? '' : 'hidden'}>
+      <label>
+        BGM変更 (URL・空欄で継続)
+        <input name="scene-bgm" type="url" placeholder="https://..." value="${esc(scene?.bgm || "")}">
+      </label>
+      <label class="upload-field">
+        背景画像
+        <input name="scene-background" type="file" accept="image/*">
+      </label>
+      ${scene?.background ? '<p class="scene-bg-set">背景設定済み</p>' : ''}
+    </div>
+    <div class="scene-bottom-actions">
+      <button type="button" class="scene-extras-toggle">${scene?.bgm || scene?.background ? '機能を閉じる' : '+ 機能を追加'}</button>
+      <button type="button" class="scene-remove">削除</button>
+    </div>
   `;
   item.querySelector(".scene-remove").addEventListener("click", () => item.remove());
+  item.querySelector(".scene-extras-toggle").addEventListener("click", () => {
+    const extras = item.querySelector(".scene-extras");
+    const btn = item.querySelector(".scene-extras-toggle");
+    if (extras.hidden) {
+      extras.hidden = false;
+      btn.textContent = "機能を閉じる";
+    } else {
+      extras.hidden = true;
+      btn.textContent = "+ 機能を追加";
+    }
+  });
+  const charSelect = item.querySelector("[name='scene-character-id']");
+  charSelect.addEventListener("change", () => updateSceneCharacterOptions(item));
+  const bgInput = item.querySelector("[name='scene-background']");
+  bgInput.addEventListener("change", async () => {
+    const file = bgInput.files[0];
+    if (!file) return;
+    item.dataset.background = await readFileAsDataUrl(file);
+    const label = item.querySelector(".scene-bg-set");
+    if (label) label.textContent = "背景設定済み";
+    else {
+      const p = document.createElement("p");
+      p.className = "scene-bg-set";
+      p.textContent = "背景設定済み";
+      bgInput.closest("label").after(p);
+    }
+  });
   list.appendChild(item);
+}
+
+function updateSceneExpressions(sceneItem) {
+  updateSceneCharacterOptions(sceneItem);
+}
+
+function updateSceneCharacterOptions(sceneItem) {
+  const charId = sceneItem.querySelector("[name='scene-character-id']").value;
+  const variantSelect = sceneItem.querySelector("[name='scene-variant']");
+  const exprSelect = sceneItem.querySelector("[name='scene-expression']");
+  const baseChar = charId ? getBaseCharById(charId) : null;
+  variantSelect.innerHTML = '<option value="">通常立ち絵</option>';
+  exprSelect.innerHTML = '<option value="">デフォルト</option>';
+  if (baseChar?.variants?.length) {
+    baseChar.variants.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = v.name;
+      variantSelect.appendChild(opt);
+    });
+  }
+  if (baseChar?.expressions?.length) {
+    baseChar.expressions.forEach(e => {
+      const opt = document.createElement("option");
+      opt.value = e.name;
+      opt.textContent = e.name;
+      exprSelect.appendChild(opt);
+    });
+  }
 }
 
 function setupPreviews() {
@@ -776,6 +1243,16 @@ function beginBaseCharEdit(id) {
   form.color.value = baseChar.color || "#a29bfe";
   document.getElementById("base-char-preview").hidden = false;
   document.getElementById("base-char-preview-img").src = baseChar.portrait;
+  const exprList = document.getElementById("expression-list");
+  exprList.innerHTML = "";
+  const variantList = document.getElementById("variant-list");
+  variantList.innerHTML = "";
+  if (baseChar.variants?.length) {
+    baseChar.variants.forEach(v => addVariantInput(v));
+  }
+  if (baseChar.expressions?.length) {
+    baseChar.expressions.forEach(e => addExpressionInput(e));
+  }
   updateEditorSubmitLabels();
   form.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -789,6 +1266,7 @@ function beginCharacterEdit(id) {
   form.catch.value = char.catch || "";
   form.rarity.value = char.rarity || "SR";
   form.attribute.value = char.attribute || "";
+  form.lines.value = (char.lines || []).join("\n");
   document.getElementById("char-preview").hidden = false;
   document.getElementById("char-preview-img").src = char.image || makeFallbackImage(char.name, char.rarity);
   updateEditorSubmitLabels();
@@ -802,6 +1280,8 @@ function beginStoryEdit(id) {
   const form = document.getElementById("story-form");
   form.title.value = story.title || "";
   form.type.value = story.type || "main";
+  form.bgm.value = story.bgm || "";
+  renderStoryVariantDefaults(story.variantAssignments || []);
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
   if (story.scenes?.length) story.scenes.forEach(scene => addSceneInput(scene));
@@ -841,6 +1321,8 @@ function resetBaseCharForm() {
   form.reset();
   form.color.value = "#a29bfe";
   document.getElementById("base-char-preview").hidden = true;
+  document.getElementById("expression-list").innerHTML = "";
+  document.getElementById("variant-list").innerHTML = "";
   updateEditorSubmitLabels();
 }
 
@@ -857,6 +1339,7 @@ function resetStoryForm() {
   editState.storyId = null;
   const form = document.getElementById("story-form");
   form.reset();
+  renderStoryVariantDefaults();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
   addSceneInput();
@@ -908,6 +1391,11 @@ function populateBaseCharSelects() {
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
+
+  const currentAssignments = editState.storyId
+    ? (stories.find(story => story.id === editState.storyId)?.variantAssignments || [])
+    : collectStoryVariantAssignments();
+  renderStoryVariantDefaults(currentAssignments);
 }
 
 function getBaseCharById(id) {
