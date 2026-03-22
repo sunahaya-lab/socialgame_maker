@@ -1,0 +1,207 @@
+(function () {
+  function setupStoryScreen(deps) {
+    const api = createStoryScreen(deps);
+
+    document.querySelectorAll(".story-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".story-tab").forEach(item => item.classList.remove("active"));
+        tab.classList.add("active");
+        deps.setCurrentStoryType(tab.dataset.storyType);
+        api.renderStoryList();
+      });
+    });
+
+    document.querySelector(".story-reader-textbox").addEventListener("click", () => api.advanceStory());
+    document.getElementById("story-reader-close").addEventListener("click", () => api.closeStoryReader());
+    document.getElementById("bgm-toggle").addEventListener("click", () => api.toggleBgm());
+
+    return api;
+  }
+
+  function createStoryScreen(deps) {
+    const {
+      getStories,
+      getCharacters,
+      getCurrentStoryType,
+      setStoryReaderState,
+      getStoryReaderState,
+      setCurrentStoryType,
+      getBaseCharById,
+      findCharacterImageByName,
+      resolveScenePortrait,
+      showToast,
+      esc
+    } = deps;
+
+    function renderStoryScreen() {
+      renderStoryList();
+    }
+
+    function renderStoryList() {
+      const list = document.getElementById("story-list");
+      const empty = document.getElementById("story-empty");
+      const filtered = getStories().filter(story => story.type === getCurrentStoryType());
+
+      list.innerHTML = "";
+      if (filtered.length === 0) {
+        empty.hidden = false;
+        return;
+      }
+
+      empty.hidden = true;
+      filtered.forEach(story => {
+        const linkedCard = story.entryId ? getCharacters().find(char => char.id === story.entryId) : null;
+        const item = document.createElement("div");
+        item.className = "story-item";
+        item.innerHTML = `
+          <p class="story-item-type">${getStoryTypeLabel(story.type)}</p>
+          <h4>${esc(story.title)}</h4>
+          <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} scenes</p>
+        `;
+        item.addEventListener("click", () => openStoryReader(story));
+        list.appendChild(item);
+      });
+    }
+
+    function getStoryTypeLabel(type) {
+      if (type === "main") return "MAIN STORY";
+      if (type === "event") return "EVENT STORY";
+      if (type === "character") return "CHARACTER STORY";
+      return "STORY";
+    }
+
+    function openStoryReader(story) {
+      if (!story.scenes || story.scenes.length === 0) {
+        showToast("シーンがありません。");
+        return;
+      }
+
+      const audio = document.getElementById("story-bgm");
+      audio.pause();
+      audio.src = "";
+      audio.dataset.currentSrc = "";
+      document.getElementById("story-audio-ctrl").hidden = true;
+      document.getElementById("story-reader-bg-img").hidden = true;
+
+      setStoryReaderState({ story, index: 0 });
+      document.getElementById("story-reader").hidden = false;
+      renderStoryScene();
+    }
+
+    function renderStoryScene() {
+      const state = getStoryReaderState();
+      if (!state) return;
+
+      const { story, index } = state;
+      const scene = story.scenes[index];
+      const baseChar = scene.characterId ? getBaseCharById(scene.characterId) : null;
+      const charName = baseChar ? baseChar.name : (scene.character || "Narration");
+
+      let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
+      if (baseChar && scene.expressionName && baseChar.expressions?.length) {
+        const expr = baseChar.expressions.find(e => e.name === scene.expressionName);
+        if (expr?.image) portrait = expr.image;
+      }
+
+      const nameEl = document.getElementById("story-reader-name");
+      nameEl.textContent = charName;
+      nameEl.style.color = baseChar?.color || "var(--accent-light)";
+      document.getElementById("story-reader-text").textContent = scene.text || "";
+
+      const charEl = document.getElementById("story-reader-character");
+      charEl.innerHTML = "";
+      if (portrait) {
+        const img = document.createElement("img");
+        img.src = portrait;
+        img.alt = charName;
+        charEl.appendChild(img);
+      }
+
+      const bgImg = document.getElementById("story-reader-bg-img");
+      if (scene.background) {
+        bgImg.src = scene.background;
+        bgImg.hidden = false;
+        document.getElementById("story-reader-bg").style.background = "transparent";
+      } else {
+        bgImg.hidden = true;
+        document.getElementById("story-reader-bg").style.background = baseChar
+          ? `linear-gradient(180deg, ${baseChar.color}22 0%, #0a0a12 60%)`
+          : "linear-gradient(180deg, #1a1040 0%, #0a0a12 100%)";
+      }
+
+      const audio = document.getElementById("story-bgm");
+      const audioCtrl = document.getElementById("story-audio-ctrl");
+      const sceneBgm = scene.bgm || (index === 0 ? story.bgm : null);
+      if (sceneBgm && audio.dataset.currentSrc !== sceneBgm) {
+        audio.src = sceneBgm;
+        audio.dataset.currentSrc = sceneBgm;
+        audio.play().catch(() => {});
+        document.getElementById("bgm-toggle").textContent = "\u23F8";
+        audioCtrl.hidden = false;
+      } else if (index === 0 && story.bgm && !audio.src) {
+        audio.src = story.bgm;
+        audio.dataset.currentSrc = story.bgm;
+        audio.play().catch(() => {});
+        document.getElementById("bgm-toggle").textContent = "\u23F8";
+        audioCtrl.hidden = false;
+      }
+
+      const progress = ((index + 1) / story.scenes.length) * 100;
+      const progressEl = document.getElementById("story-reader-progress");
+      progressEl.style.width = `${progress}%`;
+      progressEl.style.background = baseChar?.color || "var(--accent-light)";
+    }
+
+    function advanceStory() {
+      const state = getStoryReaderState();
+      if (!state) return;
+
+      state.index += 1;
+      if (state.index >= state.story.scenes.length) {
+        closeStoryReader();
+        showToast("ストーリーを最後まで読みました。");
+        return;
+      }
+
+      renderStoryScene();
+    }
+
+    function closeStoryReader() {
+      setStoryReaderState(null);
+      const audio = document.getElementById("story-bgm");
+      audio.pause();
+      audio.src = "";
+      audio.dataset.currentSrc = "";
+      document.getElementById("story-audio-ctrl").hidden = true;
+      document.getElementById("story-reader").hidden = true;
+    }
+
+    function toggleBgm() {
+      const audio = document.getElementById("story-bgm");
+      const btn = document.getElementById("bgm-toggle");
+      if (audio.paused) {
+        audio.play().catch(() => {});
+        btn.textContent = "\u23F8";
+      } else {
+        audio.pause();
+        btn.textContent = "\u266B";
+      }
+    }
+
+    return {
+      renderStoryScreen,
+      renderStoryList,
+      openStoryReader,
+      renderStoryScene,
+      advanceStory,
+      closeStoryReader,
+      toggleBgm,
+      setCurrentStoryType
+    };
+  }
+
+  window.StoryScreen = {
+    setupStoryScreen,
+    createStoryScreen
+  };
+})();

@@ -1,3 +1,33 @@
+﻿const {
+  getDefaultRarityMode,
+  getRarityModeConfig: rarityLibGetModeConfig,
+  getRarityRank: rarityLibGetRank,
+  getRarityValueByRank: rarityLibGetValueByRank,
+  normalizeRarityValue: rarityLibNormalizeValue,
+  getRarityLabel: rarityLibGetLabel,
+  getRarityCssClass: rarityLibGetCssClass,
+  getDefaultRates: rarityLibGetDefaultRates,
+  normalizeRates: rarityLibNormalizeRates
+} = window.RarityLib;
+const {
+  loadLocal: storageLoadLocal,
+  saveLocal: storageSaveLocal,
+  getScopedStorageKey: storageGetScopedStorageKey
+} = window.StorageLib;
+const {
+  get: apiGet,
+  post: apiPost
+} = window.ApiClient;
+const {
+  readFileAsDataUrl: imageReadFileAsDataUrl,
+  makeBaseCharFallback: imageMakeBaseCharFallback,
+  makeFallbackImage: imageMakeFallbackImage,
+  escapeHtml
+} = window.ImageLib;
+const {
+  showToast: toastShowToast
+} = window.ToastLib;
+
 let baseChars = [];
 let characters = [];
 let stories = [];
@@ -11,6 +41,14 @@ let homeConfigDraft = null;
 let activeHomeConfigTarget = 1;
 let homeConfigDrag = null;
 let homeDialogueState = null;
+let collectionScreen = null;
+let gachaScreen = null;
+let storyScreen = null;
+let systemEditor = null;
+let entryEditor = null;
+let baseCharEditor = null;
+let storyEditor = null;
+let editorScreen = null;
 
 const editState = {
   baseCharId: null,
@@ -32,89 +70,32 @@ const API = {
   system: "/api/system"
 };
 
-const rarityPalettes = {
-  1: ["#1a1a1a", "#b2bec3", "#dfe6e9"],
-  2: ["#0a1a2d", "#74b9ff", "#a0d8ff"],
-  3: ["#1a1040", "#a29bfe", "#c8c3ff"],
-  4: ["#2d2200", "#ffd447", "#ffe680"],
-  5: ["#2d0a0a", "#ff6b6b", "#ff9999"]
-};
-
-const rarityModes = {
-  classic4: {
-    id: "classic4",
-    tiers: [
-      { value: "N", rank: 1, label: "N" },
-      { value: "R", rank: 2, label: "R" },
-      { value: "SR", rank: 3, label: "SR" },
-      { value: "SSR", rank: 4, label: "SSR" }
-    ],
-    fallback: "SR",
-    defaultRates: { N: 40, R: 30, SR: 20, SSR: 10 }
-  },
-  stars5: {
-    id: "stars5",
-    tiers: [
-      { value: "STAR1", rank: 1, label: "★" },
-      { value: "STAR2", rank: 2, label: "★★" },
-      { value: "STAR3", rank: 3, label: "★★★" },
-      { value: "STAR4", rank: 4, label: "★★★★" },
-      { value: "STAR5", rank: 5, label: "★★★★★" }
-    ],
-    fallback: "STAR3",
-    defaultRates: { STAR1: 40, STAR2: 30, STAR3: 15, STAR4: 10, STAR5: 5 }
-  }
-};
-
-const rarityRankMap = {
-  N: 1,
-  R: 2,
-  SR: 3,
-  SSR: 4,
-  UR: 5,
-  STAR1: 1,
-  STAR2: 2,
-  STAR3: 3,
-  STAR4: 4,
-  STAR5: 5,
-  "1": 1,
-  "2": 2,
-  "3": 3,
-  "4": 4,
-  "5": 5
-};
-
 function getDefaultSystemConfig() {
-  return { rarityMode: "classic4" };
+  return { rarityMode: getDefaultRarityMode(), orientation: "auto" };
 }
 
 function getRarityModeConfig(mode = systemConfig?.rarityMode) {
-  return rarityModes[mode] || rarityModes.classic4;
+  return rarityLibGetModeConfig(mode);
 }
 
 function getRarityRank(value) {
-  return rarityRankMap[String(value || "").toUpperCase()] || 1;
+  return rarityLibGetRank(value);
 }
 
 function getRarityValueByRank(rank, mode = systemConfig?.rarityMode) {
-  const config = getRarityModeConfig(mode);
-  const maxRank = config.tiers[config.tiers.length - 1].rank;
-  const safeRank = Math.max(1, Math.min(maxRank, rank));
-  return config.tiers.find(tier => tier.rank === safeRank)?.value || config.fallback;
+  return rarityLibGetValueByRank(rank, mode);
 }
 
 function normalizeRarityValue(value, mode = systemConfig?.rarityMode) {
-  return getRarityValueByRank(getRarityRank(value), mode);
+  return rarityLibNormalizeValue(value, mode);
 }
 
 function getRarityLabel(value, mode = systemConfig?.rarityMode) {
-  const config = getRarityModeConfig(mode);
-  const normalized = normalizeRarityValue(value, mode);
-  return config.tiers.find(tier => tier.value === normalized)?.label || normalized;
+  return rarityLibGetLabel(value, mode);
 }
 
-function getRarityCssClass(value) {
-  return `rarity-tier-${getRarityRank(normalizeRarityValue(value))}`;
+function getRarityCssClass(value, mode = systemConfig?.rarityMode) {
+  return rarityLibGetCssClass(value, mode);
 }
 
 function getCurrentRarityValues() {
@@ -122,20 +103,11 @@ function getCurrentRarityValues() {
 }
 
 function getDefaultRates(mode = systemConfig?.rarityMode) {
-  return { ...getRarityModeConfig(mode).defaultRates };
+  return rarityLibGetDefaultRates(mode);
 }
 
 function normalizeRates(rates = {}, mode = systemConfig?.rarityMode) {
-  const config = getRarityModeConfig(mode);
-  const normalized = {};
-  config.tiers.forEach(tier => {
-    normalized[tier.value] = 0;
-  });
-  Object.entries(rates || {}).forEach(([key, value]) => {
-    const mapped = normalizeRarityValue(key, mode);
-    normalized[mapped] = (normalized[mapped] || 0) + (Number(value) || 0);
-  });
-  return normalized;
+  return rarityLibNormalizeRates(rates, mode);
 }
 
 function getScopedKey(key) {
@@ -193,30 +165,210 @@ const baseCharHomeVoiceDefs = [
   ["newYear", "年始"],
   ["homeEnter", "ホームに入った時"]
 ];
-
 void init();
 
 async function init() {
+  collectionScreen = window.CollectionScreen.setupCollectionScreen({
+    getCharacters: () => characters,
+    getStories: () => stories,
+    getSystemConfig: () => systemConfig,
+    baseCharVoiceLineDefs,
+    getBaseCharById,
+    getEffectiveVoiceLines,
+    openStoryReader: story => storyScreen.openStoryReader(story),
+    getRarityModeConfig,
+    normalizeRarityValue,
+    getRarityLabel,
+    getRarityCssClass,
+    makeFallbackImage,
+    esc
+  });
+  gachaScreen = window.GachaScreen.setupGachaScreen({
+    getCharacters: () => characters,
+    getGachas: () => gachas,
+    getSystemConfig: () => systemConfig,
+    getActiveGacha: () => activeGacha,
+    setActiveGacha: value => { activeGacha = value; },
+    buildGachaRateSummary,
+    normalizeRates,
+    getDefaultRates,
+    getRarityModeConfig,
+    getRarityLabel,
+    getRarityCssClass,
+    normalizeRarityValue,
+    makeFallbackImage,
+    showCardDetail: char => collectionScreen.showCardDetail(char),
+    esc
+  });
+  storyScreen = window.StoryScreen.setupStoryScreen({
+    getStories: () => stories,
+    getCharacters: () => characters,
+    getCurrentStoryType: () => currentStoryType,
+    setCurrentStoryType: value => { currentStoryType = value; },
+    getStoryReaderState: () => storyReaderState,
+    setStoryReaderState: value => { storyReaderState = value; },
+    getBaseCharById,
+    findCharacterImageByName,
+    resolveScenePortrait,
+    showToast,
+    esc
+  });
+  systemEditor = window.SystemEditor.setupSystemEditor({
+    getSystemConfig: () => systemConfig,
+    setSystemConfig: value => { systemConfig = value; },
+    getEditState: () => editState,
+    getGachas: () => gachas,
+    getCurrentScreen: () => currentScreen,
+    saveConfig: async value => {
+      saveLocal("socia-system", value);
+      try { await postJSON(apiUrl(API.system), value); } catch {}
+    },
+    renderAll,
+    applyOrientation,
+    refreshCollection: () => collectionScreen.renderCollectionScreen(),
+    refreshGacha: () => gachaScreen.renderGachaScreen(),
+    rarityApi: {
+      getRarityModeConfig,
+      getRarityCssClass,
+      getRarityLabel,
+      normalizeRarityValue,
+      getDefaultRates,
+      normalizeRates,
+      esc
+    },
+    showToast
+  });
+  entryEditor = window.EntryEditor.setupEntryEditor({
+    getCharacters: () => characters,
+    setCharacters: value => { characters = value; },
+    getBaseChars: () => baseChars,
+    getEditState: () => editState,
+    getApi: () => ({ characters: apiUrl(API.characters) }),
+    getSystemApi: () => ({
+      renderCharacterRarityOptions: value => systemEditor.renderCharacterRarityOptions(value),
+      getRarityFallback: () => getRarityModeConfig().fallback
+    }),
+    readFileAsDataUrl,
+    makeFallbackImage,
+    normalizeRarityValue,
+    saveLocal,
+    postJSON,
+    showToast,
+    upsertItem,
+    updateEditorSubmitLabels,
+    renderHome,
+    renderEditorCharacterList,
+    renderGachaPoolChars,
+    getEditingFeaturedIds,
+    renderVoiceLineFields,
+    collectVoiceLineFields,
+    baseCharVoiceLineDefs,
+    baseCharHomeVoiceDefs,
+    esc
+  });
+  baseCharEditor = window.BaseCharEditor.setupBaseCharEditor({
+    getBaseChars: () => baseChars,
+    setBaseChars: value => { baseChars = value; },
+    getEditState: () => editState,
+    getApi: () => ({ baseChars: apiUrl(API.baseChars) }),
+    readFileAsDataUrl,
+    makeBaseCharFallback,
+    normalizeBirthday,
+    saveLocal,
+    postJSON,
+    showToast,
+    upsertItem,
+    updateEditorSubmitLabels,
+    renderBaseCharList,
+    populateBaseCharSelects,
+    renderVoiceLineFields,
+    collectVoiceLineFields,
+    baseCharVoiceLineDefs,
+    baseCharHomeVoiceDefs,
+    esc
+  });
+  storyEditor = window.StoryEditor.setupStoryEditor({
+    getStories: () => stories,
+    setStories: value => { stories = value; },
+    getBaseChars: () => baseChars,
+    getCharacters: () => characters,
+    getEditState: () => editState,
+    getApi: () => ({ stories: apiUrl(API.stories) }),
+    readFileAsDataUrl,
+    saveLocal,
+    postJSON,
+    showToast,
+    upsertItem,
+    updateEditorSubmitLabels,
+    renderHome,
+    renderEditorStoryList,
+    getBaseCharById,
+    esc
+  });
+  editorScreen = window.EditorScreen.setupEditorScreen({
+    getBaseChars: () => baseChars,
+    getCharacters: () => characters,
+    getStories: () => stories,
+    getGachas: () => gachas,
+    getEditingFeaturedIds,
+    getRarityCssClass,
+    getRarityLabel,
+    makeFallbackImage,
+    buildStorySummary,
+    buildGachaRateSummary,
+    esc,
+    baseCharEditor,
+    entryEditor,
+    storyEditor,
+    storyScreen,
+    systemEditor,
+    beginGachaEdit,
+    navigateTo,
+    setActiveGacha: value => { activeGacha = value; },
+    collectionScreen,
+    populateBaseCharSelects,
+    updateEditorSubmitLabels
+  });
   setupNavigation();
-  setupEditorTabs();
-  setupStoryTabs();
-  setupCollectionFilters();
-  setupGachaButtons();
-  setupCardDetail();
-  setupStoryReader();
   setupForms();
   setupPreviews();
   setupHomeConfig();
   setupHomeInteractions();
 
   await loadAllData();
+  applyOrientation();
   renderAll();
 }
 
 function setupNavigation() {
+  let lastNavAt = 0;
+  const triggerNav = (screen, event) => {
+    const now = Date.now();
+    if (now - lastNavAt < 200) return;
+    lastNavAt = now;
+    if (event) event.preventDefault();
+    navigateTo(screen);
+  };
+
   document.querySelectorAll("[data-go]").forEach(btn => {
-    btn.addEventListener("click", () => navigateTo(btn.dataset.go));
-    btn.addEventListener("mousedown", () => navigateTo(btn.dataset.go));
+    btn.addEventListener("click", event => {
+      triggerNav(btn.dataset.go, event);
+    });
+    btn.addEventListener("pointerup", event => {
+      triggerNav(btn.dataset.go, event);
+    });
+  });
+
+  document.addEventListener("click", event => {
+    const button = event.target.closest("[data-go]");
+    if (!button) return;
+    triggerNav(button.dataset.go, event);
+  });
+
+  document.addEventListener("pointerup", event => {
+    const button = event.target.closest("[data-go]");
+    if (!button) return;
+    triggerNav(button.dataset.go, event);
   });
 }
 
@@ -224,18 +376,26 @@ function navigateTo(screen) {
   const previousScreen = currentScreen;
   currentScreen = screen;
   document.querySelectorAll(".screen").forEach(screenEl => screenEl.classList.remove("active"));
-  document.getElementById(`screen-${screen}`).classList.add("active");
+  const nextScreen = document.getElementById(`screen-${screen}`);
+  if (!nextScreen) return;
+  nextScreen.classList.add("active");
 
   document.querySelectorAll(".bottom-nav-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.go === screen);
   });
 
-  if (screen === "home") renderHome(previousScreen === "home" ? "refresh" : "enter");
-  if (screen === "gacha") renderGachaScreen();
-  if (screen === "story") renderStoryScreen();
-  if (screen === "collection") renderCollectionScreen();
-  if (screen === "editor") renderEditorScreen();
+  try {
+    if (screen === "home") renderHome(previousScreen === "home" ? "refresh" : "enter");
+    if (screen === "gacha" && gachaScreen) gachaScreen.renderGachaScreen();
+    if (screen === "story" && storyScreen) storyScreen.renderStoryScreen();
+    if (screen === "collection" && collectionScreen) collectionScreen.renderCollectionScreen();
+    if (screen === "editor" && editorScreen) editorScreen.renderEditorScreen();
+  } catch (error) {
+    console.error("navigateTo render error:", error);
+  }
 }
+
+window.navigateTo = navigateTo;
 
 async function loadAllData() {
   const [loadedBaseChars, loadedCharacters, loadedStories, loadedGachas, loadedSystem] = await Promise.all([
@@ -263,42 +423,42 @@ async function loadAllData() {
 }
 
 async function fetchJSON(url) {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(String(res.status));
-  return res.json();
+  return apiGet(url);
 }
 
 async function postJSON(url, data) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(data)
-  });
-  if (!res.ok) throw new Error(String(res.status));
-  return res.json();
+  return apiPost(url, data);
 }
 
 function loadLocal(key, fallback) {
-  try {
-    const raw = localStorage.getItem(getScopedStorageKey(key));
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
+  return storageLoadLocal(key, fallback, roomId);
 }
 
 function saveLocal(key, data) {
-  localStorage.setItem(getScopedStorageKey(key), JSON.stringify(data));
+  storageSaveLocal(key, data, roomId);
 }
 
 function getScopedStorageKey(key) {
-  return roomId ? `${key}::room:${roomId}` : key;
+  return storageGetScopedStorageKey(key, roomId);
 }
 
 function renderAll() {
-  renderCollectionFilters();
+  collectionScreen.renderCollectionFilters("all");
   renderHome("refresh");
-  renderEditorScreen();
+  editorScreen.renderEditorScreen();
+}
+
+function applyOrientation() {
+  const mode = systemConfig.orientation || "auto";
+  document.body.classList.remove("landscape-mode", "fullscreen-mode", "portrait-mode");
+  if (mode === "landscape") {
+    document.body.classList.add("landscape-mode");
+  } else if (mode === "fullscreen") {
+    document.body.classList.add("fullscreen-mode");
+  } else if (mode === "portrait") {
+    document.body.classList.add("portrait-mode");
+  }
+  // "auto" = no forced class, CSS media query handles it
 }
 
 function renderHome(reason = "refresh") {
@@ -362,7 +522,7 @@ function renderHome(reason = "refresh") {
 
 function pickLine(card) {
   if (card.lines?.length) return card.lines[Math.floor(Math.random() * card.lines.length)];
-  return card.catch || "カードを集めて世界を広げよう。";
+  return card.catch || "セリフ未設定";
 }
 
 function getEffectiveVoiceLines(card, baseChar) {
@@ -424,7 +584,7 @@ function syncHomeDialogue(card1, card2, reason) {
       card1Id: null,
       card2Id: null,
       primaryName: "",
-      primaryText: "まずは編集画面でカードを登録してください。",
+      primaryText: "ホームにキャラを配置するとセリフが表示されます",
       secondaryName: "",
       secondaryText: ""
     };
@@ -657,7 +817,7 @@ function setupHomeConfig() {
     saveHomeConfig(homeConfigDraft);
     panel.hidden = true;
     renderHome();
-    showToast("ホーム設定を保存しました。");
+    showToast("ホーム設定を保存しました");
   });
 }
 
@@ -687,7 +847,7 @@ function populateHomeCardSelects() {
   ["home-card-1", "home-card-2"].forEach(id => {
     const select = document.getElementById(id);
     const current = select.value;
-    select.innerHTML = '<option value="">自動（最新カード）</option>' +
+    select.innerHTML = '<option value="">閾ｪ蜍包ｼ域怙譁ｰ繧ｫ繝ｼ繝会ｼ・/option>' +
       characters.map(c => `<option value="${esc(c.id)}">${esc(c.rarity)} ${esc(c.name)}</option>`).join("");
     select.value = current;
   });
@@ -711,7 +871,7 @@ function renderHomeConfigStageChar(index) {
   const cardId = homeConfigDraft[`card${index}`];
   const card = characters.find(item => item.id === cardId) || (index === 1 ? characters[0] : null);
   if (!card) {
-    stageChar.innerHTML = `<div class="home-config-stage-empty">カード未選択</div>`;
+    stageChar.innerHTML = `<div class="home-config-stage-empty">繧ｫ繝ｼ繝画悴驕ｸ謚・/div>`;
   } else {
     stageChar.innerHTML = `<img src="${card.image || makeFallbackImage(card.name, card.rarity)}" alt="${esc(card.name)}">`;
   }
@@ -720,7 +880,7 @@ function renderHomeConfigStageChar(index) {
   stageChar.classList.toggle("is-active", activeHomeConfigTarget === index);
   stageChar.classList.toggle("is-front", homeConfigDraft.front === index);
   stageChar.classList.toggle("is-back", homeConfigDraft.front !== index);
-  stageChar.dataset.label = `キャラ${index}`;
+  stageChar.dataset.label = `繧ｭ繝｣繝ｩ${index}`;
   stageChar.style.transform = `translateX(${homeConfigDraft[`x${index}`]}%) scale(${homeConfigDraft[`scale${index}`] / 100})`;
   stageChar.style.bottom = `${32 + homeConfigDraft[`y${index}`] * 2.2}px`;
 
@@ -801,259 +961,6 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function setupGachaButtons() {
-  document.getElementById("gacha-single").addEventListener("click", () => pullGacha(1));
-  document.getElementById("gacha-ten").addEventListener("click", () => pullGacha(10));
-  document.getElementById("gacha-results-ok").addEventListener("click", () => {
-    document.getElementById("gacha-results").hidden = true;
-    document.getElementById("gacha-active-area").hidden = false;
-  });
-}
-
-function renderGachaScreen() {
-  const bannerList = document.getElementById("gacha-banner-list");
-  const noBanner = document.getElementById("gacha-no-banner");
-  const activeArea = document.getElementById("gacha-active-area");
-  const results = document.getElementById("gacha-results");
-
-  bannerList.innerHTML = "";
-  results.hidden = true;
-
-  if (characters.length === 0 || gachas.length === 0) {
-    noBanner.hidden = false;
-    activeArea.hidden = true;
-    return;
-  }
-
-  noBanner.hidden = true;
-  gachas.forEach((gacha, index) => {
-    const card = document.createElement("div");
-    card.className = "gacha-banner-card";
-    card.innerHTML = `
-      <h4>${esc(gacha.title)}</h4>
-      <p>${esc(gacha.description || buildGachaRateSummary(gacha.rates))}</p>
-      <span class="gacha-banner-tag">pickup</span>
-    `;
-    card.addEventListener("click", () => selectGacha(index));
-    bannerList.appendChild(card);
-  });
-
-  if (activeGacha === null || !gachas[activeGacha]) activeGacha = 0;
-  showActiveGacha();
-}
-
-function selectGacha(index) {
-  activeGacha = index;
-  showActiveGacha();
-}
-
-function showActiveGacha() {
-  const gacha = gachas[activeGacha];
-  if (!gacha) return;
-
-  document.getElementById("gacha-active-area").hidden = false;
-  document.getElementById("gacha-active-title").textContent = gacha.title;
-  document.getElementById("gacha-active-desc").textContent = gacha.description || "";
-
-  const rates = normalizeRates(gacha.rates || getDefaultRates());
-  document.getElementById("gacha-rates").innerHTML =
-    getRarityModeConfig().tiers.map(tier => `<span>${getRarityLabel(tier.value)}: ${rates[tier.value] || 0}%</span>`).join("");
-}
-
-function pullGacha(count) {
-  if (characters.length === 0) return;
-
-  const gacha = gachas[activeGacha];
-  const rates = normalizeRates(gacha?.rates || getDefaultRates());
-
-  document.getElementById("gacha-overlay").hidden = false;
-  document.getElementById("gacha-active-area").hidden = true;
-
-  setTimeout(() => {
-    document.getElementById("gacha-overlay").hidden = true;
-    const results = [];
-
-    for (let i = 0; i < count; i += 1) {
-      const rarity = rollRarity(rates);
-      const pool = characters.filter(char => normalizeRarityValue(char.rarity) === rarity);
-      const char = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : characters[Math.floor(Math.random() * characters.length)];
-      results.push({ ...char, rolledRarity: rarity });
-    }
-
-    showGachaResults(results);
-  }, 1500);
-}
-
-function rollRarity(rates) {
-  const roll = Math.random() * 100;
-  let cumulative = 0;
-  const tiers = [...getRarityModeConfig().tiers].sort((a, b) => b.rank - a.rank);
-  for (const tier of tiers) {
-    cumulative += rates[tier.value] || 0;
-    if (roll < cumulative) return tier.value;
-  }
-  return getRarityModeConfig().tiers[0].value;
-}
-
-function showGachaResults(results) {
-  const grid = document.getElementById("gacha-results-grid");
-  grid.innerHTML = "";
-  grid.style.gridTemplateColumns = results.length === 1 ? "1fr" : "repeat(5, 1fr)";
-
-  results.forEach((char, index) => {
-    const card = document.createElement("div");
-    card.className = `gacha-result-card ${getRarityCssClass(char.rolledRarity || char.rarity)}`;
-    card.style.animationDelay = `${index * 0.1}s`;
-    card.innerHTML = `
-      <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-      <div class="gacha-result-info">
-        <p class="gacha-result-rarity">${esc(getRarityLabel(char.rolledRarity || char.rarity))}</p>
-        <p class="gacha-result-name">${esc(char.name)}</p>
-      </div>
-    `;
-    card.addEventListener("click", () => showCardDetail(char));
-    grid.appendChild(card);
-  });
-
-  document.getElementById("gacha-results").hidden = false;
-}
-
-function setupStoryTabs() {
-  document.querySelectorAll(".story-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".story-tab").forEach(item => item.classList.remove("active"));
-      tab.classList.add("active");
-      currentStoryType = tab.dataset.storyType;
-      renderStoryList();
-    });
-  });
-}
-
-function renderStoryScreen() {
-  renderStoryList();
-}
-
-function renderStoryList() {
-  const list = document.getElementById("story-list");
-  const empty = document.getElementById("story-empty");
-  const filtered = stories.filter(story => story.type === currentStoryType);
-
-  list.innerHTML = "";
-  if (filtered.length === 0) {
-    empty.hidden = false;
-    return;
-  }
-
-  empty.hidden = true;
-  filtered.forEach(story => {
-    const linkedCard = story.entryId ? characters.find(char => char.id === story.entryId) : null;
-    const item = document.createElement("div");
-    item.className = "story-item";
-    item.innerHTML = `
-      <p class="story-item-type">${getStoryTypeLabel(story.type)}</p>
-      <h4>${esc(story.title)}</h4>
-      <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} scenes</p>
-    `;
-    item.addEventListener("click", () => openStoryReader(story));
-    list.appendChild(item);
-  });
-}
-
-function getStoryTypeLabel(type) {
-  if (type === "main") return "MAIN STORY";
-  if (type === "event") return "EVENT STORY";
-  if (type === "character") return "CHARACTER STORY";
-  return "STORY";
-}
-
-function setupStoryReader() {
-  document.querySelector(".story-reader-textbox").addEventListener("click", () => advanceStory());
-  document.getElementById("story-reader-close").addEventListener("click", () => closeStoryReader());
-}
-
-function openStoryReader(story) {
-  if (!story.scenes || story.scenes.length === 0) {
-    showToast("シーンがありません。");
-    return;
-  }
-
-  const audio = document.getElementById("story-bgm");
-  audio.pause();
-  audio.src = "";
-  audio.dataset.currentSrc = "";
-  document.getElementById("story-audio-ctrl").hidden = true;
-  document.getElementById("story-reader-bg-img").hidden = true;
-
-  storyReaderState = { story, index: 0 };
-  document.getElementById("story-reader").hidden = false;
-  renderStoryScene();
-}
-
-function renderStoryScene() {
-  if (!storyReaderState) return;
-
-  const { story, index } = storyReaderState;
-  const scene = story.scenes[index];
-  const baseChar = scene.characterId ? getBaseCharById(scene.characterId) : null;
-  const charName = baseChar ? baseChar.name : (scene.character || "Narration");
-
-  let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
-  if (baseChar && scene.expressionName && baseChar.expressions?.length) {
-    const expr = baseChar.expressions.find(e => e.name === scene.expressionName);
-    if (expr?.image) portrait = expr.image;
-  }
-
-  const nameEl = document.getElementById("story-reader-name");
-  nameEl.textContent = charName;
-  nameEl.style.color = baseChar?.color || "var(--accent-light)";
-  document.getElementById("story-reader-text").textContent = scene.text || "";
-
-  const charEl = document.getElementById("story-reader-character");
-  charEl.innerHTML = "";
-  if (portrait) {
-    const img = document.createElement("img");
-    img.src = portrait;
-    img.alt = charName;
-    charEl.appendChild(img);
-  }
-
-  // Background image
-  const bgImg = document.getElementById("story-reader-bg-img");
-  if (scene.background) {
-    bgImg.src = scene.background;
-    bgImg.hidden = false;
-    document.getElementById("story-reader-bg").style.background = "transparent";
-  } else {
-    bgImg.hidden = true;
-    document.getElementById("story-reader-bg").style.background = baseChar
-      ? `linear-gradient(180deg, ${baseChar.color}22 0%, #0a0a12 60%)`
-      : "linear-gradient(180deg, #1a1040 0%, #0a0a12 100%)";
-  }
-
-  // BGM handling
-  const audio = document.getElementById("story-bgm");
-  const audioCtrl = document.getElementById("story-audio-ctrl");
-  const sceneBgm = scene.bgm || (index === 0 ? story.bgm : null);
-  if (sceneBgm && audio.dataset.currentSrc !== sceneBgm) {
-    audio.src = sceneBgm;
-    audio.dataset.currentSrc = sceneBgm;
-    audio.play().catch(() => {});
-    document.getElementById("bgm-toggle").textContent = "\u23F8";
-    audioCtrl.hidden = false;
-  } else if (index === 0 && story.bgm && !audio.src) {
-    audio.src = story.bgm;
-    audio.dataset.currentSrc = story.bgm;
-    audio.play().catch(() => {});
-    document.getElementById("bgm-toggle").textContent = "\u23F8";
-    audioCtrl.hidden = false;
-  }
-
-  const progress = ((index + 1) / story.scenes.length) * 100;
-  const progressEl = document.getElementById("story-reader-progress");
-  progressEl.style.width = `${progress}%`;
-  progressEl.style.background = baseChar?.color || "var(--accent-light)";
-}
-
 function resolveScenePortrait(story, baseChar, scene) {
   if (!baseChar) return "";
   if (scene.variantName && baseChar.variants?.length) {
@@ -1073,576 +980,20 @@ function getStoryVariantName(story, characterId) {
   return story.variantAssignments.find(item => item.characterId === characterId)?.variantName || "";
 }
 
-function advanceStory() {
-  if (!storyReaderState) return;
-  storyReaderState.index += 1;
-
-  if (storyReaderState.index >= storyReaderState.story.scenes.length) {
-    closeStoryReader();
-    showToast("ストーリーを読み終えました。");
-    return;
-  }
-
-  renderStoryScene();
-}
-
-function closeStoryReader() {
-  storyReaderState = null;
-  const audio = document.getElementById("story-bgm");
-  audio.pause();
-  audio.src = "";
-  audio.dataset.currentSrc = "";
-  document.getElementById("story-audio-ctrl").hidden = true;
-  document.getElementById("story-reader").hidden = true;
-}
-
-function setupCollectionFilters() {
-  const wrap = document.getElementById("collection-filters");
-  wrap.addEventListener("click", e => {
-    const btn = e.target.closest(".collection-filter");
-    if (!btn) return;
-    document.querySelectorAll(".collection-filter").forEach(item => item.classList.remove("active"));
-    btn.classList.add("active");
-    renderCollectionScreen(btn.dataset.rarity);
-  });
-}
-
-function renderCollectionFilters(active = "all") {
-  const wrap = document.getElementById("collection-filters");
-  if (!wrap) return;
-  const buttons = [{ value: "all", label: "ALL" }].concat(
-    getRarityModeConfig().tiers.slice().sort((a, b) => b.rank - a.rank).map(tier => ({
-      value: tier.value,
-      label: getRarityLabel(tier.value)
-    }))
-  );
-  wrap.innerHTML = buttons.map(item =>
-    `<button class="collection-filter${item.value === active ? " active" : ""}" data-rarity="${item.value}">${esc(item.label)}</button>`
-  ).join("");
-}
-
-function renderCollectionScreen(filterRarity) {
-  const grid = document.getElementById("collection-grid");
-  const empty = document.getElementById("collection-empty");
-  const requestedFilter = filterRarity || document.querySelector(".collection-filter.active")?.dataset.rarity || "all";
-  const activeFilter = requestedFilter === "all" ? "all" : normalizeRarityValue(requestedFilter);
-  renderCollectionFilters(activeFilter);
-  const filtered = activeFilter === "all" ? characters : characters.filter(char => normalizeRarityValue(char.rarity) === activeFilter);
-
-  grid.innerHTML = "";
-  if (characters.length === 0) {
-    empty.hidden = false;
-    return;
-  }
-
-  empty.hidden = true;
-  filtered.forEach(char => {
-    const card = document.createElement("div");
-    card.className = `collection-card ${getRarityCssClass(char.rarity)}`;
-    card.innerHTML = `
-      <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-      <div class="collection-card-info">
-        <span class="collection-card-rarity ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
-        <p class="collection-card-name">${esc(char.name)}</p>
-      </div>
-    `;
-    card.addEventListener("click", () => showCardDetail(char));
-    grid.appendChild(card);
-  });
-}
-
-function setupCardDetail() {
-  document.getElementById("card-detail-close").addEventListener("click", () => {
-    document.getElementById("card-detail").hidden = true;
-  });
-  document.getElementById("card-detail").addEventListener("click", e => {
-    if (e.target === document.getElementById("card-detail")) {
-      document.getElementById("card-detail").hidden = true;
-    }
-  });
-}
-
-function showCardDetail(char) {
-  document.getElementById("card-detail-image").innerHTML =
-    `<img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">`;
-  document.getElementById("card-detail-rarity").textContent = getRarityLabel(char.rarity);
-  document.getElementById("card-detail-name").textContent = char.name;
-  document.getElementById("card-detail-catch").textContent = char.catch || "";
-  document.getElementById("card-detail-attr").textContent = char.attribute || "";
-  renderCardDetailVoices(char);
-  renderCardDetailStories(char);
-  document.getElementById("card-detail").hidden = false;
-}
-
-function renderCardDetailVoices(char) {
-  const wrap = document.getElementById("card-detail-voices");
-  const list = document.getElementById("card-detail-voice-list");
-  const baseChar = char.baseCharId ? getBaseCharById(char.baseCharId) : null;
-  const mergedVoiceLines = getEffectiveVoiceLines(char, baseChar);
-  const voiceEntries = baseCharVoiceLineDefs
-    .map(([key, label]) => ({ label, text: mergedVoiceLines[key] || "" }))
-    .filter(item => item.text);
-
-  list.innerHTML = "";
-  if (voiceEntries.length === 0) {
-    wrap.hidden = true;
-    return;
-  }
-
-  wrap.hidden = false;
-  voiceEntries.forEach(item => {
-    const row = document.createElement("div");
-    row.className = "card-detail-voice-item";
-    row.innerHTML = `
-      <span class="card-detail-voice-label">${esc(item.label)}</span>
-      <p class="card-detail-voice-text">${esc(item.text)}</p>
-    `;
-    list.appendChild(row);
-  });
-}
-
-function renderCardDetailStories(char) {
-  const wrap = document.getElementById("card-detail-stories");
-  const list = document.getElementById("card-detail-story-list");
-  const linkedStories = stories.filter(story => story.type === "character" && story.entryId === char.id);
-  list.innerHTML = "";
-  if (linkedStories.length === 0) {
-    wrap.hidden = true;
-    return;
-  }
-
-  wrap.hidden = false;
-  linkedStories.forEach(story => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "card-detail-story-btn";
-    button.textContent = story.title;
-    button.addEventListener("click", () => {
-      document.getElementById("card-detail").hidden = true;
-      openStoryReader(story);
-    });
-    list.appendChild(button);
-  });
-}
-
-function setupEditorTabs() {
-  document.querySelectorAll(".editor-tab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".editor-tab").forEach(item => item.classList.remove("active"));
-      document.querySelectorAll(".editor-panel").forEach(panel => panel.classList.remove("active"));
-      tab.classList.add("active");
-      document.getElementById(`editor-${tab.dataset.editorTab}`).classList.add("active");
-      if (tab.dataset.editorTab === "gacha") renderGachaPoolChars(getEditingFeaturedIds());
-      if (tab.dataset.editorTab === "system") renderSystemForm();
-    });
-  });
-}
-
-function renderEditorScreen() {
-  renderBaseCharList();
-  renderEditorCharacterList();
-  renderEditorStoryList();
-  renderEditorGachaList();
-  renderSystemForm();
-  renderGachaPoolChars(getEditingFeaturedIds());
-  renderCollectionFilters();
-  populateBaseCharSelects();
-  updateEditorSubmitLabels();
-}
-
-function renderSystemForm() {
-  const form = document.getElementById("system-form");
-  if (!form) return;
-  form.rarityMode.value = systemConfig.rarityMode || "classic4";
-  renderSystemPreview();
-  renderCharacterRarityOptions(document.getElementById("character-form")?.rarity.value);
-  renderGachaRateInputs(editState.gachaId ? gachas.find(gacha => gacha.id === editState.gachaId)?.rates : null);
-}
-
-function renderSystemPreview() {
-  const list = document.getElementById("system-rarity-preview");
-  if (!list) return;
-  list.innerHTML = getRarityModeConfig().tiers.map(tier =>
-    `<span class="system-rarity-chip ${getRarityCssClass(tier.value)}">${esc(getRarityLabel(tier.value))}</span>`
-  ).join("");
-}
-
-function renderCharacterRarityOptions(selectedValue) {
-  const select = document.getElementById("character-rarity-select");
-  if (!select) return;
-  const normalized = normalizeRarityValue(selectedValue || getRarityModeConfig().fallback);
-  select.innerHTML = getRarityModeConfig().tiers.map(tier =>
-    `<option value="${tier.value}"${tier.value === normalized ? " selected" : ""}>${esc(getRarityLabel(tier.value))}</option>`
-  ).join("");
-}
-
-function renderGachaRateInputs(values) {
-  const wrap = document.getElementById("gacha-rate-inputs");
-  if (!wrap) return;
-  const rates = normalizeRates(values || getDefaultRates());
-  wrap.innerHTML = getRarityModeConfig().tiers.map(tier =>
-    `<label>${esc(getRarityLabel(tier.value))} <input name="rate-${tier.value}" type="number" min="0" max="100" value="${rates[tier.value] || 0}">%</label>`
-  ).join("");
-}
-
-function renderBaseCharList() {
-  const list = document.getElementById("base-char-list");
-  list.innerHTML = "";
-  if (baseChars.length === 0) {
-    list.innerHTML = '<p class="editor-record-empty">まだベースキャラが登録されていません。</p>';
-    return;
-  }
-
-  baseChars.forEach(baseChar => {
-    const item = document.createElement("div");
-    item.className = "base-char-item";
-    item.innerHTML = `
-      <img class="base-char-portrait" src="${baseChar.portrait}" alt="${esc(baseChar.name)}">
-      <div class="base-char-info">
-        <p class="base-char-info-name" style="color:${baseChar.color}">${esc(baseChar.name)}</p>
-        <p class="base-char-info-desc">${esc(baseChar.description || "")}</p>
-      </div>
-      <span class="base-char-color-dot" style="background:${baseChar.color}"></span>
-      <div class="editor-record-actions">
-        <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-        <button class="base-char-delete" type="button" data-action="delete">削除</button>
-      </div>
-    `;
-    item.querySelector('[data-action="edit"]').addEventListener("click", () => beginBaseCharEdit(baseChar.id));
-    item.querySelector('[data-action="delete"]').addEventListener("click", () => deleteBaseChar(baseChar.id));
-    list.appendChild(item);
-  });
-}
-
-function renderEditorCharacterList() {
-  const list = document.getElementById("editor-character-list");
-  list.innerHTML = "";
-  if (characters.length === 0) {
-    list.innerHTML = '<p class="editor-record-empty">まだカードが登録されていません。</p>';
-    return;
-  }
-
-  characters.forEach(char => {
-    const item = document.createElement("div");
-    item.className = `editor-record-card ${getRarityCssClass(char.rarity)}`;
-    item.innerHTML = `
-      <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-      <div class="editor-record-card-body">
-        <div class="editor-record-item-top">
-          <span class="editor-record-badge ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
-          <span class="editor-record-meta">${esc(char.attribute || "-")}</span>
-        </div>
-        <h5>${esc(char.name)}</h5>
-        <p>${esc(char.catch || "")}</p>
-        <div class="editor-record-actions">
-          <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-          <button class="editor-inline-btn" type="button" data-action="detail">詳細</button>
-        </div>
-      </div>
-    `;
-    item.querySelector('[data-action="edit"]').addEventListener("click", () => beginCharacterEdit(char.id));
-    item.querySelector('[data-action="detail"]').addEventListener("click", () => showCardDetail(char));
-    list.appendChild(item);
-  });
-}
-
-function renderEditorStoryList() {
-  const list = document.getElementById("editor-story-list");
-  list.innerHTML = "";
-  if (stories.length === 0) {
-    list.innerHTML = '<p class="editor-record-empty">まだストーリーが登録されていません。</p>';
-    return;
-  }
-
-  stories.forEach(story => {
-    const linkedCard = story.entryId ? characters.find(char => char.id === story.entryId) : null;
-    const item = document.createElement("div");
-    item.className = "editor-record-item";
-    item.innerHTML = `
-      <div class="editor-record-item-top">
-        <span class="editor-record-badge">${story.type === "main" ? "MAIN" : story.type === "event" ? "EVENT" : "CHARA"}</span>
-        <span class="editor-record-meta">${story.scenes?.length || 0} scenes</span>
-      </div>
-      <h5>${esc(story.title)}</h5>
-      <p>${esc(linkedCard ? `${linkedCard.name} / ${buildStorySummary(story)}` : buildStorySummary(story))}</p>
-      <div class="editor-record-actions">
-        <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-        <button class="editor-inline-btn" type="button" data-action="read">閲覧</button>
-      </div>
-    `;
-    item.querySelector('[data-action="edit"]').addEventListener("click", () => beginStoryEdit(story.id));
-    item.querySelector('[data-action="read"]').addEventListener("click", () => openStoryReader(story));
-    list.appendChild(item);
-  });
-}
-
-function renderEditorGachaList() {
-  const list = document.getElementById("editor-gacha-list");
-  list.innerHTML = "";
-  if (gachas.length === 0) {
-    list.innerHTML = '<p class="editor-record-empty">まだガチャが登録されていません。</p>';
-    return;
-  }
-
-  gachas.forEach((gacha, index) => {
-    const item = document.createElement("div");
-    item.className = "editor-record-item";
-    item.innerHTML = `
-      <div class="editor-record-item-top">
-        <span class="editor-record-badge">GACHA</span>
-        <span class="editor-record-meta">pickup ${gacha.featured?.length || 0}</span>
-      </div>
-      <h5>${esc(gacha.title)}</h5>
-      <p>${esc(gacha.description || buildGachaRateSummary(gacha.rates))}</p>
-      <div class="editor-record-actions">
-        <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-        <button class="editor-inline-btn" type="button" data-action="open">開く</button>
-      </div>
-    `;
-    item.querySelector('[data-action="edit"]').addEventListener("click", () => beginGachaEdit(gacha.id));
-    item.querySelector('[data-action="open"]').addEventListener("click", () => {
-      activeGacha = index;
-      navigateTo("gacha");
-    });
-    list.appendChild(item);
-  });
-}
-
-function renderGachaPoolChars(selectedIds = []) {
-  const container = document.getElementById("gacha-pool-chars");
-  container.innerHTML = "";
-  characters.forEach(char => {
-    const item = document.createElement("div");
-    item.className = "gacha-pool-char";
-    if (selectedIds.includes(char.id)) item.classList.add("selected");
-    item.dataset.charId = char.id;
-    item.innerHTML = `
-      <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-      <span>${esc(getRarityLabel(char.rarity))} ${esc(char.name)}</span>
-    `;
-    item.addEventListener("click", () => item.classList.toggle("selected"));
-    container.appendChild(item);
-  });
-}
-
 function setupForms() {
-  document.getElementById("base-char-form").addEventListener("submit", handleBaseCharSubmit);
-  document.getElementById("character-form").addEventListener("submit", handleCharacterSubmit);
-  document.getElementById("story-form").addEventListener("submit", handleStorySubmit);
   document.getElementById("gacha-form").addEventListener("submit", handleGachaSubmit);
-  document.getElementById("system-form").addEventListener("submit", handleSystemSubmit);
-  document.querySelector("#system-form select[name='rarityMode']").addEventListener("change", handleSystemModePreview);
-  document.getElementById("add-scene-btn").addEventListener("click", () => addSceneInput());
-  document.getElementById("add-expression-btn").addEventListener("click", () => addExpressionInput());
-  document.getElementById("add-variant-btn").addEventListener("click", () => addVariantInput());
-  document.getElementById("add-home-opinion-btn").addEventListener("click", () => addHomeOpinionInput());
-  document.getElementById("add-home-conversation-btn").addEventListener("click", () => addHomeConversationInput());
-  document.getElementById("add-home-birthday-btn").addEventListener("click", () => addHomeBirthdayInput());
-  document.getElementById("add-card-home-opinion-btn").addEventListener("click", () => addCardHomeOpinionInput());
-  document.getElementById("add-card-home-conversation-btn").addEventListener("click", () => addCardHomeConversationInput());
-  document.getElementById("add-card-home-birthday-btn").addEventListener("click", () => addCardHomeBirthdayInput());
-  document.querySelector("#story-form select[name='type']").addEventListener("change", handleStoryTypeChange);
 
-  renderBaseCharVoiceLineFields();
-  renderBaseCharHomeVoiceLineFields();
-  renderCardVoiceLineFields();
-  renderCardHomeVoiceLineFields();
-  renderStoryVariantDefaults();
-  renderSystemForm();
+  baseCharEditor.renderBaseCharVoiceLineFields();
+  baseCharEditor.renderBaseCharHomeVoiceLineFields();
+  entryEditor.renderCardVoiceLineFields();
+  entryEditor.renderCardHomeVoiceLineFields();
+  storyEditor.renderStoryVariantDefaults();
+  systemEditor.renderSystemForm();
   const sceneList = document.getElementById("scene-list");
   sceneList.innerHTML = "";
-  addSceneInput();
+  storyEditor.addSceneInput();
 
   document.getElementById("share-btn").addEventListener("click", handleShare);
-  document.getElementById("bgm-toggle").addEventListener("click", toggleBgm);
-}
-
-function addExpressionInput(expr = null) {
-  const list = document.getElementById("expression-list");
-  const item = document.createElement("div");
-  item.className = "expression-item";
-  item.innerHTML = `
-    <input name="expr-name" type="text" maxlength="30" placeholder="笑顔" value="${esc(expr?.name || "")}">
-    <label class="upload-field expression-upload">
-      <input name="expr-image" type="file" accept="image/*">
-    </label>
-    ${expr?.image ? '<span class="expr-set">&#x2713;</span>' : ''}
-    <button type="button" class="expression-remove">&#x2715;</button>
-  `;
-  if (expr?.image) item.dataset.exprImage = expr.image;
-  const fileInput = item.querySelector("[name='expr-image']");
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    item.dataset.exprImage = await readFileAsDataUrl(file);
-    if (!item.querySelector(".expr-set")) {
-      const s = document.createElement("span");
-      s.className = "expr-set";
-      s.textContent = "\u2713";
-      fileInput.closest("label").after(s);
-    }
-  });
-  item.querySelector(".expression-remove").addEventListener("click", () => item.remove());
-  list.appendChild(item);
-}
-
-function addVariantInput(variant = null) {
-  const list = document.getElementById("variant-list");
-  const item = document.createElement("div");
-  item.className = "expression-item";
-  item.innerHTML = `
-    <input name="variant-name" type="text" maxlength="30" placeholder="イベント衣装" value="${esc(variant?.name || "")}">
-    <label class="upload-field expression-upload">
-      <input name="variant-image" type="file" accept="image/*">
-    </label>
-    ${variant?.image ? '<span class="expr-set">&#x2713;</span>' : ''}
-    <button type="button" class="expression-remove">&#x2715;</button>
-  `;
-  if (variant?.image) item.dataset.variantImage = variant.image;
-  const fileInput = item.querySelector("[name='variant-image']");
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files[0];
-    if (!file) return;
-    item.dataset.variantImage = await readFileAsDataUrl(file);
-    if (!item.querySelector(".expr-set")) {
-      const s = document.createElement("span");
-      s.className = "expr-set";
-      s.textContent = "\u2713";
-      fileInput.closest("label").after(s);
-    }
-  });
-  item.querySelector(".expression-remove").addEventListener("click", () => item.remove());
-  list.appendChild(item);
-}
-
-function addHomeOpinionInput(item = null) {
-  const list = document.getElementById("home-opinion-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="home-opinion-target">
-      <option value="">相手キャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="home-opinion-text" rows="2" maxlength="200" placeholder="そのキャラについての所感">${esc(item?.text || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-function addHomeConversationInput(item = null) {
-  const list = document.getElementById("home-conversation-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="home-conversation-target">
-      <option value="">相手キャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="home-conversation-self" rows="2" maxlength="200" placeholder="自分のセリフ">${esc(item?.selfText || "")}</textarea>
-    <textarea name="home-conversation-partner" rows="2" maxlength="200" placeholder="相手のセリフ">${esc(item?.partnerText || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-function addHomeBirthdayInput(item = null) {
-  const list = document.getElementById("home-birthday-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="home-birthday-target">
-      <option value="">誕生日のキャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="home-birthday-text" rows="2" maxlength="200" placeholder="そのキャラの誕生日用セリフ">${esc(item?.text || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-function addCardHomeOpinionInput(item = null) {
-  const list = document.getElementById("card-home-opinion-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="card-home-opinion-target">
-      <option value="">相手キャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="card-home-opinion-text" rows="2" maxlength="200" placeholder="そのキャラについての所感">${esc(item?.text || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-function addCardHomeConversationInput(item = null) {
-  const list = document.getElementById("card-home-conversation-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="card-home-conversation-target">
-      <option value="">相手キャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="card-home-conversation-self" rows="2" maxlength="200" placeholder="自分のセリフ">${esc(item?.selfText || "")}</textarea>
-    <textarea name="card-home-conversation-partner" rows="2" maxlength="200" placeholder="相手のセリフ">${esc(item?.partnerText || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-function addCardHomeBirthdayInput(item = null) {
-  const list = document.getElementById("card-home-birthday-list");
-  const row = document.createElement("div");
-  row.className = "relation-line-item";
-  row.innerHTML = `
-    <select name="card-home-birthday-target">
-      <option value="">誕生日のキャラを選択</option>
-      ${baseChars.map(baseChar => `<option value="${esc(baseChar.id)}"${item?.targetBaseCharId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`).join("")}
-    </select>
-    <textarea name="card-home-birthday-text" rows="2" maxlength="200" placeholder="そのキャラの誕生日用セリフ">${esc(item?.text || "")}</textarea>
-    <button type="button" class="expression-remove">削除</button>
-  `;
-  row.querySelector(".expression-remove").addEventListener("click", () => row.remove());
-  list.appendChild(row);
-}
-
-async function collectExpressions() {
-  const items = document.querySelectorAll("#expression-list .expression-item");
-  const expressions = [];
-  for (const item of items) {
-    const name = item.querySelector("[name='expr-name']").value.trim();
-    if (!name) continue;
-    const fileInput = item.querySelector("[name='expr-image']");
-    let image = item.dataset.exprImage || "";
-    if (fileInput.files[0]) {
-      image = await readFileAsDataUrl(fileInput.files[0]);
-    }
-    expressions.push({ name, image });
-  }
-  return expressions;
-}
-
-async function collectVariants() {
-  const items = document.querySelectorAll("#variant-list .expression-item");
-  const variants = [];
-  for (const item of items) {
-    const name = item.querySelector("[name='variant-name']").value.trim();
-    if (!name) continue;
-    const fileInput = item.querySelector("[name='variant-image']");
-    let image = item.dataset.variantImage || "";
-    if (fileInput.files[0]) {
-      image = await readFileAsDataUrl(fileInput.files[0]);
-    }
-    variants.push({ name, image });
-  }
-  return variants;
 }
 
 function handleShare() {
@@ -1650,125 +1001,13 @@ function handleShare() {
   const url = new URL(location.href);
   url.searchParams.set("room", id);
   navigator.clipboard.writeText(url.toString()).then(() => {
-    showToast("共有URLをコピーしました！");
+    showToast("共有URLをコピーしました");
   }).catch(() => {
     prompt("共有URL:", url.toString());
   });
   if (!roomId) {
     location.href = url.toString();
   }
-}
-
-function toggleBgm() {
-  const audio = document.getElementById("story-bgm");
-  const btn = document.getElementById("bgm-toggle");
-  if (audio.paused) {
-    audio.play().catch(() => {});
-    btn.textContent = "\u23F8";
-  } else {
-    audio.pause();
-    btn.textContent = "\u266B";
-  }
-}
-
-async function handleBaseCharSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const existing = editState.baseCharId ? baseChars.find(item => item.id === editState.baseCharId) : null;
-  const portraitFile = form.portrait.files[0];
-  const portrait = portraitFile ? await readFileAsDataUrl(portraitFile) : (existing?.portrait || "");
-  const expressions = await collectExpressions();
-  const variants = await collectVariants();
-  const voiceLines = collectBaseCharVoiceLines();
-  const homeVoices = collectBaseCharHomeVoiceLines();
-  const homeOpinions = collectHomeOpinions();
-  const homeConversations = collectHomeConversations();
-  const homeBirthdays = collectHomeBirthdays();
-  const baseChar = {
-    id: editState.baseCharId || crypto.randomUUID(),
-    name: form.name.value.trim(),
-    description: form.description.value.trim(),
-    birthday: normalizeBirthday(form.birthday.value),
-    color: form.color.value || "#a29bfe",
-    portrait: portrait || makeBaseCharFallback(form.name.value.trim(), form.color.value),
-    voiceLines,
-    homeVoices,
-    homeOpinions,
-    homeConversations,
-    homeBirthdays,
-    variants,
-    expressions
-  };
-  upsertItem(baseChars, baseChar);
-  saveLocal("socia-base-chars", baseChars);
-  try { await postJSON(apiUrl(API.baseChars), baseChar); } catch {}
-  resetBaseCharForm();
-  renderBaseCharList();
-  populateBaseCharSelects();
-  showToast(`${baseChar.name} を${existing ? "更新" : "登録"}しました。`);
-}
-
-async function handleCharacterSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const existing = editState.characterId ? characters.find(item => item.id === editState.characterId) : null;
-  const imageFile = form.image.files[0];
-  const image = imageFile ? await readFileAsDataUrl(imageFile) : (existing?.image || "");
-  const voiceLines = collectCardVoiceLines();
-  const homeVoices = collectCardHomeVoiceLines();
-  const homeOpinions = collectCardHomeOpinions();
-  const homeConversations = collectCardHomeConversations();
-  const homeBirthdays = collectCardHomeBirthdays();
-  const char = {
-    id: editState.characterId || crypto.randomUUID(),
-    name: form.name.value.trim(),
-    baseCharId: form.baseCharId.value || null,
-    catch: form.catch.value.trim(),
-    rarity: normalizeRarityValue(form.rarity.value),
-    attribute: form.attribute.value.trim() || "未設定",
-    image: image || makeFallbackImage(form.name.value.trim(), form.rarity.value),
-    lines: existing?.lines || [],
-    voiceLines,
-    homeVoices,
-    homeOpinions,
-    homeConversations,
-    homeBirthdays
-  };
-  upsertItem(characters, char);
-  saveLocal("socia-characters", characters);
-  try { await postJSON(apiUrl(API.characters), char); } catch {}
-  resetCharacterForm();
-  renderHome();
-  renderEditorCharacterList();
-  renderGachaPoolChars(getEditingFeaturedIds());
-  showToast(`${char.name} を${existing ? "更新" : "登録"}しました。`);
-}
-
-async function handleStorySubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  const existing = editState.storyId ? stories.find(item => item.id === editState.storyId) : null;
-  const scenes = collectStoryScenes();
-  if (scenes.length === 0) {
-    showToast("少なくとも1つシーンを入力してください。");
-    return;
-  }
-  const story = {
-    id: editState.storyId || crypto.randomUUID(),
-    title: form.title.value.trim(),
-    type: form.type.value,
-    entryId: form.entryId.value || null,
-    bgm: form.bgm.value.trim(),
-    variantAssignments: collectStoryVariantAssignments(),
-    scenes
-  };
-  upsertItem(stories, story);
-  saveLocal("socia-stories", stories);
-  try { await postJSON(apiUrl(API.stories), story); } catch {}
-  resetStoryForm();
-  renderHome();
-  renderEditorStoryList();
-  showToast(`${story.title} を${existing ? "更新" : "登録"}しました。`);
 }
 
 async function handleGachaSubmit(e) {
@@ -1794,186 +1033,8 @@ async function handleGachaSubmit(e) {
   try { await postJSON(apiUrl(API.gachas), gacha); } catch {}
   resetGachaForm();
   renderHome();
-  renderEditorGachaList();
+  editorScreen.renderEditorGachaList();
   showToast(`${gacha.title} を${existing ? "更新" : "登録"}しました。`);
-}
-
-function handleSystemModePreview(e) {
-  systemConfig = {
-    ...systemConfig,
-    rarityMode: e.target.value === "stars5" ? "stars5" : "classic4"
-  };
-  renderSystemForm();
-  if (currentScreen === "collection") renderCollectionScreen();
-}
-
-async function handleSystemSubmit(e) {
-  e.preventDefault();
-  const form = e.target;
-  systemConfig = {
-    rarityMode: form.rarityMode.value === "stars5" ? "stars5" : "classic4"
-  };
-  saveLocal("socia-system", systemConfig);
-  try { await postJSON(apiUrl(API.system), systemConfig); } catch {}
-  renderAll();
-  if (currentScreen === "gacha") renderGachaScreen();
-  if (currentScreen === "collection") renderCollectionScreen();
-  showToast("システム設定を保存しました");
-}
-
-function collectStoryScenes() {
-  const scenes = [];
-  document.querySelectorAll(".scene-item").forEach(item => {
-    const charId = item.querySelector("[name='scene-character-id']").value;
-    const text = item.querySelector("[name='scene-text']").value.trim();
-    if (!text) return;
-    const baseChar = charId ? getBaseCharById(charId) : null;
-    const variantSelect = item.querySelector("[name='scene-variant']");
-    const variantName = variantSelect ? variantSelect.value : null;
-    const exprSelect = item.querySelector("[name='scene-expression']");
-    const expressionName = exprSelect ? exprSelect.value : null;
-    const bgmInput = item.querySelector("[name='scene-bgm']");
-    const bgm = bgmInput ? bgmInput.value.trim() : null;
-    const bgData = item.dataset.background || null;
-    scenes.push({
-      characterId: charId || null,
-      character: baseChar ? baseChar.name : null,
-      variantName: variantName || null,
-      expressionName: expressionName || null,
-      text,
-      bgm: bgm || null,
-      background: bgData || null
-    });
-  });
-  return scenes;
-}
-
-function collectStoryVariantAssignments() {
-  return Array.from(document.querySelectorAll(".story-variant-default-item")).map(item => ({
-    characterId: item.dataset.characterId,
-    variantName: item.querySelector("[name='story-default-variant']").value
-  })).filter(item => item.characterId && item.variantName);
-}
-
-function renderStoryVariantDefaults(assignments = []) {
-  const list = document.getElementById("story-variant-default-list");
-  if (!list) return;
-  list.innerHTML = "";
-
-  const candidates = baseChars.filter(baseChar => baseChar.variants?.length);
-  if (candidates.length === 0) {
-    list.innerHTML = '<p class="editor-record-empty">イベント差分立ち絵を持つベースキャラがまだありません。</p>';
-    return;
-  }
-
-  const assignmentMap = new Map(assignments.map(item => [item.characterId, item.variantName]));
-  candidates.forEach(baseChar => {
-    const item = document.createElement("div");
-    item.className = "story-variant-default-item";
-    item.dataset.characterId = baseChar.id;
-    item.innerHTML = `
-      <span class="story-variant-default-name">${esc(baseChar.name)}</span>
-      <select name="story-default-variant">
-        <option value="">既定なし</option>
-        ${baseChar.variants.map(variant =>
-          `<option value="${esc(variant.name)}"${assignmentMap.get(baseChar.id) === variant.name ? " selected" : ""}>${esc(variant.name)}</option>`
-        ).join("")}
-      </select>
-    `;
-    list.appendChild(item);
-  });
-}
-
-function addSceneInput(scene = null) {
-  const list = document.getElementById("scene-list");
-  const item = document.createElement("div");
-  item.className = "scene-item";
-  if (scene?.background) item.dataset.background = scene.background;
-  const options = baseChars.map(baseChar =>
-    `<option value="${esc(baseChar.id)}"${scene?.characterId === baseChar.id ? " selected" : ""}>${esc(baseChar.name)}</option>`
-  ).join("");
-  const selectedChar = scene?.characterId ? getBaseCharById(scene.characterId) : null;
-  const variantOptions = selectedChar?.variants?.length
-    ? selectedChar.variants.map(v =>
-        `<option value="${esc(v.name)}"${scene?.variantName === v.name ? " selected" : ""}>${esc(v.name)}</option>`
-      ).join("")
-    : "";
-  const exprOptions = selectedChar?.expressions?.length
-    ? selectedChar.expressions.map(e =>
-        `<option value="${esc(e.name)}"${scene?.expressionName === e.name ? " selected" : ""}>${esc(e.name)}</option>`
-      ).join("")
-    : "";
-  item.innerHTML = `
-    <label>
-      キャラクター
-      <select name="scene-character-id">
-        <option value="">未選択</option>
-        ${options}
-      </select>
-    </label>
-    <label>
-      立ち絵
-      <select name="scene-variant">
-        <option value="">通常立ち絵</option>
-        ${variantOptions}
-      </select>
-    </label>
-    <label>
-      表情
-      <select name="scene-expression">
-        <option value="">デフォルト</option>
-        ${exprOptions}
-      </select>
-    </label>
-    <label>
-      セリフ・地の文
-      <textarea name="scene-text" maxlength="300" rows="2" placeholder="テキストを入力">${esc(scene?.text || "")}</textarea>
-    </label>
-    <div class="scene-extras" ${scene?.bgm || scene?.background ? '' : 'hidden'}>
-      <label>
-        BGM変更 (URL・空欄で継続)
-        <input name="scene-bgm" type="url" placeholder="https://..." value="${esc(scene?.bgm || "")}">
-      </label>
-      <label class="upload-field">
-        背景画像
-        <input name="scene-background" type="file" accept="image/*">
-      </label>
-      ${scene?.background ? '<p class="scene-bg-set">背景設定済み</p>' : ''}
-    </div>
-    <div class="scene-bottom-actions">
-      <button type="button" class="scene-extras-toggle">${scene?.bgm || scene?.background ? '機能を閉じる' : '+ 機能を追加'}</button>
-      <button type="button" class="scene-remove">削除</button>
-    </div>
-  `;
-  item.querySelector(".scene-remove").addEventListener("click", () => item.remove());
-  item.querySelector(".scene-extras-toggle").addEventListener("click", () => {
-    const extras = item.querySelector(".scene-extras");
-    const btn = item.querySelector(".scene-extras-toggle");
-    if (extras.hidden) {
-      extras.hidden = false;
-      btn.textContent = "機能を閉じる";
-    } else {
-      extras.hidden = true;
-      btn.textContent = "+ 機能を追加";
-    }
-  });
-  const charSelect = item.querySelector("[name='scene-character-id']");
-  charSelect.addEventListener("change", () => updateSceneCharacterOptions(item));
-  const bgInput = item.querySelector("[name='scene-background']");
-  bgInput.addEventListener("change", async () => {
-    const file = bgInput.files[0];
-    if (!file) return;
-    item.dataset.background = await readFileAsDataUrl(file);
-    const label = item.querySelector(".scene-bg-set");
-    if (label) label.textContent = "背景設定済み";
-    else {
-      const p = document.createElement("p");
-      p.className = "scene-bg-set";
-      p.textContent = "背景設定済み";
-      bgInput.closest("label").after(p);
-    }
-  });
-  list.appendChild(item);
 }
 
 function updateSceneExpressions(sceneItem) {
@@ -1985,8 +1046,8 @@ function updateSceneCharacterOptions(sceneItem) {
   const variantSelect = sceneItem.querySelector("[name='scene-variant']");
   const exprSelect = sceneItem.querySelector("[name='scene-expression']");
   const baseChar = charId ? getBaseCharById(charId) : null;
-  variantSelect.innerHTML = '<option value="">通常立ち絵</option>';
-  exprSelect.innerHTML = '<option value="">デフォルト</option>';
+  variantSelect.innerHTML = '<option value="">騾壼ｸｸ遶九■邨ｵ</option>';
+  exprSelect.innerHTML = '<option value="">繝・ヵ繧ｩ繝ｫ繝・/option>';
   if (baseChar?.variants?.length) {
     baseChar.variants.forEach(v => {
       const opt = document.createElement("option");
@@ -2023,82 +1084,6 @@ function previewImage(input, previewId, imgId) {
   reader.readAsDataURL(file);
 }
 
-function beginBaseCharEdit(id) {
-  const baseChar = baseChars.find(item => item.id === id);
-  if (!baseChar) return;
-  editState.baseCharId = id;
-  const form = document.getElementById("base-char-form");
-  form.name.value = baseChar.name || "";
-  form.description.value = baseChar.description || "";
-  form.birthday.value = baseChar.birthday || "";
-  form.color.value = baseChar.color || "#a29bfe";
-  document.getElementById("base-char-preview").hidden = false;
-  document.getElementById("base-char-preview-img").src = baseChar.portrait;
-  const exprList = document.getElementById("expression-list");
-  exprList.innerHTML = "";
-  const variantList = document.getElementById("variant-list");
-  variantList.innerHTML = "";
-  renderBaseCharVoiceLineFields(baseChar.voiceLines || {});
-  renderBaseCharHomeVoiceLineFields(baseChar.homeVoices || {});
-  document.getElementById("home-opinion-list").innerHTML = "";
-  document.getElementById("home-conversation-list").innerHTML = "";
-  document.getElementById("home-birthday-list").innerHTML = "";
-  (baseChar.homeOpinions || []).forEach(item => addHomeOpinionInput(item));
-  (baseChar.homeConversations || []).forEach(item => addHomeConversationInput(item));
-  (baseChar.homeBirthdays || []).forEach(item => addHomeBirthdayInput(item));
-  if (baseChar.variants?.length) {
-    baseChar.variants.forEach(v => addVariantInput(v));
-  }
-  if (baseChar.expressions?.length) {
-    baseChar.expressions.forEach(e => addExpressionInput(e));
-  }
-  updateEditorSubmitLabels();
-  form.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function beginCharacterEdit(id) {
-  const char = characters.find(item => item.id === id);
-  if (!char) return;
-  editState.characterId = id;
-  const form = document.getElementById("character-form");
-  form.baseCharId.value = char.baseCharId || "";
-  form.name.value = char.name || "";
-  form.catch.value = char.catch || "";
-  renderCharacterRarityOptions(char.rarity || getRarityModeConfig().fallback);
-  form.attribute.value = char.attribute || "";
-  renderCardVoiceLineFields(char.voiceLines || {});
-  renderCardHomeVoiceLineFields(char.homeVoices || {});
-  document.getElementById("card-home-opinion-list").innerHTML = "";
-  document.getElementById("card-home-conversation-list").innerHTML = "";
-  document.getElementById("card-home-birthday-list").innerHTML = "";
-  (char.homeOpinions || []).forEach(item => addCardHomeOpinionInput(item));
-  (char.homeConversations || []).forEach(item => addCardHomeConversationInput(item));
-  (char.homeBirthdays || []).forEach(item => addCardHomeBirthdayInput(item));
-  document.getElementById("char-preview").hidden = false;
-  document.getElementById("char-preview-img").src = char.image || makeFallbackImage(char.name, char.rarity);
-  updateEditorSubmitLabels();
-  form.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function beginStoryEdit(id) {
-  const story = stories.find(item => item.id === id);
-  if (!story) return;
-  editState.storyId = id;
-  const form = document.getElementById("story-form");
-  form.title.value = story.title || "";
-  form.type.value = story.type || "main";
-  form.entryId.value = story.entryId || "";
-  form.bgm.value = story.bgm || "";
-  handleStoryTypeChange();
-  renderStoryVariantDefaults(story.variantAssignments || []);
-  const sceneList = document.getElementById("scene-list");
-  sceneList.innerHTML = "";
-  if (story.scenes?.length) story.scenes.forEach(scene => addSceneInput(scene));
-  else addSceneInput();
-  updateEditorSubmitLabels();
-  form.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function beginGachaEdit(id) {
   const gacha = gachas.find(item => item.id === id);
   if (!gacha) return;
@@ -2106,76 +1091,26 @@ function beginGachaEdit(id) {
   const form = document.getElementById("gacha-form");
   form.title.value = gacha.title || "";
   form.description.value = gacha.description || "";
-  renderGachaRateInputs(gacha.rates);
+  systemEditor.renderGachaRateInputs(gacha.rates);
   renderGachaPoolChars(gacha.featured || []);
   updateEditorSubmitLabels();
   form.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function deleteBaseChar(id) {
-  baseChars = baseChars.filter(item => item.id !== id);
-  saveLocal("socia-base-chars", baseChars);
-  if (editState.baseCharId === id) resetBaseCharForm();
-  renderBaseCharList();
-  populateBaseCharSelects();
-}
-
-function resetBaseCharForm() {
-  editState.baseCharId = null;
-  const form = document.getElementById("base-char-form");
-  form.reset();
-  form.color.value = "#a29bfe";
-  document.getElementById("base-char-preview").hidden = true;
-  document.getElementById("expression-list").innerHTML = "";
-  document.getElementById("variant-list").innerHTML = "";
-  renderBaseCharVoiceLineFields();
-  renderBaseCharHomeVoiceLineFields();
-  document.getElementById("home-opinion-list").innerHTML = "";
-  document.getElementById("home-conversation-list").innerHTML = "";
-  document.getElementById("home-birthday-list").innerHTML = "";
-  updateEditorSubmitLabels();
-}
-
-function resetCharacterForm() {
-  editState.characterId = null;
-  const form = document.getElementById("character-form");
-  form.reset();
-  renderCharacterRarityOptions(getRarityModeConfig().fallback);
-  renderCardVoiceLineFields();
-  renderCardHomeVoiceLineFields();
-  document.getElementById("card-home-opinion-list").innerHTML = "";
-  document.getElementById("card-home-conversation-list").innerHTML = "";
-  document.getElementById("card-home-birthday-list").innerHTML = "";
-  document.getElementById("char-preview").hidden = true;
-  updateEditorSubmitLabels();
-}
-
-function resetStoryForm() {
-  editState.storyId = null;
-  const form = document.getElementById("story-form");
-  form.reset();
-  handleStoryTypeChange();
-  renderStoryVariantDefaults();
-  const sceneList = document.getElementById("scene-list");
-  sceneList.innerHTML = "";
-  addSceneInput();
-  updateEditorSubmitLabels();
 }
 
 function resetGachaForm() {
   editState.gachaId = null;
   const form = document.getElementById("gacha-form");
   form.reset();
-  renderGachaRateInputs(getDefaultRates());
+  systemEditor.renderGachaRateInputs(getDefaultRates());
   renderGachaPoolChars();
   updateEditorSubmitLabels();
 }
 
 function updateEditorSubmitLabels() {
-  setSubmitLabel("base-char-form", editState.baseCharId ? "ベースキャラを更新" : "ベースキャラを登録");
-  setSubmitLabel("character-form", editState.characterId ? "カードを更新" : "カードを登録");
-  setSubmitLabel("story-form", editState.storyId ? "ストーリーを更新" : "ストーリーを登録");
-  setSubmitLabel("gacha-form", editState.gachaId ? "ガチャを更新" : "ガチャを登録");
+  setSubmitLabel("base-char-form", editState.baseCharId ? "繝吶・繧ｹ繧ｭ繝｣繝ｩ繧呈峩譁ｰ" : "繝吶・繧ｹ繧ｭ繝｣繝ｩ繧堤匳骭ｲ");
+  setSubmitLabel("character-form", editState.characterId ? "繧ｫ繝ｼ繝峨ｒ譖ｴ譁ｰ" : "繧ｫ繝ｼ繝峨ｒ逋ｻ骭ｲ");
+  setSubmitLabel("story-form", editState.storyId ? "繧ｹ繝医・繝ｪ繝ｼ繧呈峩譁ｰ" : "繧ｹ繝医・繝ｪ繝ｼ繧堤匳骭ｲ");
+  setSubmitLabel("gacha-form", editState.gachaId ? "繧ｬ繝√Ε繧呈峩譁ｰ" : "繧ｬ繝√Ε繧堤匳骭ｲ");
 }
 
 function setSubmitLabel(formId, label) {
@@ -2192,14 +1127,14 @@ function populateBaseCharSelects() {
   const cardSelect = document.getElementById("card-base-char-select");
   if (cardSelect) {
     const currentValue = cardSelect.value;
-    cardSelect.innerHTML = '<option value="">-- 未選択 --</option>' +
+    cardSelect.innerHTML = '<option value="">-- 譛ｪ驕ｸ謚・--</option>' +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     cardSelect.value = currentValue;
   }
 
   document.querySelectorAll("select[name='scene-character-id']").forEach(select => {
     const currentValue = select.value;
-    select.innerHTML = '<option value="">未選択</option>' +
+    select.innerHTML = '<option value="">譛ｪ驕ｸ謚・/option>' +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
@@ -2207,30 +1142,23 @@ function populateBaseCharSelects() {
   const storyCardSelect = document.getElementById("story-character-select");
   if (storyCardSelect) {
     const currentValue = storyCardSelect.value;
-    storyCardSelect.innerHTML = '<option value="">カードを選択</option>' +
+    storyCardSelect.innerHTML = '<option value="">繧ｫ繝ｼ繝峨ｒ驕ｸ謚・/option>' +
       characters.map(char => `<option value="${esc(char.id)}">${esc(getRarityLabel(char.rarity))} ${esc(char.name)}</option>`).join("");
     storyCardSelect.value = currentValue;
   }
 
   const currentAssignments = editState.storyId
     ? (stories.find(story => story.id === editState.storyId)?.variantAssignments || [])
-    : collectStoryVariantAssignments();
-  renderStoryVariantDefaults(currentAssignments);
+    : storyEditor.collectStoryVariantAssignments();
+  storyEditor.renderStoryVariantDefaults(currentAssignments);
 
   document.querySelectorAll("#home-opinion-list select[name='home-opinion-target'], #home-conversation-list select[name='home-conversation-target'], #home-birthday-list select[name='home-birthday-target'], #card-home-opinion-list select[name='card-home-opinion-target'], #card-home-conversation-list select[name='card-home-conversation-target'], #card-home-birthday-list select[name='card-home-birthday-target']").forEach(select => {
     const currentValue = select.value;
-    const placeholder = select.name.endsWith("birthday-target") ? "誕生日のキャラを選択" : "相手キャラを選択";
+    const placeholder = select.name.endsWith("birthday-target") ? "誕生日対象キャラを選択" : "相手キャラを選択";
     select.innerHTML = `<option value="">${placeholder}</option>` +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
-}
-
-function handleStoryTypeChange() {
-  const type = document.querySelector("#story-form select[name='type']").value;
-  const wrap = document.getElementById("story-character-select-wrap");
-  if (!wrap) return;
-  wrap.hidden = type !== "character";
 }
 
 function getBaseCharById(id) {
@@ -2243,7 +1171,7 @@ function findCharacterImageByName(name) {
 
 function buildStorySummary(story) {
   const firstScene = story.scenes?.find(scene => scene.text)?.text || "";
-  return firstScene ? firstScene.slice(0, 60) : "シーンが未登録です。";
+  return firstScene ? firstScene.slice(0, 60) : "シーン未登録";
 }
 
 function buildGachaRateSummary(rates = {}) {
@@ -2259,7 +1187,7 @@ function renderVoiceLineFields(containerId, prefix, defs, values = {}) {
   container.innerHTML = defs.map(([key, label]) => `
     <label>
       ${label}
-      <textarea name="${prefix}-${key}" rows="2" maxlength="200" placeholder="${label}のセリフ">${esc(values[key] || "")}</textarea>
+      <textarea name="${prefix}-${key}" rows="2" maxlength="200" placeholder="${label}を入力">${esc(values[key] || "")}</textarea>
     </label>
   `).join("");
 }
@@ -2273,38 +1201,6 @@ function collectVoiceLineFields(containerId, prefix, defs) {
   return voiceLines;
 }
 
-function renderBaseCharVoiceLineFields(values = {}) {
-  renderVoiceLineFields("voice-line-fields", "voice", baseCharVoiceLineDefs, values);
-}
-
-function collectBaseCharVoiceLines() {
-  return collectVoiceLineFields("voice-line-fields", "voice", baseCharVoiceLineDefs);
-}
-
-function renderCardVoiceLineFields(values = {}) {
-  renderVoiceLineFields("card-voice-line-fields", "card-voice", baseCharVoiceLineDefs, values);
-}
-
-function collectCardVoiceLines() {
-  return collectVoiceLineFields("card-voice-line-fields", "card-voice", baseCharVoiceLineDefs);
-}
-
-function renderBaseCharHomeVoiceLineFields(values = {}) {
-  renderVoiceLineFields("home-voice-line-fields", "home-voice", baseCharHomeVoiceDefs, values);
-}
-
-function collectBaseCharHomeVoiceLines() {
-  return collectVoiceLineFields("home-voice-line-fields", "home-voice", baseCharHomeVoiceDefs);
-}
-
-function renderCardHomeVoiceLineFields(values = {}) {
-  renderVoiceLineFields("card-home-voice-line-fields", "card-home-voice", baseCharHomeVoiceDefs, values);
-}
-
-function collectCardHomeVoiceLines() {
-  return collectVoiceLineFields("card-home-voice-line-fields", "card-home-voice", baseCharHomeVoiceDefs);
-}
-
 function collectRelationLines(listSelector, fieldMap) {
   return Array.from(document.querySelectorAll(`${listSelector} .relation-line-item`)).map(item => {
     const entry = {};
@@ -2315,50 +1211,6 @@ function collectRelationLines(listSelector, fieldMap) {
   });
 }
 
-function collectHomeOpinions() {
-  return Array.from(document.querySelectorAll("#home-opinion-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='home-opinion-target']").value,
-    text: item.querySelector("[name='home-opinion-text']").value.trim()
-  })).filter(item => item.targetBaseCharId && item.text);
-}
-
-function collectCardHomeOpinions() {
-  return Array.from(document.querySelectorAll("#card-home-opinion-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='card-home-opinion-target']").value,
-    text: item.querySelector("[name='card-home-opinion-text']").value.trim()
-  })).filter(item => item.targetBaseCharId && item.text);
-}
-
-function collectHomeConversations() {
-  return Array.from(document.querySelectorAll("#home-conversation-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='home-conversation-target']").value,
-    selfText: item.querySelector("[name='home-conversation-self']").value.trim(),
-    partnerText: item.querySelector("[name='home-conversation-partner']").value.trim()
-  })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
-}
-
-function collectCardHomeConversations() {
-  return Array.from(document.querySelectorAll("#card-home-conversation-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='card-home-conversation-target']").value,
-    selfText: item.querySelector("[name='card-home-conversation-self']").value.trim(),
-    partnerText: item.querySelector("[name='card-home-conversation-partner']").value.trim()
-  })).filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
-}
-
-function collectHomeBirthdays() {
-  return Array.from(document.querySelectorAll("#home-birthday-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='home-birthday-target']").value,
-    text: item.querySelector("[name='home-birthday-text']").value.trim()
-  })).filter(item => item.targetBaseCharId && item.text);
-}
-
-function collectCardHomeBirthdays() {
-  return Array.from(document.querySelectorAll("#card-home-birthday-list .relation-line-item")).map(item => ({
-    targetBaseCharId: item.querySelector("[name='card-home-birthday-target']").value,
-    text: item.querySelector("[name='card-home-birthday-text']").value.trim()
-  })).filter(item => item.targetBaseCharId && item.text);
-}
-
 function upsertItem(collection, nextItem) {
   const index = collection.findIndex(item => item.id === nextItem.id);
   if (index >= 0) collection[index] = nextItem;
@@ -2366,64 +1218,30 @@ function upsertItem(collection, nextItem) {
 }
 
 function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  return imageReadFileAsDataUrl(file);
 }
 
 function makeBaseCharFallback(name, color) {
-  const safeName = esc(name);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-      <rect width="200" height="200" fill="${color || "#a29bfe"}"/>
-      <circle cx="100" cy="80" r="40" fill="rgba(255,255,255,0.2)"/>
-      <rect x="60" y="130" width="80" height="50" rx="10" fill="rgba(255,255,255,0.15)"/>
-      <text x="100" y="190" fill="white" font-size="16" font-family="Arial" text-anchor="middle">${safeName}</text>
-    </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return imageMakeBaseCharFallback(name, color);
 }
 
 function makeFallbackImage(name, rarity) {
-  const colors = rarityPalettes[getRarityRank(normalizeRarityValue(rarity))] || rarityPalettes[1];
-  const safeName = esc(name);
-  const rarityLabel = getRarityLabel(rarity);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400">
-      <defs>
-        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0%" stop-color="${colors[0]}"/>
-          <stop offset="50%" stop-color="${colors[1]}"/>
-          <stop offset="100%" stop-color="${colors[2]}"/>
-        </linearGradient>
-      </defs>
-      <rect width="300" height="400" fill="url(#g)"/>
-      <circle cx="240" cy="60" r="60" fill="rgba(255,255,255,0.1)"/>
-      <circle cx="60" cy="340" r="80" fill="rgba(255,255,255,0.06)"/>
-      <text x="20" y="50" fill="white" font-size="24" font-weight="bold" font-family="Arial">${rarityLabel}</text>
-      <text x="20" y="360" fill="white" font-size="22" font-family="Arial">${safeName}</text>
-    </svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return imageMakeFallbackImage(name, rarity, systemConfig?.rarityMode);
 }
 
 function esc(str) {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return escapeHtml(str);
 }
 
 function showToast(message) {
-  const existing = document.querySelector(".toast");
-  if (existing) existing.remove();
-  const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 2200);
+  toastShowToast(message);
 }
+
+
+
+
+
+
+
+
+

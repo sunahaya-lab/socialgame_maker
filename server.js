@@ -384,14 +384,17 @@ function sanitizeGacha(input) {
 
 function sanitizeSystemConfig(input) {
   const rarityMode = input?.rarityMode === "stars5" ? "stars5" : "classic4";
+  const orientation = ["portrait", "landscape", "fullscreen", "auto"].includes(input?.orientation) ? input.orientation : "auto";
   return {
-    rarityMode
+    rarityMode,
+    orientation
   };
 }
 
 function defaultSystemConfig() {
   return {
-    rarityMode: "classic4"
+    rarityMode: "classic4",
+    orientation: "auto"
   };
 }
 
