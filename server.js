@@ -28,12 +28,18 @@ const mimeTypes = {
   ".webp": "image/webp"
 };
 
+const allowedOriginEnv = String(process.env.ALLOWED_ORIGINS || "").trim();
+const configuredOrigins = allowedOriginEnv
+  ? allowedOriginEnv.split(",").map(origin => origin.trim()).filter(Boolean)
+  : [];
+
 ensureDataFiles();
 
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const room = url.searchParams.get("room") || null;
+    setSecurityHeaders(req, res);
 
     if (url.pathname === "/api/base-chars") {
       await handleCollection(req, res, "baseChars", "baseChars", room);
@@ -58,6 +64,7 @@ const server = http.createServer(async (req, res) => {
 
     await handleStatic(url.pathname, res);
   } catch (error) {
+    setSecurityHeaders(req, res);
     res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ error: error.message }));
   }
@@ -68,7 +75,7 @@ server.listen(port, () => {
 });
 
 async function handleCollection(req, res, fileKey, jsonKey, room) {
-  setCors(res);
+  setCors(req, res);
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -150,7 +157,7 @@ function ensureDataFiles() {
 }
 
 async function handleSystem(req, res, room) {
-  setCors(res);
+  setCors(req, res);
 
   if (req.method === "OPTIONS") {
     res.writeHead(204);
@@ -248,7 +255,7 @@ function sanitizeBaseChar(input) {
     description: text(input.description, 80, ""),
     birthday: /^\d{2}-\d{2}$/.test(String(input.birthday || "").trim()) ? String(input.birthday).trim() : "",
     color,
-    portrait: text(input.portrait, 2_000_000, ""),
+    portrait: sanitizeImageSource(input.portrait),
     voiceLines,
     homeVoices,
     homeOpinions: Array.isArray(input.homeOpinions) ? input.homeOpinions.slice(0, 20).map(item => ({
@@ -266,11 +273,11 @@ function sanitizeBaseChar(input) {
     })).filter(item => item.targetBaseCharId && item.text) : [],
     variants: Array.isArray(input.variants) ? input.variants.slice(0, 20).map(v => ({
       name: text(v.name, 30, "イベント差分"),
-      image: text(v.image, 2_000_000, "")
+      image: sanitizeImageSource(v.image)
     })) : [],
     expressions: Array.isArray(input.expressions) ? input.expressions.slice(0, 20).map(e => ({
       name: text(e.name, 30, "通常"),
-      image: text(e.image, 2_000_000, "")
+      image: sanitizeImageSource(e.image)
     })) : []
   };
 }
@@ -312,7 +319,7 @@ function sanitizeEntry(input) {
     catch: text(input.catch, 120, "説明なし"),
     rarity,
     attribute: text(input.attribute, 24, "未分類"),
-    image: text(input.image, 2_000_000, ""),
+    image: sanitizeImageSource(input.image),
     lines: Array.isArray(input.lines) ? input.lines.slice(0, 20).map(l => text(l, 120, "")).filter(Boolean) : [],
     voiceLines,
     homeVoices,
@@ -342,9 +349,9 @@ function sanitizeStory(input) {
     variantName: s.variantName ? text(s.variantName, 30) : null,
     expressionName: s.expressionName ? text(s.expressionName, 30) : null,
     text: text(s.text, 500, "..."),
-    image: text(s.image, 2_000_000, ""),
-    bgm: s.bgm ? text(s.bgm, 500) : null,
-    background: s.background ? text(s.background, 2_000_000) : null
+    image: sanitizeImageSource(s.image),
+    bgm: sanitizeMediaSource(s.bgm),
+    background: sanitizeImageSource(s.background)
   })) : [];
 
   return {
@@ -352,7 +359,7 @@ function sanitizeStory(input) {
     title: text(input.title, 60, "無題のストーリー"),
     type: ["main", "event", "character"].includes(input.type) ? input.type : "main",
     entryId: input.entryId ? text(input.entryId, 80) : null,
-    bgm: text(input.bgm, 500, ""),
+    bgm: sanitizeMediaSource(input.bgm),
     variantAssignments: Array.isArray(input.variantAssignments) ? input.variantAssignments.slice(0, 50).map(v => ({
       characterId: v.characterId ? text(v.characterId, 80) : null,
       variantName: v.variantName ? text(v.variantName, 30) : null
@@ -376,7 +383,7 @@ function sanitizeGacha(input) {
     id: text(input.id, 80, `${Date.now()}-${Math.random().toString(16).slice(2)}`),
     title: text(input.title, 40, "無題のガチャ"),
     description: text(input.description, 80, ""),
-    bannerImage: text(input.bannerImage, 2_000_000, ""),
+    bannerImage: sanitizeImageSource(input.bannerImage),
     featured: Array.isArray(input.featured) ? input.featured.slice(0, 20).map(f => String(f).slice(0, 80)) : [],
     rates
   };
@@ -418,8 +425,77 @@ function resolveDataPath(fileKey, room) {
   return filePath;
 }
 
-function setCors(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  const allowedOrigin = getAllowedOrigin(origin, req);
+  if (allowedOrigin) {
+    res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+}
+
+function setSecurityHeaders(req, res) {
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: https: http:",
+    "media-src 'self' data: https: http:",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'"
+  ].join("; ");
+
+  res.setHeader("Content-Security-Policy", csp);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+}
+
+function getAllowedOrigin(origin, req) {
+  if (!origin) return null;
+
+  const requestOrigin = `${isHttpsRequest(req) ? "https" : "http"}://${req.headers.host}`;
+  const defaultOrigins = [
+    requestOrigin,
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ];
+  const allowedOrigins = new Set([...defaultOrigins, ...configuredOrigins]);
+  return allowedOrigins.has(origin) ? origin : null;
+}
+
+function isHttpsRequest(req) {
+  return req.headers["x-forwarded-proto"] === "https" || req.socket.encrypted;
+}
+
+function sanitizeImageSource(value) {
+  return sanitizeUrlSource(value, { allowDataImage: true });
+}
+
+function sanitizeMediaSource(value) {
+  return sanitizeUrlSource(value, { allowDataImage: false });
+}
+
+function sanitizeUrlSource(value, options = {}) {
+  const raw = String(value || "").trim();
+  if (!raw || raw.length > 2_000_000) return "";
+
+  if (options.allowDataImage && /^data:image\/(?:png|jpeg|jpg|webp|gif|svg\+xml);base64,[a-z0-9+/=\s]+$/i.test(raw)) {
+    return raw;
+  }
+
+  try {
+    const url = new URL(raw);
+    const isLocalHttp = url.protocol === "http:" && ["localhost", "127.0.0.1"].includes(url.hostname);
+    if (url.protocol === "https:" || isLocalHttp) return url.toString();
+    return "";
+  } catch {
+    return "";
+  }
 }
