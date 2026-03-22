@@ -130,8 +130,8 @@
             <button type="button" class="btn-secondary" id="home-config-reset-char">選択中キャラを初期位置に戻す</button>
           </div>
         </div>
-        <button class="btn-primary" id="home-config-save">設定を保存</button>
-        <button class="btn-secondary" id="home-config-close" style="margin-top:8px">閉じる</button>
+        <button type="button" class="btn-primary" id="home-config-save">設定を保存</button>
+        <button type="button" class="btn-secondary" id="home-config-close" style="margin-top:8px">閉じる</button>
       </div>
 
       <div class="home-ticker">
@@ -161,8 +161,8 @@
         </div>
 
         <div class="gacha-buttons">
-          <button class="gacha-btn gacha-btn-single" id="gacha-single">1回引く</button>
-          <button class="gacha-btn gacha-btn-ten" id="gacha-ten">10連引く</button>
+          <button type="button" class="gacha-btn gacha-btn-single" id="gacha-single">1回引く</button>
+          <button type="button" class="gacha-btn gacha-btn-ten" id="gacha-ten">10連引く</button>
         </div>
       </div>
 
@@ -178,7 +178,7 @@
       <div class="gacha-results" id="gacha-results" hidden>
         <h3 class="gacha-results-title">結果</h3>
         <div class="gacha-results-grid" id="gacha-results-grid"></div>
-        <button class="gacha-btn gacha-btn-ok" id="gacha-results-ok">OK</button>
+        <button type="button" class="gacha-btn gacha-btn-ok" id="gacha-results-ok">OK</button>
       </div>
 
       <div class="gacha-no-banner" id="gacha-no-banner">
@@ -194,9 +194,9 @@
       </div>
 
       <div class="story-tabs">
-        <button class="story-tab active" data-story-type="main">メイン</button>
-        <button class="story-tab" data-story-type="event">イベント</button>
-        <button class="story-tab" data-story-type="character">キャラ</button>
+        <button type="button" class="story-tab active" data-story-type="main">メイン</button>
+        <button type="button" class="story-tab" data-story-type="event">イベント</button>
+        <button type="button" class="story-tab" data-story-type="character">キャラ</button>
       </div>
 
       <div class="story-list" id="story-list"></div>
@@ -221,7 +221,7 @@
         <p class="story-reader-text" id="story-reader-text"></p>
         <span class="story-reader-next">&#x25BC;</span>
       </div>
-      <button class="story-reader-close" id="story-reader-close">&#x2715;</button>
+      <button type="button" class="story-reader-close" id="story-reader-close">&#x2715;</button>
       <div class="story-reader-progress" id="story-reader-progress"></div>
     </div>
 
@@ -240,7 +240,7 @@
       </div>
     </div>
 
-    <div class="card-detail" id="card-detail" hidden>
+        <div class="card-detail" id="card-detail" hidden>
       <div class="card-detail-inner">
         <div class="card-detail-image" id="card-detail-image"></div>
         <div class="card-detail-info">
@@ -257,7 +257,7 @@
             <div id="card-detail-story-list" class="card-detail-story-list"></div>
           </div>
         </div>
-        <button class="card-detail-close" id="card-detail-close">閉じる</button>
+        <button type="button" class="card-detail-close" id="card-detail-close">閉じる</button>
       </div>
     </div>
 
@@ -267,15 +267,15 @@
       </div>
 
       <div class="editor-tabs">
-        <button class="editor-tab active" data-editor-tab="base-char">ベースキャラ</button>
-        <button class="editor-tab" data-editor-tab="character">カード</button>
-        <button class="editor-tab" data-editor-tab="story">ストーリー</button>
-        <button class="editor-tab" data-editor-tab="gacha">ガチャ</button>
-        <button class="editor-tab" data-editor-tab="system">システム</button>
+        <button type="button" class="editor-tab active" data-editor-tab="base-char">ベースキャラ</button>
+        <button type="button" class="editor-tab" data-editor-tab="character">カード</button>
+        <button type="button" class="editor-tab" data-editor-tab="story">ストーリー</button>
+        <button type="button" class="editor-tab" data-editor-tab="gacha">ガチャ</button>
+        <button type="button" class="editor-tab" data-editor-tab="system">システム</button>
       </div>
 
       <div class="editor-panel active" id="editor-base-char">
-        <p class="editor-desc">ストーリーやホーム会話の土台になるベースキャラを登録します。立ち絵、差分、ボイス、ホーム会話をまとめて管理できます。</p>
+        <p class="editor-desc">ストーリーやホーム演出の土台になるベースキャラを登録します。立ち絵、表情差分、イベント差分、各種ボイスもここで設定します。</p>
 
         <form id="base-char-form" class="editor-form">
           <label>
@@ -284,7 +284,7 @@
           </label>
           <label>
             説明
-            <input name="description" type="text" maxlength="80" placeholder="キャラの紹介文">
+            <input name="description" type="text" maxlength="80" placeholder="キャラの説明">
           </label>
           <label>
             誕生日
@@ -295,11 +295,11 @@
             <input name="color" type="color" value="#a29bfe">
           </label>
           <label class="upload-field">
-            通常立ち絵
+            立ち絵
             <input name="portrait" type="file" accept="image/*">
           </label>
           <div class="editor-preview" id="base-char-preview" hidden>
-            <img id="base-char-preview-img" alt="ベースキャラプレビュー">
+            <img id="base-char-preview-img" alt="ベースキャラ立ち絵プレビュー">
           </div>
           <div class="expressions-editor">
             <h4>表情差分</h4>
@@ -329,12 +329,12 @@
             <div class="voice-lines-editor">
               <h4>かけあい</h4>
               <div id="home-conversation-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ かけあいを追加</button>
+              <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ 項目を追加</button>
             </div>
             <div class="voice-lines-editor">
               <h4>誕生日セリフ</h4>
               <div id="home-birthday-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ 誕生日セリフを追加</button>
+              <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ 項目を追加</button>
             </div>
           </details>
           <button type="submit" class="btn-primary">ベースキャラを保存</button>
@@ -347,7 +347,7 @@
       </div>
 
       <div class="editor-panel" id="editor-character">
-        <p class="editor-desc">ガチャやコレクションに表示するカードを登録します。ベースキャラと紐づけると、未設定のセリフはベースキャラ側の値を流用できます。</p>
+        <p class="editor-desc">ガチャやコレクションに表示されるカードを登録します。ベースキャラと関連づけると、立ち絵やデフォルトセリフを引き継げます。</p>
 
         <form id="character-form" class="editor-form">
           <label>
@@ -362,7 +362,7 @@
           </label>
           <label>
             キャッチコピー
-            <input name="catch" type="text" maxlength="80" placeholder="カードの一言説明" required>
+            <input name="catch" type="text" maxlength="80" placeholder="カードの短い説明" required>
           </label>
           <label>
             レアリティ
@@ -370,17 +370,17 @@
           </label>
           <label>
             属性
-            <input name="attribute" type="text" maxlength="20" placeholder="光 / 闇 / 炎 など">
+            <input name="attribute" type="text" maxlength="20" placeholder="火 / 水 / 光 など">
           </label>
           <label class="upload-field">
             カード画像
             <input name="image" type="file" accept="image/*">
           </label>
           <div class="editor-preview" id="char-preview" hidden>
-            <img id="char-preview-img" alt="カードプレビュー">
+            <img id="char-preview-img" alt="カード画像プレビュー">
           </div>
           <details class="editor-collapsible">
-            <summary>カード固有のセリフ設定</summary>
+            <summary>カード固有セリフ</summary>
             <div class="voice-lines-editor">
               <h4>カード固有ボイス</h4>
               <div id="card-voice-line-fields" class="voice-line-fields"></div>
@@ -397,12 +397,12 @@
             <div class="voice-lines-editor">
               <h4>カード固有かけあい</h4>
               <div id="card-home-conversation-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-card-home-conversation-btn">+ かけあいを追加</button>
+              <button type="button" class="btn-secondary" id="add-card-home-conversation-btn">+ 項目を追加</button>
             </div>
             <div class="voice-lines-editor">
               <h4>カード固有誕生日セリフ</h4>
               <div id="card-home-birthday-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ 誕生日セリフを追加</button>
+              <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ 項目を追加</button>
             </div>
           </details>
           <button type="submit" class="btn-primary">カードを保存</button>
@@ -418,7 +418,7 @@
         <form id="story-form" class="editor-form">
           <label>
             タイトル
-            <input name="title" type="text" maxlength="60" placeholder="第1話 など" required>
+            <input name="title" type="text" maxlength="60" placeholder="第1話" required>
           </label>
           <label>
             種別
@@ -439,7 +439,7 @@
             <input name="bgm" type="url" placeholder="https://example.com/bgm.mp3">
           </label>
           <div class="story-variant-defaults">
-            <h4>イベント立ち絵の既定設定</h4>
+            <h4>イベント差分立ち絵の既定設定</h4>
             <div id="story-variant-default-list" class="story-variant-default-list"></div>
           </div>
           <div class="story-scenes-editor">
@@ -460,7 +460,7 @@
         <form id="gacha-form" class="editor-form">
           <label>
             ガチャ名
-            <input name="title" type="text" maxlength="40" placeholder="春フェスガチャ" required>
+            <input name="title" type="text" maxlength="40" placeholder="期間限定ガチャ" required>
           </label>
           <label>
             説明
@@ -472,7 +472,7 @@
           </label>
 
           <div class="gacha-pool-selector">
-            <h4>ピックアップ候補</h4>
+            <h4>ピックアップ対象</h4>
             <div id="gacha-pool-chars" class="gacha-pool-chars"></div>
           </div>
 
@@ -489,13 +489,13 @@
       </div>
 
       <div class="editor-panel" id="editor-system">
-        <p class="editor-desc">UIやレアリティの見せ方を調整します。今はレアリティ方式の切り替えを設定できます。</p>
+        <p class="editor-desc">UIの向きやレアリティ方式を設定します。変更するとカード表示やガチャ排出率の表示にも反映されます。</p>
 
         <form id="system-form" class="editor-form">
           <label>
             画面向き
             <select name="orientation">
-              <option value="auto">端末に合わせて自動</option>
+              <option value="auto">自動</option>
               <option value="portrait">縦向き</option>
               <option value="landscape">横向き</option>
               <option value="fullscreen">全画面</option>
@@ -510,11 +510,11 @@
           </label>
 
           <div class="system-preview">
-            <h4>プレビュー</h4>
+            <h4>表示プレビュー</h4>
             <div class="system-preview-list" id="system-rarity-preview"></div>
           </div>
 
-          <p class="editor-note">設定を切り替えると、カード作成フォームやガチャ排出率の表示も連動して変わります。</p>
+          <p class="editor-note">保存すると、カード一覧・ガチャ排出率・各種表示に反映されます。</p>
           <button type="submit" class="btn-primary">システム設定を保存</button>
         </form>
       </div>

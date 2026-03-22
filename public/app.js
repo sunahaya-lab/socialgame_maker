@@ -1,4 +1,4 @@
-﻿const {
+const {
   getDefaultRarityMode,
   getRarityModeConfig: rarityLibGetModeConfig,
   getRarityRank: rarityLibGetRank,
@@ -168,7 +168,9 @@ const baseCharHomeVoiceDefs = [
 void init();
 
 async function init() {
-  collectionScreen = window.CollectionScreen.setupCollectionScreen({
+  setupNavigation();
+
+  collectionScreen = safeInit(() => window.CollectionScreen.setupCollectionScreen({
     getCharacters: () => characters,
     getStories: () => stories,
     getSystemConfig: () => systemConfig,
@@ -182,8 +184,8 @@ async function init() {
     getRarityCssClass,
     makeFallbackImage,
     esc
-  });
-  gachaScreen = window.GachaScreen.setupGachaScreen({
+  }));
+  gachaScreen = safeInit(() => window.GachaScreen.setupGachaScreen({
     getCharacters: () => characters,
     getGachas: () => gachas,
     getSystemConfig: () => systemConfig,
@@ -197,10 +199,10 @@ async function init() {
     getRarityCssClass,
     normalizeRarityValue,
     makeFallbackImage,
-    showCardDetail: char => collectionScreen.showCardDetail(char),
+    showCardDetail: char => collectionScreen?.showCardDetail?.(char),
     esc
-  });
-  storyScreen = window.StoryScreen.setupStoryScreen({
+  }));
+  storyScreen = safeInit(() => window.StoryScreen.setupStoryScreen({
     getStories: () => stories,
     getCharacters: () => characters,
     getCurrentStoryType: () => currentStoryType,
@@ -212,8 +214,8 @@ async function init() {
     resolveScenePortrait,
     showToast,
     esc
-  });
-  systemEditor = window.SystemEditor.setupSystemEditor({
+  }));
+  systemEditor = safeInit(() => window.SystemEditor.setupSystemEditor({
     getSystemConfig: () => systemConfig,
     setSystemConfig: value => { systemConfig = value; },
     getEditState: () => editState,
@@ -237,15 +239,15 @@ async function init() {
       esc
     },
     showToast
-  });
-  entryEditor = window.EntryEditor.setupEntryEditor({
+  }));
+  entryEditor = safeInit(() => window.EntryEditor.setupEntryEditor({
     getCharacters: () => characters,
     setCharacters: value => { characters = value; },
     getBaseChars: () => baseChars,
     getEditState: () => editState,
     getApi: () => ({ characters: apiUrl(API.characters) }),
     getSystemApi: () => ({
-      renderCharacterRarityOptions: value => systemEditor.renderCharacterRarityOptions(value),
+      renderCharacterRarityOptions: value => systemEditor?.renderCharacterRarityOptions?.(value),
       getRarityFallback: () => getRarityModeConfig().fallback
     }),
     readFileAsDataUrl,
@@ -265,8 +267,8 @@ async function init() {
     baseCharVoiceLineDefs,
     baseCharHomeVoiceDefs,
     esc
-  });
-  baseCharEditor = window.BaseCharEditor.setupBaseCharEditor({
+  }));
+  baseCharEditor = safeInit(() => window.BaseCharEditor.setupBaseCharEditor({
     getBaseChars: () => baseChars,
     setBaseChars: value => { baseChars = value; },
     getEditState: () => editState,
@@ -286,8 +288,8 @@ async function init() {
     baseCharVoiceLineDefs,
     baseCharHomeVoiceDefs,
     esc
-  });
-  storyEditor = window.StoryEditor.setupStoryEditor({
+  }));
+  storyEditor = safeInit(() => window.StoryEditor.setupStoryEditor({
     getStories: () => stories,
     setStories: value => { stories = value; },
     getBaseChars: () => baseChars,
@@ -304,8 +306,8 @@ async function init() {
     renderEditorStoryList,
     getBaseCharById,
     esc
-  });
-  editorScreen = window.EditorScreen.setupEditorScreen({
+  }));
+  editorScreen = safeInit(() => window.EditorScreen.setupEditorScreen({
     getBaseChars: () => baseChars,
     getCharacters: () => characters,
     getStories: () => stories,
@@ -328,16 +330,24 @@ async function init() {
     collectionScreen,
     populateBaseCharSelects,
     updateEditorSubmitLabels
-  });
-  setupNavigation();
-  setupForms();
-  setupPreviews();
-  setupHomeConfig();
-  setupHomeInteractions();
+  }));
+  safeInit(() => setupForms());
+  safeInit(() => setupPreviews());
+  safeInit(() => setupHomeConfig());
+  safeInit(() => setupHomeInteractions());
 
   await loadAllData();
   applyOrientation();
   renderAll();
+}
+
+function safeInit(fn) {
+  try {
+    return fn();
+  } catch (error) {
+    console.error("init error:", error);
+    return null;
+  }
 }
 
 function setupNavigation() {
@@ -443,9 +453,9 @@ function getScopedStorageKey(key) {
 }
 
 function renderAll() {
-  collectionScreen.renderCollectionFilters("all");
+  collectionScreen?.renderCollectionFilters?.("all");
   renderHome("refresh");
-  editorScreen.renderEditorScreen();
+  editorScreen?.renderEditorScreen?.();
 }
 
 function applyOrientation() {
@@ -983,15 +993,17 @@ function getStoryVariantName(story, characterId) {
 function setupForms() {
   document.getElementById("gacha-form").addEventListener("submit", handleGachaSubmit);
 
-  baseCharEditor.renderBaseCharVoiceLineFields();
-  baseCharEditor.renderBaseCharHomeVoiceLineFields();
-  entryEditor.renderCardVoiceLineFields();
-  entryEditor.renderCardHomeVoiceLineFields();
-  storyEditor.renderStoryVariantDefaults();
-  systemEditor.renderSystemForm();
+  baseCharEditor?.renderBaseCharVoiceLineFields?.();
+  baseCharEditor?.renderBaseCharHomeVoiceLineFields?.();
+  entryEditor?.renderCardVoiceLineFields?.();
+  entryEditor?.renderCardHomeVoiceLineFields?.();
+  storyEditor?.renderStoryVariantDefaults?.();
+  systemEditor?.renderSystemForm?.();
   const sceneList = document.getElementById("scene-list");
-  sceneList.innerHTML = "";
-  storyEditor.addSceneInput();
+  if (sceneList) {
+    sceneList.innerHTML = "";
+    storyEditor?.addSceneInput?.();
+  }
 
   document.getElementById("share-btn").addEventListener("click", handleShare);
 }
@@ -1127,14 +1139,14 @@ function populateBaseCharSelects() {
   const cardSelect = document.getElementById("card-base-char-select");
   if (cardSelect) {
     const currentValue = cardSelect.value;
-    cardSelect.innerHTML = '<option value="">-- 譛ｪ驕ｸ謚・--</option>' +
+    cardSelect.innerHTML = '<option value="">-- 選択なし --</option>' +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     cardSelect.value = currentValue;
   }
 
   document.querySelectorAll("select[name='scene-character-id']").forEach(select => {
     const currentValue = select.value;
-    select.innerHTML = '<option value="">譛ｪ驕ｸ謚・/option>' +
+    select.innerHTML = '<option value="">キャラなし</option>' +
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
@@ -1142,7 +1154,7 @@ function populateBaseCharSelects() {
   const storyCardSelect = document.getElementById("story-character-select");
   if (storyCardSelect) {
     const currentValue = storyCardSelect.value;
-    storyCardSelect.innerHTML = '<option value="">繧ｫ繝ｼ繝峨ｒ驕ｸ謚・/option>' +
+    storyCardSelect.innerHTML = '<option value="">カードを選択</option>' +
       characters.map(char => `<option value="${esc(char.id)}">${esc(getRarityLabel(char.rarity))} ${esc(char.name)}</option>`).join("");
     storyCardSelect.value = currentValue;
   }
