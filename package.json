@@ -4,6 +4,8 @@
   "private": true,
   "description": "Instant fake social-game generator",
   "scripts": {
-    "start": "node server.js"
+    "start": "wrangler pages dev public",
+    "dev": "wrangler pages dev public",
+    "deploy": "wrangler pages deploy public"
   }
 }

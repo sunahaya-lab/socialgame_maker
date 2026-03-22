@@ -4,9 +4,9 @@ Socia Maker is a lightweight fake social-game prototype. It lets you build a sma
 
 ## Current Product Shape
 
-- Single-page app with a small Node.js backend
+- Single-page app on Cloudflare Pages + Functions + KV
 - Mobile-style screens: Home, Gacha, Story, Collection, Editor
-- Shared JSON storage through local API endpoints
+- API-backed persistence through Cloudflare Functions
 - `localStorage` fallback when the backend is unavailable
 
 ## Current Features
@@ -61,15 +61,6 @@ Socia Maker is a lightweight fake social-game prototype. It lets you build a sma
 - Filter by rarity
 - Open card detail modal
 
-## Data Model
-
-The app stores four collections in `data/`.
-
-- `base-chars.json`
-- `entries.json`
-- `stories.json`
-- `gachas.json`
-
 ## API
 
 - `GET /api/base-chars`
@@ -80,18 +71,19 @@ The app stores four collections in `data/`.
 - `POST /api/stories`
 - `GET /api/gachas`
 - `POST /api/gachas`
+- `GET /api/system`
+- `POST /api/system`
 
-All data is stored as JSON files on disk by the bundled Node server.
+Data is stored in the `SOCIA_DATA` KV binding in Cloudflare runtime. Local browser state is used as a fallback cache.
 
 ## Run
 
 1. Run `npm start`
-2. Open `http://localhost:3000`
+2. Open the local Wrangler URL, usually `http://127.0.0.1:8788` or similar
 3. Create base characters, cards, stories, and gachas in the editor
 4. Browse them through the game-style screens
 
 ## Notes
 
-- Base character deletion is currently local-only in the frontend and does not remove server-side JSON records
 - Card form base-character selection exists in the UI, but the current card save flow does not persist that relationship
 - Gacha `featured` selections are stored, but current pull logic still rolls from the rarity pool rather than featured weighting

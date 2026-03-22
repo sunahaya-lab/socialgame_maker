@@ -1,0 +1,8 @@
+name = "socia-maker"
+compatibility_date = "2026-03-22"
+pages_build_output_dir = "public"
+
+[[kv_namespaces]]
+binding = "SOCIA_DATA"
+id = "33177f0dc4ba44aaa7df335c1ff2ff53"
+preview_id = "611238f598bf459d8d597ce0fe1ad3cd"

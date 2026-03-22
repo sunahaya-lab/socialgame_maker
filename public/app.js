@@ -168,9 +168,7 @@ const baseCharHomeVoiceDefs = [
 void init();
 
 async function init() {
-  setupNavigation();
-
-  collectionScreen = safeInit(() => window.CollectionScreen.setupCollectionScreen({
+  collectionScreen = window.CollectionScreen.setupCollectionScreen({
     getCharacters: () => characters,
     getStories: () => stories,
     getSystemConfig: () => systemConfig,
@@ -184,8 +182,8 @@ async function init() {
     getRarityCssClass,
     makeFallbackImage,
     esc
-  }));
-  gachaScreen = safeInit(() => window.GachaScreen.setupGachaScreen({
+  });
+  gachaScreen = window.GachaScreen.setupGachaScreen({
     getCharacters: () => characters,
     getGachas: () => gachas,
     getSystemConfig: () => systemConfig,
@@ -199,10 +197,10 @@ async function init() {
     getRarityCssClass,
     normalizeRarityValue,
     makeFallbackImage,
-    showCardDetail: char => collectionScreen?.showCardDetail?.(char),
+    showCardDetail: char => collectionScreen.showCardDetail(char),
     esc
-  }));
-  storyScreen = safeInit(() => window.StoryScreen.setupStoryScreen({
+  });
+  storyScreen = window.StoryScreen.setupStoryScreen({
     getStories: () => stories,
     getCharacters: () => characters,
     getCurrentStoryType: () => currentStoryType,
@@ -214,8 +212,8 @@ async function init() {
     resolveScenePortrait,
     showToast,
     esc
-  }));
-  systemEditor = safeInit(() => window.SystemEditor.setupSystemEditor({
+  });
+  systemEditor = window.SystemEditor.setupSystemEditor({
     getSystemConfig: () => systemConfig,
     setSystemConfig: value => { systemConfig = value; },
     getEditState: () => editState,
@@ -223,7 +221,12 @@ async function init() {
     getCurrentScreen: () => currentScreen,
     saveConfig: async value => {
       saveLocal("socia-system", value);
-      try { await postJSON(apiUrl(API.system), value); } catch {}
+      try {
+        await postJSON(apiUrl(API.system), value);
+      } catch (error) {
+        console.error("Failed to save system config:", error);
+        showToast("システム設定の保存に失敗しました。ローカルには保持されています。");
+      }
     },
     renderAll,
     applyOrientation,
@@ -239,15 +242,15 @@ async function init() {
       esc
     },
     showToast
-  }));
-  entryEditor = safeInit(() => window.EntryEditor.setupEntryEditor({
+  });
+  entryEditor = window.EntryEditor.setupEntryEditor({
     getCharacters: () => characters,
     setCharacters: value => { characters = value; },
     getBaseChars: () => baseChars,
     getEditState: () => editState,
     getApi: () => ({ characters: apiUrl(API.characters) }),
     getSystemApi: () => ({
-      renderCharacterRarityOptions: value => systemEditor?.renderCharacterRarityOptions?.(value),
+      renderCharacterRarityOptions: value => systemEditor.renderCharacterRarityOptions(value),
       getRarityFallback: () => getRarityModeConfig().fallback
     }),
     readFileAsDataUrl,
@@ -267,8 +270,8 @@ async function init() {
     baseCharVoiceLineDefs,
     baseCharHomeVoiceDefs,
     esc
-  }));
-  baseCharEditor = safeInit(() => window.BaseCharEditor.setupBaseCharEditor({
+  });
+  baseCharEditor = window.BaseCharEditor.setupBaseCharEditor({
     getBaseChars: () => baseChars,
     setBaseChars: value => { baseChars = value; },
     getEditState: () => editState,
@@ -288,8 +291,8 @@ async function init() {
     baseCharVoiceLineDefs,
     baseCharHomeVoiceDefs,
     esc
-  }));
-  storyEditor = safeInit(() => window.StoryEditor.setupStoryEditor({
+  });
+  storyEditor = window.StoryEditor.setupStoryEditor({
     getStories: () => stories,
     setStories: value => { stories = value; },
     getBaseChars: () => baseChars,
@@ -306,8 +309,8 @@ async function init() {
     renderEditorStoryList,
     getBaseCharById,
     esc
-  }));
-  editorScreen = safeInit(() => window.EditorScreen.setupEditorScreen({
+  });
+  editorScreen = window.EditorScreen.setupEditorScreen({
     getBaseChars: () => baseChars,
     getCharacters: () => characters,
     getStories: () => stories,
@@ -330,24 +333,16 @@ async function init() {
     collectionScreen,
     populateBaseCharSelects,
     updateEditorSubmitLabels
-  }));
-  safeInit(() => setupForms());
-  safeInit(() => setupPreviews());
-  safeInit(() => setupHomeConfig());
-  safeInit(() => setupHomeInteractions());
+  });
+  setupNavigation();
+  setupForms();
+  setupPreviews();
+  setupHomeConfig();
+  setupHomeInteractions();
 
   await loadAllData();
   applyOrientation();
   renderAll();
-}
-
-function safeInit(fn) {
-  try {
-    return fn();
-  } catch (error) {
-    console.error("init error:", error);
-    return null;
-  }
 }
 
 function setupNavigation() {
@@ -408,21 +403,27 @@ function navigateTo(screen) {
 window.navigateTo = navigateTo;
 
 async function loadAllData() {
-  const [loadedBaseChars, loadedCharacters, loadedStories, loadedGachas, loadedSystem] = await Promise.all([
-    fetchJSON(apiUrl(API.baseChars)).then(data => data.baseChars || []).catch(() => loadLocal("socia-base-chars", [])),
-    fetchJSON(apiUrl(API.characters)).then(data => data.entries || []).catch(() => loadLocal("socia-characters", [])),
-    fetchJSON(apiUrl(API.stories)).then(data => data.stories || []).catch(() => loadLocal("socia-stories", [])),
-    fetchJSON(apiUrl(API.gachas)).then(data => data.gachas || []).catch(() => loadLocal("socia-gachas", [])),
-    fetchJSON(apiUrl(API.system)).then(data => data.system || getDefaultSystemConfig()).catch(() => loadLocal("socia-system", getDefaultSystemConfig()))
+  const localBaseChars = loadLocal("socia-base-chars", []);
+  const localCharacters = loadLocal("socia-characters", []);
+  const localStories = loadLocal("socia-stories", []);
+  const localGachas = loadLocal("socia-gachas", []);
+  const localSystem = loadLocal("socia-system", getDefaultSystemConfig());
+
+  const [remoteBaseChars, remoteCharacters, remoteStories, remoteGachas, remoteSystem] = await Promise.all([
+    fetchJSON(apiUrl(API.baseChars)).then(data => data.baseChars || []).catch(() => null),
+    fetchJSON(apiUrl(API.characters)).then(data => data.entries || []).catch(() => null),
+    fetchJSON(apiUrl(API.stories)).then(data => data.stories || []).catch(() => null),
+    fetchJSON(apiUrl(API.gachas)).then(data => data.gachas || []).catch(() => null),
+    fetchJSON(apiUrl(API.system)).then(data => data.system || getDefaultSystemConfig()).catch(() => null)
   ]);
 
-  baseChars = loadedBaseChars;
-  characters = loadedCharacters;
-  stories = loadedStories;
-  gachas = loadedGachas;
+  baseChars = mergeCollectionState(remoteBaseChars, localBaseChars);
+  characters = mergeCollectionState(remoteCharacters, localCharacters);
+  stories = mergeCollectionState(remoteStories, localStories);
+  gachas = mergeCollectionState(remoteGachas, localGachas);
   systemConfig = {
     ...getDefaultSystemConfig(),
-    ...(loadedSystem || {})
+    ...(remoteSystem || localSystem || {})
   };
 
   saveLocal("socia-base-chars", baseChars);
@@ -430,6 +431,19 @@ async function loadAllData() {
   saveLocal("socia-stories", stories);
   saveLocal("socia-gachas", gachas);
   saveLocal("socia-system", systemConfig);
+}
+
+function mergeCollectionState(remoteItems, localItems) {
+  const merged = [];
+  const seenIds = new Set();
+
+  [...(Array.isArray(remoteItems) ? remoteItems : []), ...(Array.isArray(localItems) ? localItems : [])].forEach(item => {
+    if (!item || !item.id || seenIds.has(item.id)) return;
+    seenIds.add(item.id);
+    merged.push(item);
+  });
+
+  return merged;
 }
 
 async function fetchJSON(url) {
@@ -453,9 +467,29 @@ function getScopedStorageKey(key) {
 }
 
 function renderAll() {
-  collectionScreen?.renderCollectionFilters?.("all");
+  collectionScreen.renderCollectionFilters("all");
   renderHome("refresh");
-  editorScreen?.renderEditorScreen?.();
+  editorScreen.renderEditorScreen();
+}
+
+function renderBaseCharList() {
+  editorScreen?.renderBaseCharList();
+}
+
+function renderEditorCharacterList() {
+  editorScreen?.renderEditorCharacterList();
+}
+
+function renderEditorStoryList() {
+  editorScreen?.renderEditorStoryList();
+}
+
+function renderEditorGachaList() {
+  editorScreen?.renderEditorGachaList();
+}
+
+function renderGachaPoolChars(selectedIds) {
+  editorScreen?.renderGachaPoolChars(selectedIds);
 }
 
 function applyOrientation() {
@@ -857,7 +891,7 @@ function populateHomeCardSelects() {
   ["home-card-1", "home-card-2"].forEach(id => {
     const select = document.getElementById(id);
     const current = select.value;
-    select.innerHTML = '<option value="">閾ｪ蜍包ｼ域怙譁ｰ繧ｫ繝ｼ繝会ｼ・/option>' +
+    select.innerHTML = '<option value="">未設定（先頭カード）</option>' +
       characters.map(c => `<option value="${esc(c.id)}">${esc(c.rarity)} ${esc(c.name)}</option>`).join("");
     select.value = current;
   });
@@ -881,7 +915,7 @@ function renderHomeConfigStageChar(index) {
   const cardId = homeConfigDraft[`card${index}`];
   const card = characters.find(item => item.id === cardId) || (index === 1 ? characters[0] : null);
   if (!card) {
-    stageChar.innerHTML = `<div class="home-config-stage-empty">繧ｫ繝ｼ繝画悴驕ｸ謚・/div>`;
+    stageChar.innerHTML = `<div class="home-config-stage-empty">カードを選択</div>`;
   } else {
     stageChar.innerHTML = `<img src="${card.image || makeFallbackImage(card.name, card.rarity)}" alt="${esc(card.name)}">`;
   }
@@ -890,7 +924,7 @@ function renderHomeConfigStageChar(index) {
   stageChar.classList.toggle("is-active", activeHomeConfigTarget === index);
   stageChar.classList.toggle("is-front", homeConfigDraft.front === index);
   stageChar.classList.toggle("is-back", homeConfigDraft.front !== index);
-  stageChar.dataset.label = `繧ｭ繝｣繝ｩ${index}`;
+  stageChar.dataset.label = `キャラ${index}`;
   stageChar.style.transform = `translateX(${homeConfigDraft[`x${index}`]}%) scale(${homeConfigDraft[`scale${index}`] / 100})`;
   stageChar.style.bottom = `${32 + homeConfigDraft[`y${index}`] * 2.2}px`;
 
@@ -993,17 +1027,15 @@ function getStoryVariantName(story, characterId) {
 function setupForms() {
   document.getElementById("gacha-form").addEventListener("submit", handleGachaSubmit);
 
-  baseCharEditor?.renderBaseCharVoiceLineFields?.();
-  baseCharEditor?.renderBaseCharHomeVoiceLineFields?.();
-  entryEditor?.renderCardVoiceLineFields?.();
-  entryEditor?.renderCardHomeVoiceLineFields?.();
-  storyEditor?.renderStoryVariantDefaults?.();
-  systemEditor?.renderSystemForm?.();
+  baseCharEditor.renderBaseCharVoiceLineFields();
+  baseCharEditor.renderBaseCharHomeVoiceLineFields();
+  entryEditor.renderCardVoiceLineFields();
+  entryEditor.renderCardHomeVoiceLineFields();
+  storyEditor.renderStoryVariantDefaults();
+  systemEditor.renderSystemForm();
   const sceneList = document.getElementById("scene-list");
-  if (sceneList) {
-    sceneList.innerHTML = "";
-    storyEditor?.addSceneInput?.();
-  }
+  sceneList.innerHTML = "";
+  storyEditor.addSceneInput();
 
   document.getElementById("share-btn").addEventListener("click", handleShare);
 }
@@ -1042,7 +1074,12 @@ async function handleGachaSubmit(e) {
   };
   upsertItem(gachas, gacha);
   saveLocal("socia-gachas", gachas);
-  try { await postJSON(apiUrl(API.gachas), gacha); } catch {}
+  try {
+    await postJSON(apiUrl(API.gachas), gacha);
+  } catch (error) {
+    console.error("Failed to save gacha:", error);
+    showToast("ガチャの保存に失敗しました。ローカルには保持されています。");
+  }
   resetGachaForm();
   renderHome();
   editorScreen.renderEditorGachaList();
@@ -1059,7 +1096,7 @@ function updateSceneCharacterOptions(sceneItem) {
   const exprSelect = sceneItem.querySelector("[name='scene-expression']");
   const baseChar = charId ? getBaseCharById(charId) : null;
   variantSelect.innerHTML = '<option value="">騾壼ｸｸ遶九■邨ｵ</option>';
-  exprSelect.innerHTML = '<option value="">繝・ヵ繧ｩ繝ｫ繝・/option>';
+  exprSelect.innerHTML = '<option value="">デフォルト</option>';
   if (baseChar?.variants?.length) {
     baseChar.variants.forEach(v => {
       const opt = document.createElement("option");
@@ -1119,10 +1156,10 @@ function resetGachaForm() {
 }
 
 function updateEditorSubmitLabels() {
-  setSubmitLabel("base-char-form", editState.baseCharId ? "繝吶・繧ｹ繧ｭ繝｣繝ｩ繧呈峩譁ｰ" : "繝吶・繧ｹ繧ｭ繝｣繝ｩ繧堤匳骭ｲ");
-  setSubmitLabel("character-form", editState.characterId ? "繧ｫ繝ｼ繝峨ｒ譖ｴ譁ｰ" : "繧ｫ繝ｼ繝峨ｒ逋ｻ骭ｲ");
-  setSubmitLabel("story-form", editState.storyId ? "繧ｹ繝医・繝ｪ繝ｼ繧呈峩譁ｰ" : "繧ｹ繝医・繝ｪ繝ｼ繧堤匳骭ｲ");
-  setSubmitLabel("gacha-form", editState.gachaId ? "繧ｬ繝√Ε繧呈峩譁ｰ" : "繧ｬ繝√Ε繧堤匳骭ｲ");
+  setSubmitLabel("base-char-form", editState.baseCharId ? "ベースキャラを更新" : "ベースキャラを登録");
+  setSubmitLabel("character-form", editState.characterId ? "カードを更新" : "カードを登録");
+  setSubmitLabel("story-form", editState.storyId ? "ストーリーを更新" : "ストーリーを登録");
+  setSubmitLabel("gacha-form", editState.gachaId ? "ガチャを更新" : "ガチャを登録");
 }
 
 function setSubmitLabel(formId, label) {
@@ -1248,10 +1285,6 @@ function esc(str) {
 function showToast(message) {
   toastShowToast(message);
 }
-
-
-
-
 
 
 
