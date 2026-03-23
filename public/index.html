@@ -43,7 +43,7 @@
           <span class="home-side-icon">&#x1F3A8;</span>
           <span>配置設定</span>
         </button>
-        <button type="button" class="home-side-btn" data-go="editor" onclick="window.navigateTo && window.navigateTo('editor')">
+        <button type="button" class="home-side-btn" onclick="window.openEditorScreen && window.openEditorScreen()">
           <span class="home-side-icon">&#x2699;&#xFE0F;</span>
           <span>編集</span>
         </button>
@@ -145,10 +145,12 @@
         <h2>ガチャ</h2>
       </div>
 
-      <div class="gacha-banner-list" id="gacha-banner-list"></div>
-
       <div class="gacha-active-area" id="gacha-active-area" hidden>
         <div class="gacha-banner-display" id="gacha-banner-display">
+          <div class="gacha-hero-stage" id="gacha-hero-stage">
+            <div class="gacha-hero-backdrop" id="gacha-hero-backdrop"></div>
+            <div class="gacha-hero-images" id="gacha-hero-images"></div>
+          </div>
           <h3 id="gacha-active-title">ピックアップガチャ</h3>
           <p id="gacha-active-desc">登録したガチャの説明や排出率がここに表示されます。</p>
         </div>
@@ -164,7 +166,24 @@
           <button class="gacha-btn gacha-btn-single" id="gacha-single">1回引く</button>
           <button class="gacha-btn gacha-btn-ten" id="gacha-ten">10連引く</button>
         </div>
+        <div class="gacha-subtools">
+          <button type="button" class="gacha-history-toggle" id="gacha-history-toggle" aria-expanded="false" aria-controls="gacha-history-panel">
+            <span>履歴</span>
+            <span class="gacha-history-meta" id="gacha-history-toggle-meta">0件</span>
+          </button>
+        </div>
       </div>
+
+      <div class="gacha-history" id="gacha-history-panel" hidden>
+        <div class="gacha-history-head">
+          <h4 class="gacha-history-title">履歴</h4>
+          <span class="gacha-history-meta" id="gacha-history-meta">0件</span>
+        </div>
+        <div class="gacha-history-empty" id="gacha-history-empty">まだガチャ履歴はありません。</div>
+        <div class="gacha-history-list" id="gacha-history-list" hidden></div>
+      </div>
+
+      <div class="gacha-banner-list" id="gacha-banner-list"></div>
 
       <div class="gacha-overlay" id="gacha-overlay" hidden>
         <div class="gacha-animation" id="gacha-animation">
@@ -258,6 +277,20 @@
           </div>
         </div>
         <button class="card-detail-close" id="card-detail-close">閉じる</button>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-formation">
+      <div class="screen-header">
+        <h2>キャラ・編成</h2>
+      </div>
+
+      <div class="formation-panel">
+        <div class="formation-party" id="formation-party"></div>
+        <div class="formation-card-list" id="formation-card-list"></div>
+        <div class="formation-empty" id="formation-empty" hidden>
+          <p>所持カードがありません。ガチャでカードを入手するとここに表示されます。</p>
+        </div>
       </div>
     </div>
 
@@ -438,6 +471,10 @@
             BGM URL
             <input name="bgm" type="url" placeholder="https://example.com/bgm.mp3">
           </label>
+          <label>
+            並び順
+            <input name="sortOrder" type="number" min="0" step="1" value="0">
+          </label>
           <div class="story-variant-defaults">
             <h4>イベント立ち絵の既定設定</h4>
             <div id="story-variant-default-list" class="story-variant-default-list"></div>
@@ -470,6 +507,29 @@
             バナー画像
             <input name="bannerImage" type="file" accept="image/*">
           </label>
+
+          <label>
+            ガチャ表示方式
+            <select name="displayMode" id="gacha-display-mode">
+              <option value="featuredCards">ピックアップSSR自動表示</option>
+              <option value="manualImages">任意画像を表示</option>
+            </select>
+          </label>
+          <div class="gacha-visual-editor" id="gacha-visual-editor">
+            <label>
+              ガチャ画像1
+              <input name="heroImage1" type="file" accept="image/*">
+            </label>
+            <label>
+              ガチャ画像2
+              <input name="heroImage2" type="file" accept="image/*">
+            </label>
+            <label>
+              ガチャ画像3
+              <input name="heroImage3" type="file" accept="image/*">
+            </label>
+            <p class="editor-help">自動表示ではピックアップSSRを使い、任意画像表示では登録画像を最大3枚まで並べます。</p>
+          </div>
 
           <div class="gacha-pool-selector">
             <h4>ピックアップ候補</h4>
@@ -537,8 +597,8 @@
         <span class="bottom-nav-icon">&#x1F0CF;</span>
         <span class="bottom-nav-label">コレクション</span>
       </button>
-      <button type="button" class="bottom-nav-btn" data-go="editor" onclick="window.navigateTo && window.navigateTo('editor')">
-        <span class="bottom-nav-icon">&#x270F;&#xFE0F;</span>
+      <button type="button" class="bottom-nav-btn" data-go="formation" onclick="window.navigateTo && window.navigateTo('formation')">
+        <span class="bottom-nav-icon">&#x1F464;</span>
         <span class="bottom-nav-label">編集</span>
       </button>
     </nav>
@@ -550,6 +610,7 @@
   <script src="lib/image.js"></script>
   <script src="lib/toast.js"></script>
   <script src="screens/collection-screen.js"></script>
+  <script src="screens/formation-screen.js"></script>
   <script src="screens/gacha-screen.js"></script>
   <script src="screens/story-screen.js"></script>
   <script src="screens/system-editor.js"></script>

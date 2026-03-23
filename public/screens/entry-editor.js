@@ -6,6 +6,7 @@
     document.getElementById("add-card-home-opinion-btn").addEventListener("click", () => api.addCardHomeOpinionInput());
     document.getElementById("add-card-home-conversation-btn").addEventListener("click", () => api.addCardHomeConversationInput());
     document.getElementById("add-card-home-birthday-btn").addEventListener("click", () => api.addCardHomeBirthdayInput());
+    document.getElementById("create-card-folder-btn")?.addEventListener("click", () => api.handleCreateCardFolder());
 
     return api;
   }
@@ -15,6 +16,7 @@
       getCharacters,
       setCharacters,
       getBaseChars,
+      getCardFolders,
       getEditState,
       getApi,
       getSystemApi,
@@ -30,6 +32,7 @@
       renderEditorCharacterList,
       renderGachaPoolChars,
       getEditingFeaturedIds,
+      createContentFolder,
       renderVoiceLineFields,
       collectVoiceLineFields,
       baseCharVoiceLineDefs,
@@ -49,6 +52,7 @@
         id: getEditState().characterId || crypto.randomUUID(),
         name: form.name.value.trim(),
         baseCharId: form.baseCharId.value || null,
+        folderId: form.folderId.value || null,
         catch: form.catch.value.trim(),
         rarity: normalizeRarityValue(form.rarity.value),
         attribute: form.attribute.value.trim() || "",
@@ -85,6 +89,7 @@
       getEditState().characterId = id;
       const form = document.getElementById("character-form");
       form.baseCharId.value = char.baseCharId || "";
+      form.folderId.value = char.folderId || "";
       form.name.value = char.name || "";
       form.catch.value = char.catch || "";
       getSystemApi().renderCharacterRarityOptions(char.rarity || getSystemApi().getRarityFallback());
@@ -110,6 +115,7 @@
       const form = document.getElementById("character-form");
       form.reset();
       getSystemApi().renderCharacterRarityOptions(getSystemApi().getRarityFallback());
+      form.folderId.value = "";
       renderCardVoiceLineFields();
       renderCardHomeVoiceLineFields();
       document.getElementById("card-home-opinion-list").innerHTML = "";
@@ -206,10 +212,36 @@
       })).filter(item => item.targetBaseCharId && item.text);
     }
 
+    async function handleCreateCardFolder() {
+      const folder = await createContentFolder("card");
+      if (!folder) return;
+      const select = document.querySelector("#character-form select[name='folderId']");
+      if (select) select.value = folder.id;
+    }
+
+    async function assignCharacterFolder(characterId, folderId) {
+      const list = getCharacters().slice();
+      const char = list.find(item => item.id === characterId);
+      if (!char) return;
+      char.folderId = folderId || null;
+      setCharacters(list);
+      saveLocal("socia-characters", list);
+      renderEditorCharacterList();
+      renderGachaPoolChars(getEditingFeaturedIds());
+      try {
+        await postJSON(getApi().characters, char);
+      } catch (error) {
+        console.error("Failed to move character folder:", error);
+        showToast("カードのフォルダ移動保存に失敗しました。");
+      }
+    }
+
     return {
       handleCharacterSubmit,
       beginCharacterEdit,
       resetCharacterForm,
+      handleCreateCardFolder,
+      assignCharacterFolder,
       renderCardVoiceLineFields,
       collectCardVoiceLines,
       renderCardHomeVoiceLineFields,

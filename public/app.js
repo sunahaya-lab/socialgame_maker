@@ -32,7 +32,9 @@ let baseChars = [];
 let characters = [];
 let stories = [];
 let gachas = [];
+let projects = [];
 let systemConfig = getDefaultSystemConfig();
+let playerState = null;
 let currentScreen = "home";
 let currentStoryType = "main";
 let activeGacha = null;
@@ -41,7 +43,9 @@ let homeConfigDraft = null;
 let activeHomeConfigTarget = 1;
 let homeConfigDrag = null;
 let homeDialogueState = null;
+let homeCurrencyTimer = null;
 let collectionScreen = null;
+let formationScreen = null;
 let gachaScreen = null;
 let storyScreen = null;
 let systemEditor = null;
@@ -49,6 +53,12 @@ let entryEditor = null;
 let baseCharEditor = null;
 let storyEditor = null;
 let editorScreen = null;
+let partyFormation = getDefaultPartyFormation();
+
+const searchParams = new URLSearchParams(location.search);
+const roomId = searchParams.get("room") || null;
+let currentProjectId = searchParams.get("project") || null;
+playerState = getDefaultPlayerState(currentProjectId);
 
 const editState = {
   baseCharId: null,
@@ -57,21 +67,74 @@ const editState = {
   gachaId: null
 };
 
-const roomId = new URLSearchParams(location.search).get("room") || null;
-function apiUrl(path) {
-  return roomId ? `${path}?room=${encodeURIComponent(roomId)}` : path;
+function apiUrl(path, options = {}) {
+  const query = new URLSearchParams();
+  if (roomId) query.set("room", roomId);
+  if (options.includeProject !== false && currentProjectId) query.set("project", currentProjectId);
+  Object.entries(options.query || {}).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === "") return;
+    query.set(key, String(value));
+  });
+  const text = query.toString();
+  return text ? `${path}?${text}` : path;
 }
 
 const API = {
+  projects: "/api/projects",
   baseChars: "/api/base-chars",
   characters: "/api/entries",
   stories: "/api/stories",
   gachas: "/api/gachas",
-  system: "/api/system"
+  system: "/api/system",
+  playerBootstrap: "/api/player-bootstrap",
+  playerProfile: "/api/player-profile",
+  playerStoryProgress: "/api/player-story-progress",
+  playerGachaPulls: "/api/player-gacha-pulls",
+  playerHomePreferences: "/api/player-home-preferences"
 };
 
 function getDefaultSystemConfig() {
-  return { rarityMode: getDefaultRarityMode(), orientation: "auto" };
+  return {
+    rarityMode: getDefaultRarityMode(),
+    orientation: "auto",
+    cardFolders: [],
+    storyFolders: []
+  };
+}
+
+function getDefaultPlayerState(projectId = currentProjectId, userId = null) {
+  return {
+    profile: {
+      id: null,
+      projectId: projectId || null,
+      userId,
+      displayName: "",
+      lastActiveAt: null,
+      createdAt: null,
+      updatedAt: null
+    },
+    inventory: [],
+    gachaHistory: [],
+    storyProgress: [],
+    homePreferences: null,
+    currencies: getDefaultCurrencies()
+  };
+}
+
+function getDefaultCurrencies() {
+  return [
+    { key: "stamina", amount: 120, maxAmount: 120, updatedAt: null },
+    { key: "gems", amount: 9999, maxAmount: null, updatedAt: null },
+    { key: "gold", amount: 85000, maxAmount: null, updatedAt: null }
+  ];
+}
+
+function getDefaultHomeConfig() {
+  return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, front: 2 };
+}
+
+function getDefaultPartyFormation() {
+  return ["", "", "", "", ""];
 }
 
 function getRarityModeConfig(mode = systemConfig?.rarityMode) {
@@ -168,10 +231,12 @@ const baseCharHomeVoiceDefs = [
 void init();
 
 async function init() {
+  ensureEditorFolderControls();
   collectionScreen = window.CollectionScreen.setupCollectionScreen({
     getCharacters: () => characters,
     getStories: () => stories,
     getSystemConfig: () => systemConfig,
+    getOwnedCount: getOwnedCardCount,
     baseCharVoiceLineDefs,
     getBaseCharById,
     getEffectiveVoiceLines,
@@ -183,9 +248,25 @@ async function init() {
     makeFallbackImage,
     esc
   });
+  formationScreen = window.FormationScreen.setupFormationScreen({
+    getCharacters: () => characters,
+    getOwnedCount: getOwnedCardCount,
+    getPartyFormation: () => partyFormation,
+    setPartyFormation: next => {
+      partyFormation = normalizePartyFormation(next);
+      saveLocal("socia-party-formation", partyFormation);
+    },
+    getSystemConfig: () => systemConfig,
+    getRarityLabel,
+    getRarityCssClass,
+    makeFallbackImage,
+    showCardDetail: char => collectionScreen.showCardDetail(char),
+    esc
+  });
   gachaScreen = window.GachaScreen.setupGachaScreen({
     getCharacters: () => characters,
     getGachas: () => gachas,
+    getPlayerState: () => playerState,
     getSystemConfig: () => systemConfig,
     getActiveGacha: () => activeGacha,
     setActiveGacha: value => { activeGacha = value; },
@@ -193,11 +274,16 @@ async function init() {
     normalizeRates,
     getDefaultRates,
     getRarityModeConfig,
+    getRarityRank,
     getRarityLabel,
     getRarityCssClass,
     normalizeRarityValue,
     makeFallbackImage,
     showCardDetail: char => collectionScreen.showCardDetail(char),
+    getPlayerCurrencyAmount,
+    recordGachaPulls,
+    refreshPlayerState: loadPlayerState,
+    showToast,
     esc
   });
   storyScreen = window.StoryScreen.setupStoryScreen({
@@ -210,6 +296,9 @@ async function init() {
     getBaseCharById,
     findCharacterImageByName,
     resolveScenePortrait,
+    getOwnedCount: getOwnedCardCount,
+    getStoryProgress: getPlayerStoryProgress,
+    saveStoryProgress,
     showToast,
     esc
   });
@@ -247,6 +336,7 @@ async function init() {
     getCharacters: () => characters,
     setCharacters: value => { characters = value; },
     getBaseChars: () => baseChars,
+    getCardFolders: () => systemConfig.cardFolders || [],
     getEditState: () => editState,
     getApi: () => ({ characters: apiUrl(API.characters) }),
     getSystemApi: () => ({
@@ -265,6 +355,7 @@ async function init() {
     renderEditorCharacterList,
     renderGachaPoolChars,
     getEditingFeaturedIds,
+    createContentFolder,
     renderVoiceLineFields,
     collectVoiceLineFields,
     baseCharVoiceLineDefs,
@@ -297,6 +388,7 @@ async function init() {
     setStories: value => { stories = value; },
     getBaseChars: () => baseChars,
     getCharacters: () => characters,
+    getStoryFolders: () => systemConfig.storyFolders || [],
     getEditState: () => editState,
     getApi: () => ({ stories: apiUrl(API.stories) }),
     readFileAsDataUrl,
@@ -307,6 +399,7 @@ async function init() {
     updateEditorSubmitLabels,
     renderHome,
     renderEditorStoryList,
+    createContentFolder,
     getBaseCharById,
     esc
   });
@@ -315,6 +408,8 @@ async function init() {
     getCharacters: () => characters,
     getStories: () => stories,
     getGachas: () => gachas,
+    getCardFolders: () => systemConfig.cardFolders || [],
+    getStoryFolders: () => systemConfig.storyFolders || [],
     getEditingFeaturedIds,
     getRarityCssClass,
     getRarityLabel,
@@ -332,17 +427,256 @@ async function init() {
     setActiveGacha: value => { activeGacha = value; },
     collectionScreen,
     populateBaseCharSelects,
+    populateFolderSelects,
     updateEditorSubmitLabels
   });
+  setupProjectControls();
+  configurePrimaryNavigation();
   setupNavigation();
   setupForms();
   setupPreviews();
   setupHomeConfig();
   setupHomeInteractions();
 
+  await initializeProjects();
   await loadAllData();
   applyOrientation();
   renderAll();
+}
+
+function configurePrimaryNavigation() {
+  const bottomNav = document.querySelector(".bottom-nav");
+  const homeEditButton = document.querySelector(".home-side-left .home-side-btn:nth-of-type(2)");
+  const homeMenuWrap = document.querySelector(".home-side-right");
+  const battleButton = homeMenuWrap?.querySelector(".home-menu-quest");
+  const homeButton = document.querySelector('.bottom-nav-btn[data-go="home"]');
+  const formationButton = document.querySelector('.bottom-nav-btn[data-go="formation"]');
+  const storyButton = document.querySelector('.bottom-nav-btn[data-go="story"]');
+  const gachaButton = document.querySelector('.bottom-nav-btn[data-go="gacha"]');
+  const collectionButton = document.querySelector('.bottom-nav-btn[data-go="collection"]');
+
+  if (homeEditButton) {
+    homeEditButton.removeAttribute("data-go");
+    homeEditButton.onclick = () => openEditorScreen();
+  }
+
+  if (homeMenuWrap && battleButton) {
+    const battleLabel = battleButton.querySelector(".home-menu-text");
+    if (battleLabel) battleLabel.textContent = "戦闘";
+    Array.from(homeMenuWrap.querySelectorAll(".home-menu-btn")).forEach(button => {
+      if (button !== battleButton) button.remove();
+    });
+  }
+
+  if (formationButton) {
+    const cleanFormationButton = formationButton.cloneNode(false);
+    Array.from(formationButton.attributes).forEach(attribute => {
+      cleanFormationButton.setAttribute(attribute.name, attribute.value);
+    });
+    cleanFormationButton.innerHTML = `
+      <span class="bottom-nav-icon">&#x1F464;</span>
+      <span class="bottom-nav-label">キャラ・編成</span>
+    `;
+    formationButton.replaceWith(cleanFormationButton);
+  }
+
+  if (bottomNav) {
+    const nextFormationButton = document.querySelector('.bottom-nav-btn[data-go="formation"]');
+    [homeButton, formationButton, storyButton, gachaButton, collectionButton].filter(Boolean).forEach(button => {
+      bottomNav.appendChild(button === formationButton ? nextFormationButton : button);
+    });
+  }
+}
+
+function setupProjectControls() {
+  const nameEl = document.getElementById("home-player-name");
+  if (!nameEl || document.getElementById("project-select")) return;
+  const host = nameEl.parentElement;
+  const controls = document.createElement("div");
+  controls.className = "project-controls";
+  controls.innerHTML = `
+    <select id="project-select" aria-label="Select project"></select>
+    <button type="button" class="project-create-btn" id="project-create-btn">+</button>
+  `;
+  host.appendChild(controls);
+
+  document.getElementById("project-select").addEventListener("change", async event => {
+    const nextProjectId = event.target.value;
+    if (!nextProjectId || nextProjectId === currentProjectId) return;
+    await switchProject(nextProjectId);
+  });
+
+  document.getElementById("project-create-btn").addEventListener("click", handleCreateProject);
+}
+
+function ensureEditorFolderControls() {
+  ensureFolderControlRow({
+    formId: "character-form",
+    anchorSelector: "#card-base-char-select",
+    selectId: "card-folder-select",
+    createButtonId: "create-card-folder-btn",
+    label: "カードフォルダ"
+  });
+  ensureFolderControlRow({
+    formId: "story-form",
+    anchorSelector: "#story-character-select-wrap, #story-form select[name='type']",
+    selectId: "story-folder-select",
+    createButtonId: "create-story-folder-btn",
+    label: "ストーリーフォルダ"
+  });
+}
+
+function ensureFolderControlRow({ formId, anchorSelector, selectId, createButtonId, label }) {
+  if (document.getElementById(selectId)) return;
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const anchor = form.querySelector(anchorSelector);
+  if (!anchor) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "editor-folder-row";
+  wrap.innerHTML = `
+    <label>
+      ${esc(label)}
+      <select name="folderId" id="${esc(selectId)}">
+        <option value="">フォルダなし</option>
+      </select>
+    </label>
+    <button type="button" class="btn-secondary editor-folder-create-btn" id="${esc(createButtonId)}">+ フォルダ</button>
+  `;
+  anchor.closest("label, div")?.after(wrap);
+}
+
+async function initializeProjects() {
+  const localProjects = loadProjectRegistry("socia-projects", []);
+  const localCurrentProjectId = loadProjectRegistry("socia-current-project-id", null);
+  const remoteProjects = await fetchJSON(apiUrl(API.projects, { includeProject: false }))
+    .then(data => data.projects || [])
+    .catch(() => null);
+
+  projects = mergeCollectionState(remoteProjects, localProjects).map(normalizeProjectRecord);
+
+  if (projects.length === 0) {
+    const defaultProject = makeProjectRecord("My Project");
+    projects = [defaultProject];
+    saveProjectRegistry("socia-projects", projects);
+    try {
+      await postJSON(apiUrl(API.projects, { includeProject: false }), defaultProject);
+    } catch (error) {
+      console.error("Failed to create default project:", error);
+    }
+  }
+
+  currentProjectId = selectInitialProjectId(localCurrentProjectId);
+  saveProjectRegistry("socia-projects", projects);
+  saveProjectRegistry("socia-current-project-id", currentProjectId);
+  syncProjectQuery();
+  renderProjectControls();
+}
+
+function renderProjectControls() {
+  const nameEl = document.getElementById("home-player-name");
+  const select = document.getElementById("project-select");
+  if (nameEl) {
+    nameEl.textContent = getCurrentProject()?.name || "Project";
+  }
+  if (!select) return;
+  select.innerHTML = projects.map(project =>
+    `<option value="${esc(project.id)}"${project.id === currentProjectId ? " selected" : ""}>${esc(project.name)}</option>`
+  ).join("");
+}
+
+function selectInitialProjectId(localCurrentProjectId) {
+  const candidates = [currentProjectId, localCurrentProjectId, projects[0]?.id];
+  const next = candidates.find(projectId => projectId && projects.some(project => project.id === projectId));
+  return next || null;
+}
+
+function getCurrentProject() {
+  return projects.find(project => project.id === currentProjectId) || null;
+}
+
+function normalizeProjectRecord(project) {
+  return {
+    id: String(project?.id || crypto.randomUUID()).trim(),
+    name: String(project?.name || "Untitled Project").trim().slice(0, 80) || "Untitled Project",
+    createdAt: String(project?.createdAt || new Date().toISOString()),
+    updatedAt: String(project?.updatedAt || project?.createdAt || new Date().toISOString())
+  };
+}
+
+function makeProjectRecord(name) {
+  const now = new Date().toISOString();
+  return normalizeProjectRecord({
+    id: crypto.randomUUID(),
+    name,
+    createdAt: now,
+    updatedAt: now
+  });
+}
+
+async function handleCreateProject() {
+  const input = prompt("Project name");
+  const name = String(input || "").trim();
+  if (!name) return;
+
+  const project = makeProjectRecord(name);
+  upsertItem(projects, project);
+  saveProjectRegistry("socia-projects", projects);
+
+  try {
+    const response = await postJSON(apiUrl(API.projects, { includeProject: false }), project);
+    const savedProject = normalizeProjectRecord(response.project || project);
+    upsertItem(projects, savedProject);
+    currentProjectId = savedProject.id;
+  } catch (error) {
+    console.error("Failed to create project:", error);
+    currentProjectId = project.id;
+    showToast("Project was created locally only.");
+  }
+
+  saveProjectRegistry("socia-projects", projects);
+  saveProjectRegistry("socia-current-project-id", currentProjectId);
+  resetEditState();
+  syncProjectQuery();
+  renderProjectControls();
+  await loadAllData();
+  resetEditorForms();
+  renderAll();
+  showToast("Project created.");
+}
+
+async function switchProject(projectId) {
+  currentProjectId = projectId;
+  saveProjectRegistry("socia-current-project-id", currentProjectId);
+  resetEditState();
+  syncProjectQuery();
+  renderProjectControls();
+  await loadAllData();
+  resetEditorForms();
+  renderAll();
+  showToast("Project switched.");
+}
+
+function resetEditState() {
+  editState.baseCharId = null;
+  editState.characterId = null;
+  editState.storyId = null;
+  editState.gachaId = null;
+}
+
+function resetEditorForms() {
+  baseCharEditor?.resetBaseCharForm?.();
+  entryEditor?.resetCharacterForm?.();
+  storyEditor?.resetStoryForm?.();
+  resetGachaForm();
+}
+
+function syncProjectQuery() {
+  const url = new URL(location.href);
+  if (currentProjectId) url.searchParams.set("project", currentProjectId);
+  else url.searchParams.delete("project");
+  history.replaceState(null, "", url.toString());
 }
 
 function setupNavigation() {
@@ -391,6 +725,7 @@ function navigateTo(screen) {
 
   try {
     if (screen === "home") renderHome(previousScreen === "home" ? "refresh" : "enter");
+    if (screen === "formation" && formationScreen) formationScreen.renderFormationScreen();
     if (screen === "gacha" && gachaScreen) gachaScreen.renderGachaScreen();
     if (screen === "story" && storyScreen) storyScreen.renderStoryScreen();
     if (screen === "collection" && collectionScreen) collectionScreen.renderCollectionScreen();
@@ -401,6 +736,12 @@ function navigateTo(screen) {
 }
 
 window.navigateTo = navigateTo;
+window.openEditorScreen = openEditorScreen;
+
+function openEditorScreen(tabName = null) {
+  navigateTo("editor");
+  if (tabName) editorScreen?.activateEditorTab?.(tabName);
+}
 
 async function loadAllData() {
   const localBaseChars = loadLocal("socia-base-chars", []);
@@ -418,19 +759,24 @@ async function loadAllData() {
   ]);
 
   baseChars = mergeCollectionState(remoteBaseChars, localBaseChars);
-  characters = mergeCollectionState(remoteCharacters, localCharacters);
-  stories = mergeCollectionState(remoteStories, localStories);
+  characters = mergeCollectionState(remoteCharacters, localCharacters).map(normalizeCharacterRecord);
+  stories = mergeCollectionState(remoteStories, localStories).map(normalizeStoryRecord);
   gachas = mergeCollectionState(remoteGachas, localGachas);
   systemConfig = {
     ...getDefaultSystemConfig(),
     ...(remoteSystem || localSystem || {})
   };
+  systemConfig.cardFolders = normalizeFolderList(systemConfig.cardFolders);
+  systemConfig.storyFolders = normalizeFolderList(systemConfig.storyFolders);
 
   saveLocal("socia-base-chars", baseChars);
   saveLocal("socia-characters", characters);
   saveLocal("socia-stories", stories);
   saveLocal("socia-gachas", gachas);
   saveLocal("socia-system", systemConfig);
+  partyFormation = normalizePartyFormation(loadLocal("socia-party-formation", getDefaultPartyFormation()));
+  await loadPlayerState();
+  ensureHomeCurrencyTimer();
 }
 
 function mergeCollectionState(remoteItems, localItems) {
@@ -455,19 +801,339 @@ async function postJSON(url, data) {
 }
 
 function loadLocal(key, fallback) {
-  return storageLoadLocal(key, fallback, roomId);
+  return storageLoadLocal(key, fallback, getDataScope());
 }
 
 function saveLocal(key, data) {
-  storageSaveLocal(key, data, roomId);
+  storageSaveLocal(key, data, getDataScope());
+}
+
+function getCurrentPlayerId() {
+  const explicit = searchParams.get("user");
+  if (explicit) return explicit;
+
+  const stored = storageLoadLocal("socia-player-id", null, getPlayerIdentityScope());
+  if (stored) return stored;
+
+  const next = crypto.randomUUID();
+  storageSaveLocal("socia-player-id", next, getPlayerIdentityScope());
+  return next;
+}
+
+function getPlayerIdentityScope() {
+  return roomId ? `room:${roomId}:viewer` : "viewer";
+}
+
+function getPlayerApiUrl(path) {
+  return apiUrl(path, {
+    query: {
+      user: getCurrentPlayerId()
+    }
+  });
 }
 
 function getScopedStorageKey(key) {
-  return storageGetScopedStorageKey(key, roomId);
+  return storageGetScopedStorageKey(key, getDataScope());
+}
+
+function loadProjectRegistry(key, fallback) {
+  return storageLoadLocal(key, fallback, getProjectRegistryScope());
+}
+
+function saveProjectRegistry(key, data) {
+  storageSaveLocal(key, data, getProjectRegistryScope());
+}
+
+function getProjectRegistryScope() {
+  return roomId ? `room:${roomId}:projects` : "projects";
+}
+
+function getDataScope() {
+  const scope = [];
+  if (roomId) scope.push(`room:${roomId}`);
+  if (currentProjectId) scope.push(`project:${currentProjectId}`);
+  return scope.length > 0 ? scope.join("::") : null;
+}
+
+async function ensurePlayerProfile() {
+  if (!currentProjectId) return null;
+  try {
+    const response = await postJSON(getPlayerApiUrl(API.playerProfile), {});
+    if (response?.profile) {
+      playerState.profile = response.profile;
+      saveLocal("socia-player-state", playerState);
+    }
+    return response?.profile || null;
+  } catch (error) {
+    console.error("Failed to ensure player profile:", error);
+    return null;
+  }
+}
+
+async function loadPlayerState() {
+  const localState = loadLocal("socia-player-state", getDefaultPlayerState(currentProjectId, getCurrentPlayerId()));
+  if (!currentProjectId) {
+    playerState = getDefaultPlayerState(null, getCurrentPlayerId());
+    return playerState;
+  }
+
+  try {
+    await ensurePlayerProfile();
+    const response = await fetchJSON(getPlayerApiUrl(API.playerBootstrap));
+    playerState = mergePlayerState(
+      response?.bootstrap || getDefaultPlayerState(currentProjectId, getCurrentPlayerId()),
+      localState || getDefaultPlayerState(currentProjectId, getCurrentPlayerId())
+    );
+  } catch (error) {
+    console.error("Failed to load player state:", error);
+    playerState = localState || getDefaultPlayerState(currentProjectId, getCurrentPlayerId());
+  }
+
+  saveLocal("socia-player-state", playerState);
+  return playerState;
+}
+
+function getPlayerStoryProgress(storyId) {
+  return playerState.storyProgress.find(item => item.storyId === storyId) || null;
+}
+
+async function saveStoryProgress(storyId, values = {}) {
+  if (!storyId || !currentProjectId) return null;
+
+  const response = await postJSON(getPlayerApiUrl(API.playerStoryProgress), {
+    storyId,
+    ...values
+  });
+  const next = response?.storyProgress;
+  if (!next) return null;
+
+  upsertPlayerStoryProgress(next);
+  saveLocal("socia-player-state", playerState);
+  return next;
+}
+
+function upsertPlayerStoryProgress(nextItem) {
+  const list = Array.isArray(playerState.storyProgress) ? playerState.storyProgress : [];
+  const index = list.findIndex(item => item.storyId === nextItem.storyId);
+  if (index >= 0) list[index] = nextItem;
+  else list.unshift(nextItem);
+  playerState.storyProgress = list;
+}
+
+async function recordGachaPulls(gachaId, results = []) {
+  if (!gachaId || !currentProjectId || !Array.isArray(results) || results.length === 0) return null;
+
+  const response = await postJSON(getPlayerApiUrl(API.playerGachaPulls), {
+    gachaId,
+    results: results.map(item => ({
+      cardId: item.id,
+      rarityAtPull: item.rolledRarity || item.rarity
+    }))
+  });
+
+  if (response?.results?.length) {
+    response.results.forEach(result => {
+      upsertInventoryRecord({
+        cardId: result.cardId,
+        quantity: result.quantity
+      });
+    });
+    if (response?.currencies) {
+      playerState.currencies = normalizePlayerCurrencies(response.currencies);
+    }
+    saveLocal("socia-player-state", playerState);
+  }
+
+  return response;
+}
+
+function upsertInventoryRecord(nextItem) {
+  const list = Array.isArray(playerState.inventory) ? playerState.inventory : [];
+  const index = list.findIndex(item => item.cardId === nextItem.cardId);
+  if (index >= 0) {
+    list[index] = { ...list[index], ...nextItem };
+  } else {
+    list.unshift({
+      id: null,
+      firstAcquiredAt: null,
+      lastAcquiredAt: null,
+      createdAt: null,
+      updatedAt: null,
+      ...nextItem
+    });
+  }
+  playerState.inventory = list;
+}
+
+function getOwnedCardCount(cardId) {
+  const item = playerState.inventory.find(entry => entry.cardId === cardId);
+  return Math.max(0, Number(item?.quantity || 0));
+}
+
+function normalizePartyFormation(formation) {
+  const list = Array.isArray(formation) ? formation.slice(0, 5) : [];
+  while (list.length < 5) list.push("");
+  return list.map(item => String(item || ""));
+}
+
+function mergePlayerState(remoteState, localState) {
+  const merged = {
+    ...getDefaultPlayerState(currentProjectId, getCurrentPlayerId()),
+    ...(localState || {}),
+    ...(remoteState || {})
+  };
+
+  merged.profile = remoteState?.profile?.id
+    ? remoteState.profile
+    : (localState?.profile || merged.profile);
+  merged.inventory = mergeByKey(remoteState?.inventory, localState?.inventory, "cardId", mergeInventoryItem);
+  merged.storyProgress = mergeByKey(remoteState?.storyProgress, localState?.storyProgress, "storyId", mergeStoryProgressItem);
+  merged.gachaHistory = mergeByKey(remoteState?.gachaHistory, localState?.gachaHistory, "id");
+  merged.currencies = normalizePlayerCurrencies(
+    Array.isArray(remoteState?.currencies) && remoteState.currencies.length > 0
+      ? remoteState.currencies
+      : (localState?.currencies || [])
+  );
+  merged.homePreferences = remoteState?.homePreferences || localState?.homePreferences || null;
+  return merged;
+}
+
+function normalizePlayerCurrencies(currencies) {
+  const map = new Map();
+
+  getDefaultCurrencies().forEach(currency => {
+    map.set(currency.key, { ...currency });
+  });
+
+  (Array.isArray(currencies) ? currencies : []).forEach(currency => {
+    const key = String(currency?.key || "").trim();
+    if (!key) return;
+    map.set(key, {
+      ...(map.get(key) || {}),
+      key,
+      amount: Math.max(0, Number(currency?.amount || 0)),
+      maxAmount: currency?.maxAmount === null || currency?.maxAmount === undefined
+        ? null
+        : Math.max(0, Number(currency.maxAmount || 0)),
+      updatedAt: currency?.updatedAt || map.get(key)?.updatedAt || null
+    });
+  });
+
+  return Array.from(map.values());
+}
+
+function getPlayerCurrencyAmount(key) {
+  return Math.max(0, Number(getEffectivePlayerCurrency(key)?.amount || 0));
+}
+
+function getEffectivePlayerCurrency(key, nowMs = Date.now()) {
+  const currencies = syncRecoveredCurrenciesInMemory(nowMs);
+  return currencies.find(currency => currency.key === key) || null;
+}
+
+function syncRecoveredCurrenciesInMemory(nowMs = Date.now()) {
+  const current = normalizePlayerCurrencies(playerState?.currencies || []);
+  let changed = false;
+  const next = current.map(currency => {
+    const recovered = getRecoveredCurrency(currency, nowMs);
+    if (recovered.amount !== currency.amount || recovered.updatedAt !== currency.updatedAt) {
+      changed = true;
+    }
+    return recovered;
+  });
+
+  if (changed && playerState) {
+    playerState.currencies = next;
+    saveLocal("socia-player-state", playerState);
+  }
+
+  return next;
+}
+
+function getRecoveredCurrency(currency, nowMs = Date.now()) {
+  if (currency?.key !== "stamina") return currency;
+
+  const maxAmount = currency?.maxAmount === null || currency?.maxAmount === undefined
+    ? null
+    : Math.max(0, Number(currency.maxAmount || 0));
+  const amount = Math.max(0, Number(currency?.amount || 0));
+  if (maxAmount === null || amount >= maxAmount) return currency;
+
+  const updatedAtMs = Date.parse(currency?.updatedAt || "");
+  if (!Number.isFinite(updatedAtMs) || nowMs <= updatedAtMs) return currency;
+
+  const recoveredUnits = Math.floor((nowMs - updatedAtMs) / 60000);
+  if (recoveredUnits <= 0) return currency;
+
+  const nextAmount = Math.min(maxAmount, amount + recoveredUnits);
+  const nextUpdatedAt = nextAmount >= maxAmount
+    ? new Date(nowMs).toISOString()
+    : new Date(updatedAtMs + recoveredUnits * 60000).toISOString();
+
+  return {
+    ...currency,
+    amount: nextAmount,
+    updatedAt: nextUpdatedAt
+  };
+}
+
+function normalizeHomePreferences(config) {
+  const toNumber = (value, fallback) => {
+    const next = Number(value);
+    return Number.isNaN(next) ? fallback : next;
+  };
+  return {
+    ...getDefaultHomeConfig(),
+    ...(config || {}),
+    mode: Number(config?.mode) === 2 ? 2 : 1,
+    front: Number(config?.front) === 1 ? 1 : 2,
+    scale1: Math.round(clamp(toNumber(config?.scale1, 100), 50, 200)),
+    x1: clamp(toNumber(config?.x1, -10), -60, 60),
+    y1: clamp(toNumber(config?.y1, 0), -30, 50),
+    scale2: Math.round(clamp(toNumber(config?.scale2, 100), 50, 200)),
+    x2: clamp(toNumber(config?.x2, 10), -60, 60),
+    y2: clamp(toNumber(config?.y2, 0), -30, 50)
+  };
+}
+
+function mergeByKey(primary, secondary, key, resolver) {
+  const map = new Map();
+  [...(Array.isArray(secondary) ? secondary : []), ...(Array.isArray(primary) ? primary : [])].forEach(item => {
+    if (!item || item[key] === undefined || item[key] === null) return;
+    const id = item[key];
+    if (!map.has(id)) {
+      map.set(id, item);
+      return;
+    }
+    map.set(id, resolver ? resolver(map.get(id), item) : item);
+  });
+  return [...map.values()];
+}
+
+function mergeInventoryItem(a, b) {
+  return {
+    ...(a || {}),
+    ...(b || {}),
+    quantity: Math.max(Number(a?.quantity || 0), Number(b?.quantity || 0))
+  };
+}
+
+function mergeStoryProgressItem(a, b) {
+  const rank = {
+    locked: 0,
+    unlocked: 1,
+    in_progress: 2,
+    completed: 3
+  };
+  const aRank = rank[a?.status] ?? 0;
+  const bRank = rank[b?.status] ?? 0;
+  return aRank >= bRank ? a : b;
 }
 
 function renderAll() {
   collectionScreen.renderCollectionFilters("all");
+  formationScreen?.renderFormationScreen?.();
+  populateFolderSelects();
   renderHome("refresh");
   editorScreen.renderEditorScreen();
 }
@@ -512,6 +1178,7 @@ function renderHome(reason = "refresh") {
 
   const level = Math.max(1, characters.length + stories.length * 2 + gachas.length * 3);
   document.getElementById("home-lv").textContent = String(level);
+  renderHomeCurrencies();
 
   const config = loadHomeConfig();
   const card1 = characters.find(c => c.id === config.card1) || characters[0] || null;
@@ -562,6 +1229,42 @@ function renderHome(reason = "refresh") {
   syncHomeDialogue(card1, card2, reason);
   speech1.hidden = !card1;
   speech2.hidden = !card2 || !homeDialogueState?.secondaryText;
+}
+
+function renderHomeCurrencies() {
+  const currencies = syncRecoveredCurrenciesInMemory();
+  const stamina = currencies.find(item => item.key === "stamina");
+  const gems = currencies.find(item => item.key === "gems");
+  const gold = currencies.find(item => item.key === "gold");
+
+  document.getElementById("home-stamina").textContent = formatCurrencyBalance(stamina, true);
+  document.getElementById("home-gems").textContent = formatCurrencyBalance(gems);
+  document.getElementById("home-gold").textContent = formatCurrencyBalance(gold);
+}
+
+function formatCurrencyBalance(currency, includeMax = false) {
+  const amount = Math.max(0, Number(currency?.amount || 0));
+  const maxAmount = currency?.maxAmount === null || currency?.maxAmount === undefined
+    ? null
+    : Math.max(0, Number(currency.maxAmount || 0));
+
+  if (includeMax && maxAmount !== null) {
+    return `${amount.toLocaleString()}/${maxAmount.toLocaleString()}`;
+  }
+
+  return amount.toLocaleString();
+}
+
+function ensureHomeCurrencyTimer() {
+  if (homeCurrencyTimer) return;
+  homeCurrencyTimer = window.setInterval(() => {
+    const before = getPlayerCurrencyAmount("stamina");
+    syncRecoveredCurrenciesInMemory();
+    const after = getPlayerCurrencyAmount("stamina");
+    if (before !== after && currentScreen === "home") {
+      renderHomeCurrencies();
+    }
+  }, 1000);
 }
 
 function pickLine(card) {
@@ -768,15 +1471,48 @@ function normalizeBirthday(value) {
 }
 
 function loadHomeConfig() {
+  if (playerState?.homePreferences) {
+    return normalizeHomePreferences(playerState.homePreferences);
+  }
+
+  const localConfig = loadLocal("socia-home-config", null);
+  if (localConfig) return normalizeHomePreferences(localConfig);
+
   try {
     const raw = localStorage.getItem("socia-home-config");
-    if (raw) return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, front: 2, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = normalizeHomePreferences(JSON.parse(raw));
+      saveLocal("socia-home-config", parsed);
+      return parsed;
+    }
   } catch {}
-  return { mode: 1, card1: "", card2: "", scale1: 100, x1: -10, y1: 0, scale2: 100, x2: 10, y2: 0, front: 2 };
+
+  return getDefaultHomeConfig();
 }
 
-function saveHomeConfig(config) {
-  localStorage.setItem("socia-home-config", JSON.stringify(config));
+async function saveHomeConfig(config) {
+  const normalized = normalizeHomePreferences(config);
+  playerState.homePreferences = normalized;
+  saveLocal("socia-player-state", playerState);
+  saveLocal("socia-home-config", normalized);
+  try {
+    localStorage.setItem("socia-home-config", JSON.stringify(normalized));
+  } catch {}
+
+  if (!currentProjectId) return normalized;
+
+  try {
+    const response = await postJSON(getPlayerApiUrl(API.playerHomePreferences), normalized);
+    if (response?.homePreferences) {
+      playerState.homePreferences = normalizeHomePreferences(response.homePreferences);
+      saveLocal("socia-player-state", playerState);
+    }
+  } catch (error) {
+    console.error("Failed to save home config:", error);
+    showToast("ホーム設定の保存に失敗しました。ローカルには保持されています。");
+  }
+
+  return normalized;
 }
 
 function setupHomeConfig() {
@@ -856,9 +1592,9 @@ function setupHomeConfig() {
   stage.addEventListener("pointercancel", endHomeConfigDrag);
   stage.addEventListener("pointerleave", endHomeConfigDrag);
 
-  saveBtn.addEventListener("click", () => {
+  saveBtn.addEventListener("click", async () => {
     if (!homeConfigDraft) return;
-    saveHomeConfig(homeConfigDraft);
+    await saveHomeConfig(homeConfigDraft);
     panel.hidden = true;
     renderHome();
     showToast("ホーム設定を保存しました");
@@ -1044,6 +1780,7 @@ function handleShare() {
   const id = roomId || crypto.randomUUID().slice(0, 8);
   const url = new URL(location.href);
   url.searchParams.set("room", id);
+  if (currentProjectId) url.searchParams.set("project", currentProjectId);
   navigator.clipboard.writeText(url.toString()).then(() => {
     showToast("共有URLをコピーしました");
   }).catch(() => {
@@ -1059,13 +1796,19 @@ async function handleGachaSubmit(e) {
   const form = e.target;
   const existing = editState.gachaId ? gachas.find(item => item.id === editState.gachaId) : null;
   const bannerFile = form.bannerImage.files[0];
-  const bannerImage = bannerFile ? await readFileAsDataUrl(bannerFile) : (existing?.bannerImage || "");
+  const heroImage2File = form.heroImage2?.files?.[0];
+  const heroImage3File = form.heroImage3?.files?.[0];
+  const bannerImage = bannerFile ? await readFileAsDataUrl(bannerFile) : (existing?.bannerImage || existing?.heroImages?.[0] || "");
+  const heroImage2 = heroImage2File ? await readFileAsDataUrl(heroImage2File) : (existing?.heroImages?.[1] || "");
+  const heroImage3 = heroImage3File ? await readFileAsDataUrl(heroImage3File) : (existing?.heroImages?.[2] || "");
   const featured = Array.from(document.querySelectorAll(".gacha-pool-char.selected")).map(el => el.dataset.charId);
   const gacha = {
     id: editState.gachaId || crypto.randomUUID(),
     title: form.title.value.trim(),
     description: form.description.value.trim(),
     bannerImage,
+    displayMode: form.displayMode?.value === "manualImages" ? "manualImages" : "featuredCards",
+    heroImages: [bannerImage, heroImage2, heroImage3].filter(Boolean),
     featured,
     rates: getRarityModeConfig().tiers.reduce((acc, tier) => {
       acc[tier.value] = Number(form.querySelector(`[name="rate-${tier.value}"]`)?.value) || 0;
@@ -1140,6 +1883,9 @@ function beginGachaEdit(id) {
   const form = document.getElementById("gacha-form");
   form.title.value = gacha.title || "";
   form.description.value = gacha.description || "";
+  if (form.displayMode) {
+    form.displayMode.value = gacha.displayMode === "manualImages" ? "manualImages" : "featuredCards";
+  }
   systemEditor.renderGachaRateInputs(gacha.rates);
   renderGachaPoolChars(gacha.featured || []);
   updateEditorSubmitLabels();
@@ -1150,6 +1896,7 @@ function resetGachaForm() {
   editState.gachaId = null;
   const form = document.getElementById("gacha-form");
   form.reset();
+  if (form.displayMode) form.displayMode.value = "featuredCards";
   systemEditor.renderGachaRateInputs(getDefaultRates());
   renderGachaPoolChars();
   updateEditorSubmitLabels();
@@ -1208,6 +1955,97 @@ function populateBaseCharSelects() {
       baseChars.map(baseChar => `<option value="${esc(baseChar.id)}">${esc(baseChar.name)}</option>`).join("");
     select.value = currentValue;
   });
+}
+
+function normalizeFolderList(list) {
+  return (Array.isArray(list) ? list : [])
+    .map((folder, index) => normalizeFolderRecord(folder, index))
+    .filter(Boolean)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "ja"));
+}
+
+function normalizeFolderRecord(folder, index = 0) {
+  const id = String(folder?.id || "").trim().slice(0, 80);
+  const name = String(folder?.name || "").trim().slice(0, 40);
+  if (!id || !name) return null;
+  return {
+    id,
+    name,
+    sortOrder: Math.max(0, Number(folder?.sortOrder ?? index) || 0)
+  };
+}
+
+function normalizeCharacterRecord(char) {
+  return {
+    ...(char || {}),
+    folderId: char?.folderId ? String(char.folderId).trim().slice(0, 80) : null
+  };
+}
+
+function normalizeStoryRecord(story) {
+  return {
+    ...(story || {}),
+    folderId: story?.folderId ? String(story.folderId).trim().slice(0, 80) : null,
+    sortOrder: Math.max(0, Number(story?.sortOrder) || 0)
+  };
+}
+
+function populateFolderSelects() {
+  populateFolderSelect("card-folder-select", systemConfig.cardFolders, "フォルダなし");
+  populateFolderSelect("story-folder-select", systemConfig.storyFolders, "フォルダなし");
+}
+
+function populateFolderSelect(elementId, folders, placeholder) {
+  const select = document.getElementById(elementId);
+  if (!select) return;
+  const currentValue = select.value;
+  select.innerHTML = `<option value="">${esc(placeholder)}</option>` +
+    normalizeFolderList(folders).map(folder => `<option value="${esc(folder.id)}">${esc(folder.name)}</option>`).join("");
+  select.value = currentValue;
+}
+
+async function persistSystemConfigState() {
+  saveLocal("socia-system", systemConfig);
+  try {
+    const response = await postJSON(apiUrl(API.system), systemConfig);
+    if (response?.system) {
+      systemConfig = {
+        ...getDefaultSystemConfig(),
+        ...response.system,
+        cardFolders: normalizeFolderList(response.system.cardFolders),
+        storyFolders: normalizeFolderList(response.system.storyFolders)
+      };
+      saveLocal("socia-system", systemConfig);
+    }
+  } catch (error) {
+    console.error("Failed to save system config:", error);
+    showToast("フォルダ設定の保存に失敗しました。ローカルには保持されています。");
+  }
+}
+
+async function createContentFolder(kind) {
+  const name = window.prompt(kind === "story" ? "ストーリーフォルダ名" : "カードフォルダ名");
+  const trimmed = String(name || "").trim().slice(0, 40);
+  if (!trimmed) return null;
+
+  const key = kind === "story" ? "storyFolders" : "cardFolders";
+  const current = normalizeFolderList(systemConfig[key]);
+  const folder = {
+    id: crypto.randomUUID(),
+    name: trimmed,
+    sortOrder: current.length
+  };
+
+  systemConfig = {
+    ...systemConfig,
+    [key]: [...current, folder]
+  };
+
+  await persistSystemConfigState();
+  populateFolderSelects();
+  renderEditorScreen();
+  showToast(`${trimmed} を追加しました。`);
+  return folder;
 }
 
 function getBaseCharById(id) {

@@ -37,6 +37,7 @@
       getCharacters,
       getStories,
       getSystemConfig,
+      getOwnedCount,
       baseCharVoiceLineDefs,
       getBaseCharById,
       getEffectiveVoiceLines,
@@ -74,18 +75,21 @@
 
       renderCollectionFilters(activeFilter);
 
+      const ownedCharacters = characters.filter(char => getOwnedCount(char.id) > 0);
       const filtered = activeFilter === "all"
-        ? characters
-        : characters.filter(char => normalizeRarityValue(char.rarity, mode) === activeFilter);
+        ? ownedCharacters
+        : ownedCharacters.filter(char => normalizeRarityValue(char.rarity, mode) === activeFilter);
 
       grid.innerHTML = "";
-      if (characters.length === 0) {
+      if (ownedCharacters.length === 0) {
         empty.hidden = false;
+        empty.querySelector("p").textContent = "まだ所持しているカードがありません。ガチャを引くとここに追加されます。";
         return;
       }
 
       empty.hidden = true;
       filtered.forEach(char => {
+        const ownedCount = getOwnedCount(char.id);
         const card = document.createElement("div");
         card.className = `collection-card ${getRarityCssClass(char.rarity, mode)}`;
         card.innerHTML = `
@@ -93,6 +97,7 @@
           <div class="collection-card-info">
             <span class="collection-card-rarity ${getRarityCssClass(char.rarity, mode)}">${esc(getRarityLabel(char.rarity, mode))}</span>
             <p class="collection-card-name">${esc(char.name)}</p>
+            <p class="collection-card-owned">x${ownedCount}</p>
           </div>
         `;
         card.addEventListener("click", () => showCardDetail(char));
@@ -105,7 +110,8 @@
       document.getElementById("card-detail-image").innerHTML =
         `<img src="${char.image || makeFallbackImage(char.name, char.rarity, mode)}" alt="${esc(char.name)}">`;
       document.getElementById("card-detail-rarity").textContent = getRarityLabel(char.rarity, mode);
-      document.getElementById("card-detail-name").textContent = char.name;
+      const ownedCount = getOwnedCount(char.id);
+      document.getElementById("card-detail-name").textContent = ownedCount > 0 ? `${char.name} x${ownedCount}` : char.name;
       document.getElementById("card-detail-catch").textContent = char.catch || "";
       document.getElementById("card-detail-attr").textContent = char.attribute || "";
       renderCardDetailVoices(char);

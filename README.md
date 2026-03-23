@@ -2,6 +2,12 @@
 
 Socia Maker is a lightweight fake social-game prototype. It lets you build a small in-app universe from original characters, card data, stories, and gacha banners, then browse it in a mobile-game style UI.
 
+See [`docs/architecture-v2.md`](./docs/architecture-v2.md) for the current rebuild direction and Cloudflare-native v2 design draft.
+See [`docs/schema-v2.md`](./docs/schema-v2.md), [`migrations/0001_v2_initial.sql`](./migrations/0001_v2_initial.sql), and [`migrations/0006_player_state_initial.sql`](./migrations/0006_player_state_initial.sql) for the current D1 schema drafts.
+See [`migrations/0000_project_registries.sql`](./migrations/0000_project_registries.sql), [`migrations/0001_base_character_registries.sql`](./migrations/0001_base_character_registries.sql), [`migrations/0002_entry_registries.sql`](./migrations/0002_entry_registries.sql), [`migrations/0003_story_registries.sql`](./migrations/0003_story_registries.sql), [`migrations/0004_gacha_registries.sql`](./migrations/0004_gacha_registries.sql), and [`migrations/0005_system_config_registries.sql`](./migrations/0005_system_config_registries.sql) for the transitional D1 bridge used to move prototype records off KV incrementally.
+
+The v2 docs now distinguish between shared project content and per-user player state. Shared content is edited collaboratively; player state covers owned cards, gacha results, story progress, currencies, and personal home layout.
+
 ## Current Product Shape
 
 - Single-page app on Cloudflare Pages + Functions + KV
@@ -73,8 +79,12 @@ Socia Maker is a lightweight fake social-game prototype. It lets you build a sma
 - `POST /api/gachas`
 - `GET /api/system`
 - `POST /api/system`
+- `GET /api/player-bootstrap?project=...&user=...`
+- `GET|POST /api/player-profile?project=...&user=...`
+- `GET|POST /api/player-story-progress?project=...&user=...`
+- `POST /api/player-gacha-pulls?project=...&user=...`
 
-Data is stored in the `SOCIA_DATA` KV binding in Cloudflare runtime. Local browser state is used as a fallback cache.
+Data is currently stored in the `SOCIA_DATA` KV binding in Cloudflare runtime. `projects`, `base-chars`, `entries`, `stories`, `gachas`, and `system` can move first to D1 through the `SOCIA_DB` binding and the bridge migrations above. Local browser state is used as a fallback cache.
 
 ## Run
 
@@ -82,6 +92,15 @@ Data is stored in the `SOCIA_DATA` KV binding in Cloudflare runtime. Local brows
 2. Open the local Wrangler URL, usually `http://127.0.0.1:8788` or similar
 3. Create base characters, cards, stories, and gachas in the editor
 4. Browse them through the game-style screens
+
+## D1 Bridge Setup
+
+1. Create a D1 database
+2. Fill the commented `SOCIA_DB` block in [`wrangler.toml`](./wrangler.toml)
+3. Apply [`migrations/0000_project_registries.sql`](./migrations/0000_project_registries.sql)
+4. Restart local dev
+
+Until that binding exists, the app keeps using KV for `projects`.
 
 ## Notes
 

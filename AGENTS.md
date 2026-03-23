@@ -6,10 +6,10 @@
 - Primary UI: single-page app with screens for `home`, `gacha`, `story`, `collection`, `editor`
 
 ## Current Hosting Direction
-- Target platform: `Cloudflare Pages + Functions + KV`
+- Target platform: `Cloudflare Pages + Functions + KV + D1`
 - Static files live under [`public/`](./public)
 - API lives under [`functions/api/`](./functions/api)
-- Old Node/JSON server is being retired
+- Legacy Node/JSON server has been retired
 
 ## Current Important Files
 - Frontend entry:
@@ -43,6 +43,8 @@
 
 ## Cloudflare State
 - KV binding name: `SOCIA_DATA`
+- D1 binding name: `SOCIA_DB`
+- D1 database id: `06c10043-76cc-4d8c-b85e-9328cb2e24bb`
 - `wrangler.toml` already has IDs filled
   - production id: `33177f0dc4ba44aaa7df335c1ff2ff53`
   - preview id: `611238f598bf459d8d597ce0fe1ad3cd`
@@ -56,10 +58,38 @@
 
 ## Current App Features
 
+### Shared Project Layer
+- `project` selector exists on home
+- Shared editor data is scoped by `project`
+- Shared content save/load APIs exist for:
+  - `base characters`
+  - `cards`
+  - `stories`
+  - `gachas`
+  - `system config`
+- These APIs prefer `D1` and fall back to `KV` when needed
+
+### Player State Layer
+- Per-player state exists, scoped by `project + user`
+- Current player state APIs exist for:
+  - `player profile`
+  - `story progress`
+  - `gacha pull history`
+  - `inventory`
+  - `home preferences`
+- `player-bootstrap` returns:
+  - `profile`
+  - `inventory`
+  - `gachaHistory`
+  - `storyProgress`
+  - `homePreferences`
+  - `currencies`
+
 ### Home
 - Displays registered counts, pseudo level, home characters, banner, home speech
 - Supports 1-character or 2-character layout
 - Supports drag positioning, scale slider, front/back swap
+- Home configuration is now intended to be per-player, not shared per project
 - Supports home voice logic:
   - `homeEnter`
   - `eventActive`
@@ -72,6 +102,7 @@
 - Single draw / ten draw
 - Rates depend on system rarity mode
 - Draw result opens card detail
+- Draw result is recorded into per-player inventory and pull history
 
 ### Story
 - Tabs:
@@ -80,6 +111,13 @@
   - `character`
 - Story reader with scenes
 - Character story can be linked to a card
+- Story progress is per-player
+- Status display exists for:
+  - `NEW`
+  - `LOCKED`
+  - `READING`
+  - `CLEAR`
+- Character story lock uses owned card state
 - Scene portrait priority is intended to support:
   - expression
   - scene variant
@@ -92,6 +130,7 @@
 - Card detail modal
 - Character story links from card detail
 - Voice display prefers card-specific values and falls back to base character values
+- Collection is now inventory-based and shows only owned cards
 
 ### Editor
 - Tabs:
@@ -106,6 +145,9 @@
   - stories
   - gachas
 - Edit pushes data back into the same form
+- Story list supports drag reorder for display order
+- Card and story lists support project-shared folders
+- Folder groups are collapsible
 
 ### Base Character Data
 - Basic profile
@@ -121,6 +163,7 @@
 
 ### Card Data
 - Base character link
+- Optional folder assignment
 - Rarity / attribute / image / catch
 - Card-specific voices
 - Card-specific home voices
@@ -130,6 +173,8 @@
 ### Story Data
 - `main`, `event`, `character`
 - Character stories can target a card
+- Optional folder assignment
+- Display order uses `sortOrder`
 - Story-level variant defaults
 - Scene-level character / text / bg / bgm / expression / variant
 
@@ -142,13 +187,30 @@
 - Rarity mode:
   - `classic4`: `N / R / SR / SSR`
   - `stars5`: 5-star display
+- Shared folder definitions currently live in system config:
+  - `cardFolders`
+  - `storyFolders`
+
+## Current Goal Status
+- Cloudflare Pages migration:
+  - reached working state
+- Shared project editing:
+  - reached working state
+- D1 bridge for shared content:
+  - reached working state for `projects`, `base-chars`, `entries`, `stories`, `gachas`, `system`
+- Player-specific progress:
+  - partially reached
+  - `story progress`, `inventory`, `gacha history`, `home preferences` exist
+- Productized app architecture:
+  - still in progress
+  - auth/member/public-share/license layers are not implemented yet
 
 ## Current Known Problems
-- Main current blocker: app sometimes does not fully open in browser after Cloudflare migration.
-- The immediate cause earlier was broken `public/` asset placement.
-- Another major cause was mojibake / corruption in `public/index.html` and `public/app.js`.
-- `public/index.html` and `public/app.js` were restored from commit `dd5719c` as a temporary recovery base.
-- Browser still needs hard refresh and re-check after restart.
+- Remote D1 migration for `player_home_preferences` is not yet applied because `wrangler d1 execute --remote` hit Cloudflare authentication error `10000`
+- `player-home-preferences` works locally and is guarded to avoid hard failure when the remote table is missing
+- Some UI text is still historically mojibake in source and should be cleaned gradually
+- Folder UI currently exists for `cards` and `stories`, but not yet for other content types
+- Story unlock logic still follows current display order; this is acceptable for now because display order is treated as presentation, not strict progression schema
 
 ## Important Recovery Notes
 - Last known good commit for SPA navigation before Cloudflare migration troubles:
@@ -156,20 +218,11 @@
 - After Cloudflare migration work, `public/index.html` and `public/app.js` were restored from that commit to get back to a stable UI baseline.
 
 ## Current Git State
-- There are uncommitted local changes related to Cloudflare migration.
-- `git status --short` previously showed:
-  - modified:
-    - `package.json`
-    - `public/app.js`
-    - `public/index.html`
-  - untracked:
-    - `functions/`
-    - `public/api/`
-    - `public/lib/`
-    - `public/screens/`
-    - `wrangler.toml`
-    - `.wrangler/`
-    - local wrangler logs
+- Expect active local changes related to:
+  - player-state expansion
+  - home preference persistence
+  - folder UI / editor UX
+- Re-check `git status` before destructive cleanup or commit batching
 
 ## What Must Not Be Deleted
 - Do not delete [`functions/`](./functions) or [`wrangler.toml`](./wrangler.toml)
@@ -177,7 +230,7 @@
 - `.wrangler/` and `wrangler-dev*.log` are local artifacts and can be ignored or deleted later
 
 ## Current Runtime
-- Cloudflare Pages + Functions + KV is the active runtime
+- Cloudflare Pages + Functions + KV + D1 is the active runtime
 - Legacy Node files (`server.js`, `data/`, old root `index.js`) are retired after browser save/load confirmation
 - Prefer updating Cloudflare-side files over reintroducing Node-based storage logic
 
@@ -196,23 +249,21 @@
   - `http://127.0.0.1:8788`
   - or `http://127.0.0.1:8789`
 
-## Next Steps After Restart
-1. Run:
-   - `wrangler.cmd pages dev public`
-2. Open local URL and hard refresh
-3. Verify first:
-   - app shell opens
-   - home screen appears
-   - navigation works
-4. Then verify API-backed save/load:
-   - base character save
-   - card save
-   - story save
-   - gacha save
-   - system save
-5. After all of the above are confirmed:
-   - keep Cloudflare config as the source of truth
-   - simplify `package.json`
+## Next Recommended Implementation Steps
+1. Apply remote D1 migration for:
+   - [`migrations/0007_player_home_preferences.sql`](./migrations/0007_player_home_preferences.sql)
+2. Expand player state toward actual gameplay loop:
+   - `player_currency_balances`
+   - `player_home_preferences` polish
+   - optional `gacha history` UI
+3. Refine progression UX:
+   - story status visuals
+   - inventory-based gating polish
+4. Clean editor UX:
+   - more UTF-8 text cleanup
+   - optional folder management improvements
+5. Only after that:
+   - start auth/member/public-share implementation
 
 ## If App Still Does Not Open
 - First inspect browser console for runtime errors
@@ -249,7 +300,10 @@
   - auth
   - project/member model
   - public share license
-- None of that is implemented yet in current Cloudflare migration
+- Current architecture direction is:
+  - shared project content edited collaboratively
+  - player-specific progress stored separately per user
+  - home/gacha/story progression should diverge per player while editor data stays shared
 
 ## Important Reminder For Next Session
 - Do not assume mojibake shown in PowerShell means file bytes are broken.

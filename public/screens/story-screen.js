@@ -29,6 +29,9 @@
       getBaseCharById,
       findCharacterImageByName,
       resolveScenePortrait,
+      getOwnedCount,
+      getStoryProgress,
+      saveStoryProgress,
       showToast,
       esc
     } = deps;
@@ -40,7 +43,10 @@
     function renderStoryList() {
       const list = document.getElementById("story-list");
       const empty = document.getElementById("story-empty");
-      const filtered = getStories().filter(story => story.type === getCurrentStoryType());
+      const filtered = getStories()
+        .filter(story => story.type === getCurrentStoryType())
+        .slice()
+        .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || a.title.localeCompare(b.title, "ja"));
 
       list.innerHTML = "";
       if (filtered.length === 0) {
@@ -51,14 +57,25 @@
       empty.hidden = true;
       filtered.forEach(story => {
         const linkedCard = story.entryId ? getCharacters().find(char => char.id === story.entryId) : null;
+        const progress = getStoryProgress ? getStoryProgress(story.id) : null;
+        const availability = getStoryAvailability(story, filtered);
         const item = document.createElement("div");
-        item.className = "story-item";
+        item.className = `story-item${availability.locked ? " is-locked" : ""}${availability.completed ? " is-completed" : ""}`;
         item.innerHTML = `
-          <p class="story-item-type">${getStoryTypeLabel(story.type)}</p>
+          <div class="story-item-head">
+            <p class="story-item-type">${getStoryTypeLabel(story.type)}</p>
+            <span class="story-item-status ${availability.statusClass}">${availability.statusLabel}</span>
+          </div>
           <h4>${esc(story.title)}</h4>
           <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} scenes</p>
         `;
-        item.addEventListener("click", () => openStoryReader(story));
+        item.addEventListener("click", () => {
+          if (availability.locked) {
+            showToast(availability.lockReason || "このストーリーはまだ解放されていません。");
+            return;
+          }
+          openStoryReader(story);
+        });
         list.appendChild(item);
       });
     }
@@ -70,9 +87,9 @@
       return "STORY";
     }
 
-    function openStoryReader(story) {
+    async function openStoryReader(story) {
       if (!story.scenes || story.scenes.length === 0) {
-        showToast("シーンがありません。");
+        showToast("ストーリーにシーンがありません。");
         return;
       }
 
@@ -86,6 +103,68 @@
       setStoryReaderState({ story, index: 0 });
       document.getElementById("story-reader").hidden = false;
       renderStoryScene();
+
+      if (saveStoryProgress) {
+        try {
+          const current = getStoryProgress ? getStoryProgress(story.id) : null;
+          if (current?.status === "completed") return;
+          await saveStoryProgress(story.id, {
+            status: "in_progress",
+            lastSceneIndex: Math.max(0, Number(current?.lastSceneIndex || 0))
+          });
+          renderStoryList();
+        } catch (error) {
+          console.error("Failed to mark story in progress:", error);
+        }
+      }
+    }
+
+    function getStoryAvailability(story, sameTypeStories) {
+      const progress = getStoryProgress ? getStoryProgress(story.id) : null;
+      if (progress?.status === "completed") {
+        return { locked: false, completed: true, statusLabel: "CLEAR", statusClass: "is-clear", lockReason: "" };
+      }
+
+      if (story.type === "character") {
+        const ownedCount = story.entryId ? getOwnedCount(story.entryId) : 0;
+        if (story.entryId && ownedCount <= 0) {
+          return {
+            locked: true,
+            completed: false,
+            statusLabel: "LOCKED",
+            statusClass: "is-locked",
+            lockReason: "対応するカードを所持すると解放されます。"
+          };
+        }
+      }
+
+      if (story.type === "main") {
+        const ordered = sameTypeStories.slice();
+        const index = ordered.findIndex(item => item.id === story.id);
+        if (index > 0) {
+          const previous = ordered[index - 1];
+          const previousProgress = getStoryProgress ? getStoryProgress(previous.id) : null;
+          if (previousProgress?.status !== "completed") {
+            return {
+              locked: true,
+              completed: false,
+              statusLabel: "LOCKED",
+              statusClass: "is-locked",
+              lockReason: "前のメインストーリーを読むと解放されます。"
+            };
+          }
+        }
+      }
+
+      if (progress?.status === "in_progress") {
+        return { locked: false, completed: false, statusLabel: "READING", statusClass: "is-reading", lockReason: "" };
+      }
+
+      if (progress?.status === "unlocked") {
+        return { locked: false, completed: false, statusLabel: "OPEN", statusClass: "is-open", lockReason: "" };
+      }
+
+      return { locked: false, completed: false, statusLabel: "NEW", statusClass: "is-new", lockReason: "" };
     }
 
     function renderStoryScene() {
@@ -99,7 +178,7 @@
 
       let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
       if (baseChar && scene.expressionName && baseChar.expressions?.length) {
-        const expr = baseChar.expressions.find(e => e.name === scene.expressionName);
+        const expr = baseChar.expressions.find(item => item.name === scene.expressionName);
         if (expr?.image) portrait = expr.image;
       }
 
@@ -152,15 +231,38 @@
       progressEl.style.background = baseChar?.color || "var(--accent-light)";
     }
 
-    function advanceStory() {
+    async function advanceStory() {
       const state = getStoryReaderState();
       if (!state) return;
 
       state.index += 1;
       if (state.index >= state.story.scenes.length) {
+        if (saveStoryProgress) {
+          try {
+            await saveStoryProgress(state.story.id, {
+              status: "completed",
+              lastSceneIndex: state.story.scenes.length - 1
+            });
+            renderStoryList();
+          } catch (error) {
+            console.error("Failed to mark story completed:", error);
+          }
+        }
+
         closeStoryReader();
         showToast("ストーリーを最後まで読みました。");
         return;
+      }
+
+      if (saveStoryProgress) {
+        try {
+          await saveStoryProgress(state.story.id, {
+            status: "in_progress",
+            lastSceneIndex: state.index
+          });
+        } catch (error) {
+          console.error("Failed to update story progress:", error);
+        }
       }
 
       renderStoryScene();

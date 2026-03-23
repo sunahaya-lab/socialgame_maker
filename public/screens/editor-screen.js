@@ -4,12 +4,7 @@
 
     document.querySelectorAll('.editor-tab').forEach(tab => {
       tab.addEventListener('click', () => {
-        document.querySelectorAll('.editor-tab').forEach(item => item.classList.remove('active'));
-        document.querySelectorAll('.editor-panel').forEach(panel => panel.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(`editor-${tab.dataset.editorTab}`).classList.add('active');
-        if (tab.dataset.editorTab === 'gacha') api.renderGachaPoolChars(deps.getEditingFeaturedIds());
-        if (tab.dataset.editorTab === 'system') deps.systemEditor.renderSystemForm();
+        api.activateEditorTab(tab.dataset.editorTab);
       });
     });
 
@@ -22,6 +17,8 @@
       getCharacters,
       getStories,
       getGachas,
+      getCardFolders,
+      getStoryFolders,
       getEditingFeaturedIds,
       getRarityCssClass,
       getRarityLabel,
@@ -39,6 +36,7 @@
       setActiveGacha,
       collectionScreen,
       populateBaseCharSelects,
+      populateFolderSelects,
       updateEditorSubmitLabels
     } = deps;
 
@@ -51,7 +49,20 @@
       renderGachaPoolChars(getEditingFeaturedIds());
       collectionScreen.renderCollectionFilters('all');
       populateBaseCharSelects();
+      populateFolderSelects();
       updateEditorSubmitLabels();
+    }
+
+    function activateEditorTab(tabName) {
+      const nextTab = tabName || 'base-char';
+      document.querySelectorAll('.editor-tab').forEach(item => {
+        item.classList.toggle('active', item.dataset.editorTab === nextTab);
+      });
+      document.querySelectorAll('.editor-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `editor-${nextTab}`);
+      });
+      if (nextTab === 'gacha') renderGachaPoolChars(getEditingFeaturedIds());
+      if (nextTab === 'system') deps.systemEditor.renderSystemForm();
     }
 
     function renderBaseCharList() {
@@ -59,7 +70,7 @@
       list.innerHTML = '';
       const baseChars = getBaseChars();
       if (baseChars.length === 0) {
-        list.innerHTML = '<p class="editor-record-empty">ベースキャラはまだ登録されていません。</p>';
+        list.innerHTML = '<p class="editor-record-empty">ベースキャラを登録するとここに表示されます。</p>';
         return;
       }
 
@@ -87,65 +98,142 @@
     function renderEditorCharacterList() {
       const list = document.getElementById('editor-character-list');
       list.innerHTML = '';
-      const characters = getCharacters();
-      if (characters.length === 0) {
-        list.innerHTML = '<p class="editor-record-empty">カードはまだ登録されていません。</p>';
+      const groups = buildFolderGroups(getCharacters(), getCardFolders());
+      if (groups.every(group => group.items.length === 0)) {
+        list.innerHTML = '<p class="editor-record-empty">カードを登録するとここに表示されます。</p>';
         return;
       }
 
-      characters.forEach(char => {
-        const item = document.createElement('div');
-        item.className = `editor-record-card ${getRarityCssClass(char.rarity)}`;
-        item.innerHTML = `
-          <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
-          <div class="editor-record-card-body">
-            <div class="editor-record-item-top">
-              <span class="editor-record-badge ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
-              <span class="editor-record-meta">${esc(char.attribute || '-')}</span>
-            </div>
-            <h5>${esc(char.name)}</h5>
-            <p>${esc(char.catch || '')}</p>
-            <div class="editor-record-actions">
-              <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-              <button class="editor-inline-btn" type="button" data-action="detail">詳細</button>
-            </div>
-          </div>
+      list.insertAdjacentHTML(
+        'beforeend',
+        '<p class="editor-list-hint">フォルダ見出しを押すと折りたためます。カードは一覧内のフォルダ選択から移動できます。</p>'
+      );
+
+      groups.forEach(group => {
+        if (group.items.length === 0) return;
+        const section = document.createElement('details');
+        section.className = 'editor-folder-group';
+        section.open = true;
+        section.innerHTML = `
+          <summary>${esc(group.name)} <span>${group.items.length}</span></summary>
+          <div class="editor-folder-group-body"></div>
         `;
-        item.querySelector('[data-action="edit"]').addEventListener('click', () => entryEditor.beginCharacterEdit(char.id));
-        item.querySelector('[data-action="detail"]').addEventListener('click', () => collectionScreen.showCardDetail(char));
-        list.appendChild(item);
+        const body = section.querySelector('.editor-folder-group-body');
+
+        group.items.forEach(char => {
+          const item = document.createElement('div');
+          item.className = `editor-record-card ${getRarityCssClass(char.rarity)}`;
+          item.innerHTML = `
+            <img src="${char.image || makeFallbackImage(char.name, char.rarity)}" alt="${esc(char.name)}">
+            <div class="editor-record-card-body">
+              <div class="editor-record-item-top">
+                <span class="editor-record-badge ${getRarityCssClass(char.rarity)}">${esc(getRarityLabel(char.rarity))}</span>
+                <span class="editor-record-meta">${esc(char.attribute || '-')}</span>
+              </div>
+              <h5>${esc(char.name)}</h5>
+              <p>${esc(char.catch || '')}</p>
+              <label class="editor-inline-select">
+                <span>フォルダ</span>
+                <select data-action="folder-move">${renderFolderOptions(getCardFolders(), char.folderId)}</select>
+              </label>
+              <div class="editor-record-actions">
+                <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
+                <button class="editor-inline-btn" type="button" data-action="detail">詳細</button>
+              </div>
+            </div>
+          `;
+          item.querySelector('[data-action="folder-move"]').addEventListener('change', event => {
+            entryEditor.assignCharacterFolder(char.id, event.target.value || null);
+          });
+          item.querySelector('[data-action="edit"]').addEventListener('click', () => entryEditor.beginCharacterEdit(char.id));
+          item.querySelector('[data-action="detail"]').addEventListener('click', () => collectionScreen.showCardDetail(char));
+          body.appendChild(item);
+        });
+
+        list.appendChild(section);
       });
     }
 
     function renderEditorStoryList() {
       const list = document.getElementById('editor-story-list');
       list.innerHTML = '';
-      const stories = getStories();
-      const characters = getCharacters();
-      if (stories.length === 0) {
-        list.innerHTML = '<p class="editor-record-empty">ストーリーはまだ登録されていません。</p>';
+      const groups = buildFolderGroups(getStories(), getStoryFolders());
+      if (groups.every(group => group.items.length === 0)) {
+        list.innerHTML = '<p class="editor-record-empty">ストーリーを登録するとここに表示されます。</p>';
         return;
       }
 
-      stories.forEach(story => {
-        const linkedCard = story.entryId ? characters.find(char => char.id === story.entryId) : null;
-        const item = document.createElement('div');
-        item.className = 'editor-record-item';
-        item.innerHTML = `
-          <div class="editor-record-item-top">
-            <span class="editor-record-badge">${story.type === 'main' ? 'MAIN' : story.type === 'event' ? 'EVENT' : 'CHARA'}</span>
-            <span class="editor-record-meta">${story.scenes?.length || 0} scenes</span>
-          </div>
-          <h5>${esc(story.title)}</h5>
-          <p>${esc(linkedCard ? `${linkedCard.name} / ${buildStorySummary(story)}` : buildStorySummary(story))}</p>
-          <div class="editor-record-actions">
-            <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
-            <button class="editor-inline-btn" type="button" data-action="read">読む</button>
-          </div>
+      list.insertAdjacentHTML(
+        'beforeend',
+        '<p class="editor-list-hint">フォルダ見出しを押すと折りたためます。ストーリーはドラッグで表示順を変更できます。</p>'
+      );
+
+      let draggedStoryId = null;
+
+      groups.forEach(group => {
+        if (group.items.length === 0) return;
+        const section = document.createElement('details');
+        section.className = 'editor-folder-group';
+        section.open = true;
+        section.innerHTML = `
+          <summary>${esc(group.name)} <span>${group.items.length}</span></summary>
+          <div class="editor-folder-group-body editor-story-group-body"></div>
         `;
-        item.querySelector('[data-action="edit"]').addEventListener('click', () => storyEditor.beginStoryEdit(story.id));
-        item.querySelector('[data-action="read"]').addEventListener('click', () => storyScreen.openStoryReader(story));
-        list.appendChild(item);
+        const body = section.querySelector('.editor-folder-group-body');
+        body.addEventListener('dragover', event => event.preventDefault());
+        body.addEventListener('drop', event => {
+          event.preventDefault();
+          if (!draggedStoryId) return;
+          storyEditor.reorderStoriesInFolder(group.id, draggedStoryId, null);
+          draggedStoryId = null;
+        });
+
+        group.items.forEach(story => {
+          const linkedCard = story.entryId ? getCharacters().find(char => char.id === story.entryId) : null;
+          const item = document.createElement('div');
+          item.className = 'editor-record-item editor-story-record';
+          item.draggable = true;
+          item.dataset.storyId = story.id;
+          item.innerHTML = `
+            <div class="editor-record-item-top">
+              <span class="editor-record-badge">${story.type === 'main' ? 'MAIN' : story.type === 'event' ? 'EVENT' : 'CHARA'}</span>
+              <span class="editor-record-meta">#${Number(story.sortOrder) || 0} / ${story.scenes?.length || 0} scenes</span>
+            </div>
+            <h5>${esc(story.title)}</h5>
+            <p>${esc(linkedCard ? `${linkedCard.name} / ${buildStorySummary(story)}` : buildStorySummary(story))}</p>
+            <label class="editor-inline-select">
+              <span>フォルダ</span>
+              <select data-action="folder-move">${renderFolderOptions(getStoryFolders(), story.folderId)}</select>
+            </label>
+            <div class="editor-record-actions">
+              <button class="editor-inline-btn" type="button" data-action="edit">編集</button>
+              <button class="editor-inline-btn" type="button" data-action="read">読む</button>
+            </div>
+          `;
+          item.addEventListener('dragstart', () => {
+            draggedStoryId = story.id;
+            item.classList.add('is-dragging');
+          });
+          item.addEventListener('dragend', () => {
+            draggedStoryId = null;
+            item.classList.remove('is-dragging');
+          });
+          item.addEventListener('dragover', event => event.preventDefault());
+          item.addEventListener('drop', event => {
+            event.preventDefault();
+            if (!draggedStoryId || draggedStoryId === story.id) return;
+            storyEditor.reorderStoriesInFolder(group.id, draggedStoryId, story.id);
+            draggedStoryId = null;
+          });
+          item.querySelector('[data-action="folder-move"]').addEventListener('change', event => {
+            storyEditor.assignStoryFolder(story.id, event.target.value || null);
+          });
+          item.querySelector('[data-action="edit"]').addEventListener('click', () => storyEditor.beginStoryEdit(story.id));
+          item.querySelector('[data-action="read"]').addEventListener('click', () => storyScreen.openStoryReader(story));
+          body.appendChild(item);
+        });
+
+        list.appendChild(section);
       });
     }
 
@@ -154,7 +242,7 @@
       list.innerHTML = '';
       const gachas = getGachas();
       if (gachas.length === 0) {
-        list.innerHTML = '<p class="editor-record-empty">ガチャはまだ登録されていません。</p>';
+        list.innerHTML = '<p class="editor-record-empty">ガチャを登録するとここに表示されます。</p>';
         return;
       }
 
@@ -199,7 +287,49 @@
       });
     }
 
+    function buildFolderGroups(items, folders) {
+      const normalizedFolders = (Array.isArray(folders) ? folders : [])
+        .slice()
+        .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || a.name.localeCompare(b.name, 'ja'));
+      const groups = normalizedFolders.map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        items: items
+          .filter(item => (item.folderId || '') === folder.id)
+          .slice()
+          .sort(sortEditorItems)
+      }));
+      groups.unshift({
+        id: '',
+        name: '未分類',
+        items: items
+          .filter(item => !item.folderId)
+          .slice()
+          .sort(sortEditorItems)
+      });
+      return groups;
+    }
+
+    function sortEditorItems(a, b) {
+      const aOrder = Number(a.sortOrder);
+      const bOrder = Number(b.sortOrder);
+      if (!Number.isNaN(aOrder) || !Number.isNaN(bOrder)) {
+        return (Number.isNaN(aOrder) ? 0 : aOrder) - (Number.isNaN(bOrder) ? 0 : bOrder) ||
+          String(a.title || a.name || '').localeCompare(String(b.title || b.name || ''), 'ja');
+      }
+      return String(a.title || a.name || '').localeCompare(String(b.title || b.name || ''), 'ja');
+    }
+
+    function renderFolderOptions(folders, selectedId) {
+      return [`<option value="">未分類</option>`]
+        .concat((Array.isArray(folders) ? folders : []).map(folder =>
+          `<option value="${esc(folder.id)}"${folder.id === selectedId ? ' selected' : ''}>${esc(folder.name)}</option>`
+        ))
+        .join('');
+    }
+
     return {
+      activateEditorTab,
       renderEditorScreen,
       renderBaseCharList,
       renderEditorCharacterList,

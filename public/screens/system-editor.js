@@ -79,6 +79,7 @@
       e.preventDefault();
       const form = e.target;
       const nextConfig = {
+        ...getSystemConfig(),
         rarityMode: form.rarityMode.value === "stars5" ? "stars5" : "classic4",
         orientation: ["portrait", "landscape", "fullscreen", "auto"].includes(form.orientation.value) ? form.orientation.value : "auto"
       };
