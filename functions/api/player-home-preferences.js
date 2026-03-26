@@ -10,13 +10,13 @@ export async function onRequest(context) {
   }
 
   if (!["GET", "POST"].includes(request.method)) {
-    return json({ error: "Method not allowed" }, 405, corsHeaders);
+    return json({ error: "\u3053\u306e\u30e1\u30bd\u30c3\u30c9\u306f\u5229\u7528\u3067\u304d\u307e\u305b\u3093" }, 405, corsHeaders);
   }
 
   const body = request.method === "POST" ? await readJson(request) : {};
   const scope = getPlayerScope(url, body);
   if (!scope.projectId || !scope.userId) {
-    return json({ error: "Missing project or user" }, 400, corsHeaders);
+    return json({ error: "project \u307e\u305f\u306f user \u304c\u4e0d\u8db3\u3057\u3066\u3044\u307e\u3059" }, 400, corsHeaders);
   }
 
   try {
@@ -30,7 +30,7 @@ export async function onRequest(context) {
     const preferences = await getHomePreferences(env, profile.id);
     return json({ homePreferences: preferences, storage: "d1" }, 200, corsHeaders);
   } catch (error) {
-    return json({ error: error.message || "Failed to handle player home preferences" }, 400, corsHeaders);
+    return json({ error: error.message || "\u30db\u30fc\u30e0\u8a2d\u5b9a\u306e\u4fdd\u5b58\u307e\u305f\u306f\u53d6\u5f97\u306b\u5931\u6557\u3057\u307e\u3057\u305f" }, 400, corsHeaders);
   }
 }
 
@@ -67,7 +67,6 @@ function sanitizeHomePreferences(input) {
 
 async function getHomePreferences(env, playerProfileId) {
   const row = await safeReadHomePreferences(env, playerProfileId);
-
   if (!row) return null;
   return mapHomePreferences(row);
 }
@@ -75,7 +74,7 @@ async function getHomePreferences(env, playerProfileId) {
 async function upsertHomePreferences(env, playerProfileId, preferences) {
   const existing = await safeReadHomePreferenceId(env, playerProfileId);
   if (existing === undefined) {
-    throw new Error("player_home_preferences table is unavailable");
+    throw new Error("player_home_preferences \u30c6\u30fc\u30d6\u30eb\u304c\u5229\u7528\u3067\u304d\u307e\u305b\u3093");
   }
 
   const now = new Date().toISOString();

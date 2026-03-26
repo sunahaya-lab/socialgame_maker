@@ -22,6 +22,7 @@
     const {
       getStories,
       getCharacters,
+      getSystemConfig,
       getCurrentStoryType,
       setStoryReaderState,
       getStoryReaderState,
@@ -32,11 +33,13 @@
       getOwnedCount,
       getStoryProgress,
       saveStoryProgress,
+      showCardDetail,
       showToast,
       esc
     } = deps;
 
     function renderStoryScreen() {
+      renderEventPromo();
       renderStoryList();
     }
 
@@ -47,6 +50,8 @@
         .filter(story => story.type === getCurrentStoryType())
         .slice()
         .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0) || a.title.localeCompare(b.title, "ja"));
+
+      renderEventPromo(filtered);
 
       list.innerHTML = "";
       if (filtered.length === 0) {
@@ -67,7 +72,7 @@
             <span class="story-item-status ${availability.statusClass}">${availability.statusLabel}</span>
           </div>
           <h4>${esc(story.title)}</h4>
-          <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} scenes</p>
+          <p>${linkedCard ? `${esc(linkedCard.name)} / ` : ""}${story.scenes?.length || 0} \u30b7\u30fc\u30f3</p>
         `;
         item.addEventListener("click", () => {
           if (availability.locked) {
@@ -80,11 +85,73 @@
       });
     }
 
+    function renderEventPromo(eventStories = null) {
+      const promo = document.getElementById("story-event-promo");
+      const title = document.getElementById("story-event-promo-title");
+      const copy = document.getElementById("story-event-promo-copy");
+      const list = document.getElementById("story-event-promo-list");
+      if (!promo || !title || !copy || !list) return;
+
+      const currentType = getCurrentStoryType();
+      const config = getSystemConfig?.()?.eventConfig || {};
+      const cardIds = Array.isArray(config.eventCardIds) ? config.eventCardIds : [];
+      const cards = cardIds
+        .map(item => {
+          const cardId = typeof item === "string" ? item : (item?.cardId || item?.id || "");
+          const card = getCharacters().find(char => char.id === cardId) || null;
+          if (!card) return null;
+          return {
+            ...card,
+            eventLabel: typeof item === "string" ? "" : String(item?.label || "").trim(),
+            eventAcquireText: typeof item === "string" ? "" : String(item?.acquireText || "").trim()
+          };
+        })
+        .filter(Boolean);
+      const stories = Array.isArray(eventStories) ? eventStories : getStories().filter(story => story.type === "event");
+
+      const shouldShow = currentType === "event" && cards.length > 0;
+      promo.hidden = !shouldShow;
+      if (!shouldShow) {
+        list.innerHTML = "";
+        return;
+      }
+
+      title.textContent = config.title || "イベント限定カード";
+      copy.textContent = stories.length > 0
+        ? `${stories.length}本のイベントストーリーと一緒に限定カードを訴求できます。`
+        : "イベントストーリーと一緒に限定カードを訴求できます。";
+
+      list.innerHTML = cards.map(card => {
+        const ownedCount = Math.max(0, Number(getOwnedCount?.(card.id) || 0));
+        return `
+          <button type="button" class="story-event-promo-card" data-story-event-card-id="${esc(card.id)}">
+            <div class="story-event-promo-image">
+              <img src="${esc(card.image || "")}" alt="${esc(card.name)}">
+            </div>
+            <div class="story-event-promo-body">
+              <strong>${esc(card.name)}</strong>
+              <span>${esc(card.eventLabel || card.catch || "イベント限定カード")}</span>
+              <span>${esc(card.eventAcquireText || "入手方法未設定")}</span>
+              <span>${ownedCount > 0 ? `所持数 ${ownedCount}` : "未所持"}</span>
+            </div>
+            <span class="story-event-promo-status${ownedCount > 0 ? " is-owned" : ""}">${ownedCount > 0 ? "OWNED" : "PICKUP"}</span>
+          </button>
+        `;
+      }).join("");
+
+      list.querySelectorAll("[data-story-event-card-id]").forEach(button => {
+        button.addEventListener("click", () => {
+          const card = cards.find(item => item.id === button.dataset.storyEventCardId);
+          if (card) showCardDetail?.(card);
+        });
+      });
+    }
+
     function getStoryTypeLabel(type) {
-      if (type === "main") return "MAIN STORY";
-      if (type === "event") return "EVENT STORY";
-      if (type === "character") return "CHARACTER STORY";
-      return "STORY";
+      if (type === "main") return "\u30e1\u30a4\u30f3\u30b9\u30c8\u30fc\u30ea\u30fc";
+      if (type === "event") return "\u30a4\u30d9\u30f3\u30c8\u30b9\u30c8\u30fc\u30ea\u30fc";
+      if (type === "character") return "\u30ad\u30e3\u30e9\u30b9\u30c8\u30fc\u30ea\u30fc";
+      return "\u30b9\u30c8\u30fc\u30ea\u30fc";
     }
 
     async function openStoryReader(story) {
@@ -174,7 +241,7 @@
       const { story, index } = state;
       const scene = story.scenes[index];
       const baseChar = scene.characterId ? getBaseCharById(scene.characterId) : null;
-      const charName = baseChar ? baseChar.name : (scene.character || "Narration");
+      const charName = baseChar ? baseChar.name : (scene.character || "\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3");
 
       let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
       if (baseChar && scene.expressionName && baseChar.expressions?.length) {

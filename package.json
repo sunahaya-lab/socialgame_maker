@@ -6,6 +6,9 @@
   "scripts": {
     "start": "wrangler pages dev public",
     "dev": "wrangler pages dev public",
-    "deploy": "wrangler pages deploy public"
+    "deploy": "wrangler pages deploy public",
+    "check:editor": "powershell -ExecutionPolicy Bypass -File .\\scripts\\check-editor-files.ps1",
+    "repair:editor-text": "node .\\scripts\\repair-editor-text.js",
+    "repair:system-text": "node .\\scripts\\repair-system-text.js"
   }
 }

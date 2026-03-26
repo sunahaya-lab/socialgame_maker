@@ -24,8 +24,14 @@
       body: options?.body ? JSON.stringify(options.body) : undefined,
       credentials: options?.credentials || "same-origin"
     });
-    if (!res.ok) throw new Error(String(res.status));
-    return res.json();
+    const data = await readJsonSafely(res);
+    if (!res.ok) {
+      const error = new Error(String(data?.error || res.status));
+      error.status = res.status;
+      error.data = data;
+      throw error;
+    }
+    return data;
   }
 
   function get(path, options) {
@@ -34,6 +40,14 @@
 
   function post(path, body, options) {
     return request(path, { ...options, method: "POST", body });
+  }
+
+  async function readJsonSafely(response) {
+    try {
+      return await response.json();
+    } catch {
+      return null;
+    }
   }
 
   window.ApiClient = {

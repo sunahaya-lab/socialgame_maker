@@ -1,12 +1,19 @@
 # Socia Maker
 
+This file is the human-facing entry point for the project.
+Use it for project overview, startup, and first links.
+For the current working reality, see [`AGENTS.md`](./AGENTS.md).
+For docs navigation, see [`docs/README.md`](./docs/README.md).
+
 Socia Maker is a lightweight fake social-game prototype. It lets you build a small in-app universe from original characters, card data, stories, and gacha banners, then browse it in a mobile-game style UI.
 
-See [`docs/architecture-v2.md`](./docs/architecture-v2.md) for the current rebuild direction and Cloudflare-native v2 design draft.
-See [`docs/schema-v2.md`](./docs/schema-v2.md), [`migrations/0001_v2_initial.sql`](./migrations/0001_v2_initial.sql), and [`migrations/0006_player_state_initial.sql`](./migrations/0006_player_state_initial.sql) for the current D1 schema drafts.
+See [`docs/current/architecture-v2.md`](./docs/current/architecture-v2.md) for the current rebuild direction and Cloudflare-native v2 design draft.
+See [`docs/current/schema-v2.md`](./docs/current/schema-v2.md), [`migrations/0001_v2_initial.sql`](./migrations/0001_v2_initial.sql), and [`migrations/0006_player_state_initial.sql`](./migrations/0006_player_state_initial.sql) for the current D1 schema drafts.
 See [`migrations/0000_project_registries.sql`](./migrations/0000_project_registries.sql), [`migrations/0001_base_character_registries.sql`](./migrations/0001_base_character_registries.sql), [`migrations/0002_entry_registries.sql`](./migrations/0002_entry_registries.sql), [`migrations/0003_story_registries.sql`](./migrations/0003_story_registries.sql), [`migrations/0004_gacha_registries.sql`](./migrations/0004_gacha_registries.sql), and [`migrations/0005_system_config_registries.sql`](./migrations/0005_system_config_registries.sql) for the transitional D1 bridge used to move prototype records off KV incrementally.
 
 The v2 docs now distinguish between shared project content and per-user player state. Shared content is edited collaboratively; player state covers owned cards, gacha results, story progress, currencies, and personal home layout.
+
+For editor text maintenance, use `npm run check:editor` for the normal check flow and see [`docs/current/text-repair-workflow.md`](./docs/current/text-repair-workflow.md) for the emergency repair workflow.
 
 ## Current Product Shape
 

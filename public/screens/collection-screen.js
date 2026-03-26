@@ -33,11 +33,13 @@
   }
 
   function createCollectionScreen(deps) {
+    const attributeLib = window.AttributeLib;
     const {
       getCharacters,
       getStories,
       getSystemConfig,
       getOwnedCount,
+      getCharacterImageForUsage,
       baseCharVoiceLineDefs,
       getBaseCharById,
       getEffectiveVoiceLines,
@@ -54,7 +56,7 @@
       const wrap = document.getElementById("collection-filters");
       if (!wrap) return;
       const mode = getSystemConfig().rarityMode;
-      const buttons = [{ value: "all", label: "ALL" }].concat(
+      const buttons = [{ value: "all", label: "\u3059\u3079\u3066" }].concat(
         getRarityModeConfig(mode).tiers.slice().sort((a, b) => b.rank - a.rank).map(tier => ({
           value: tier.value,
           label: getRarityLabel(tier.value, mode)
@@ -93,7 +95,7 @@
         const card = document.createElement("div");
         card.className = `collection-card ${getRarityCssClass(char.rarity, mode)}`;
         card.innerHTML = `
-          <img src="${char.image || makeFallbackImage(char.name, char.rarity, mode)}" alt="${esc(char.name)}">
+          <img src="${getCharacterImageForUsage(char, "icon") || makeFallbackImage(char.name, char.rarity, mode)}" alt="${esc(char.name)}">
           <div class="collection-card-info">
             <span class="collection-card-rarity ${getRarityCssClass(char.rarity, mode)}">${esc(getRarityLabel(char.rarity, mode))}</span>
             <p class="collection-card-name">${esc(char.name)}</p>
@@ -113,7 +115,9 @@
       const ownedCount = getOwnedCount(char.id);
       document.getElementById("card-detail-name").textContent = ownedCount > 0 ? `${char.name} x${ownedCount}` : char.name;
       document.getElementById("card-detail-catch").textContent = char.catch || "";
-      document.getElementById("card-detail-attr").textContent = char.attribute || "";
+      document.getElementById("card-detail-attr").innerHTML = attributeLib
+        ? attributeLib.renderAttributeChip(char.attribute)
+        : esc(char.attribute || "");
       renderCardDetailVoices(char);
       renderCardDetailStories(char);
       document.getElementById("card-detail").hidden = false;

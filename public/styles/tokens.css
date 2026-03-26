@@ -1,0 +1,24 @@
+/* Reference-only split CSS. Runtime source of truth: ../styles.css */
+:root {
+  --bg: #0a0a12;
+  --bg-soft: #12121e;
+  --panel: rgba(20, 20, 35, 0.92);
+  --panel-border: rgba(120, 140, 255, 0.15);
+  --text: #eef0ff;
+  --muted: #8a8ea8;
+  --accent: #6c5ce7;
+  --accent-light: #a29bfe;
+  --gold: #ffd447;
+  --gold-dim: rgba(255, 212, 71, 0.15);
+  --ur: #ff6b6b;
+  --ssr: #ffd447;
+  --sr: #a29bfe;
+  --r: #74b9ff;
+  --n: #b2bec3;
+  --nav-height: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-portrait-width: 480px;
+  --app-portrait-height: 853px;
+  --app-landscape-width: 853px;
+  --app-landscape-height: 480px;
+}

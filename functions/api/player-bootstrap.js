@@ -1,41 +1,26 @@
-import { loadPlayerCurrencyBalances } from "./_player-state";
+import { createCorsHeaders, json, loadPlayerCurrencyBalances } from "./_player-state";
 
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const projectId = url.searchParams.get("project") || null;
   const userId = url.searchParams.get("user") || null;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,OPTIONS"
-  };
+  const corsHeaders = createCorsHeaders("GET,OPTIONS");
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   if (request.method !== "GET") {
-    return json({ error: "Method not allowed" }, 405, corsHeaders);
+    return json({ error: "\u3053\u306e\u30e1\u30bd\u30c3\u30c9\u306f\u5229\u7528\u3067\u304d\u307e\u305b\u3093" }, 405, corsHeaders);
   }
 
   if (!projectId || !userId) {
-    return json({ error: "Missing project or user" }, 400, corsHeaders);
+    return json({ error: "project \u307e\u305f\u306f user \u304c\u4e0d\u8db3\u3057\u3066\u3044\u307e\u3059" }, 400, corsHeaders);
   }
 
   const bootstrap = await loadPlayerBootstrap(env, { projectId, userId });
   return json({ bootstrap, storage: env.SOCIA_DB ? "d1" : "none" }, 200, corsHeaders);
-}
-
-function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
-  });
 }
 
 async function loadPlayerBootstrap(env, scope) {
@@ -72,8 +57,7 @@ async function loadPlayerBootstrap(env, scope) {
       FROM story_progress
       WHERE player_profile_id = ?
       ORDER BY updated_at DESC, created_at DESC
-    `).bind(profile.id).all()
-    ,
+    `).bind(profile.id).all(),
     getHomePreferencesRow(env, profile.id),
     loadPlayerCurrencyBalances(env, profile.id)
   ]);

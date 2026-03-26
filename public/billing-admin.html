@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socia Maker Billing Admin</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4efe8;
+      --panel: #fffaf4;
+      --line: #d8c9b8;
+      --text: #2c221b;
+      --muted: #6f6154;
+      --accent: #a84d2d;
+      --accent-2: #3f6d61;
+      --danger: #9b2c2c;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Hiragino Sans", "Yu Gothic UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(168, 77, 45, 0.12), transparent 32%),
+        linear-gradient(180deg, #fbf6ef 0%, var(--bg) 100%);
+      color: var(--text);
+    }
+
+    main {
+      width: min(960px, calc(100% - 32px));
+      margin: 32px auto 48px;
+    }
+
+    h1, h2, p { margin: 0; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 16px 40px rgba(67, 41, 19, 0.08);
+    }
+
+    .hero {
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .hero p {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.95rem;
+    }
+
+    input, select, button {
+      font: inherit;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      color: var(--text);
+    }
+
+    .packs {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .packs label {
+      grid-template-columns: 20px 1fr;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid #eadfd2;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+
+    .primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .secondary {
+      background: #ece3d7;
+      color: var(--text);
+    }
+
+    .status {
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .status.ok {
+      color: var(--accent-2);
+    }
+
+    pre {
+      margin: 0;
+      padding: 14px;
+      border-radius: 16px;
+      background: #201812;
+      color: #f8efe5;
+      overflow: auto;
+      min-height: 240px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <h1>課金管理</h1>
+      <p>開発用の `X-Socia-Admin-Secret` を使って、ユーザー単位の `base tier` と `owned packs` を確認・更新します。既存 SPA には埋め込まず、このページ単体で扱います。</p>
+    </section>
+
+    <div class="grid">
+      <section class="panel stack">
+        <h2>対象ユーザー</h2>
+        <label>
+          Admin Secret
+          <input id="admin-secret" type="password" placeholder="X-Socia-Admin-Secret">
+        </label>
+        <label>
+          User ID
+          <input id="user-id" type="text" placeholder="user_xxx">
+        </label>
+        <div class="row">
+          <button type="button" class="secondary" id="load-license">現在値を取得</button>
+        </div>
+      </section>
+
+      <section class="panel stack">
+        <h2>ライセンス編集</h2>
+        <label>
+          Base Tier
+          <select id="base-tier">
+            <option value="free">free</option>
+            <option value="publish">publish</option>
+          </select>
+        </label>
+        <div>
+          <p>Owned Packs</p>
+          <div class="packs" id="packs">
+            <label><input type="checkbox" value="story_fx">Story FX Pack</label>
+            <label><input type="checkbox" value="battle">Battle Pack</label>
+            <label><input type="checkbox" value="defense">Defense Pack</label>
+            <label><input type="checkbox" value="event">Event Pack</label>
+            <label><input type="checkbox" value="storage_plus">Storage Plus Pack</label>
+          </div>
+        </div>
+        <div class="row">
+          <button type="button" class="primary" id="save-license">保存</button>
+          <button type="button" class="secondary" id="load-project-license">プロジェクト課金状態を取得</button>
+        </div>
+        <label>
+          Project ID
+          <input id="project-id" type="text" placeholder="project_xxx">
+        </label>
+        <p class="status" id="status"></p>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top: 20px;">
+      <h2 style="margin-bottom: 12px;">レスポンス</h2>
+      <pre id="output">{}</pre>
+    </section>
+  </main>
+
+  <script src="api/client.js"></script>
+  <script src="billing-admin.js"></script>
+</body>
+</html>

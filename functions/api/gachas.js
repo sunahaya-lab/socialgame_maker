@@ -1,21 +1,26 @@
+import {
+  buildContentScope,
+  createCorsHeaders,
+  ensureReadableAccess,
+  ensureSharedContentWriteAccess,
+  json,
+  readJson,
+  resolveShareAccess
+} from "./_share-auth.js";
+import { clampNumber, sanitizeImageSource, trimText } from "./_content-sanitize.js";
+
 export async function onRequest(context) {
   const { request, env } = context;
-  const url = new URL(request.url);
-  const project = url.searchParams.get("project") || null;
-  const room = url.searchParams.get("room") || null;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-  };
+  const corsHeaders = createCorsHeaders();
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const key = project ? `project:${project}:gachas` : room ? `room:${room}:gachas` : "gachas";
-  const scopeKey = project ? `project:${project}` : room ? `room:${room}` : "global";
+  const access = await resolveShareAccess(request, env);
+  const blockedRead = ensureReadableAccess(access, corsHeaders);
+  if (blockedRead) return blockedRead;
+  const { key, scopeKey } = buildContentScope(access, "gachas");
 
   if (request.method === "GET") {
     const result = await listGachas(env, { key, scopeKey });
@@ -23,39 +28,31 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    const input = await request.json();
+    const input = await readJson(request);
+    const blockedWrite = await ensureSharedContentWriteAccess(request, env, access, corsHeaders, input);
+    if (blockedWrite) return blockedWrite;
     const gacha = sanitizeGacha(input);
     const result = await saveGacha(env, { key, scopeKey, gacha });
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "Method not allowed" }, 405, corsHeaders);
-}
-
-function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
-  });
+  return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
 function sanitizeGacha(input) {
-  const text = (value, maxLength, fallback = "") =>
-    String(value || fallback).trim().slice(0, maxLength);
+  const text = trimText;
 
   const rates = {};
   for (const [key, value] of Object.entries(input?.rates || {})) {
     const safeKey = String(key || "").toUpperCase().slice(0, 16);
     if (!safeKey) continue;
-    rates[safeKey] = Math.max(0, Math.min(100, Number(value) || 0));
+    rates[safeKey] = clampNumber(value, 0, 100, 0);
   }
 
   return {
     id: text(input?.id, 80, crypto.randomUUID()),
     title: text(input?.title, 40, "ガチャ"),
+    gachaType: sanitizeGachaType(input?.gachaType),
     description: text(input?.description, 80, ""),
     bannerImage: sanitizeImageSource(input?.bannerImage),
     displayMode: sanitizeDisplayMode(input?.displayMode),
@@ -63,6 +60,12 @@ function sanitizeGacha(input) {
     featured: Array.isArray(input?.featured) ? input.featured.slice(0, 20).map(value => String(value).slice(0, 80)) : [],
     rates
   };
+}
+
+function sanitizeGachaType(value) {
+  if (value === "equipment") return "equipment";
+  if (value === "mixed") return "mixed";
+  return "character";
 }
 
 function sanitizeDisplayMode(value) {
@@ -78,14 +81,6 @@ function sanitizeHeroImages(input) {
     .map(sanitizeImageSource)
     .filter(Boolean)
     .slice(0, 3);
-}
-
-function sanitizeImageSource(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text.startsWith("data:image/")) return text;
-  if (/^https:\/\//i.test(text)) return text;
-  return "";
 }
 
 async function listGachas(env, scope) {

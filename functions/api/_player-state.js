@@ -1,28 +1,8 @@
-export function createCorsHeaders(methods = "GET,POST,OPTIONS") {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": methods
-  };
-}
-
-export function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
-  });
-}
-
-export async function readJson(request) {
-  try {
-    return await request.json();
-  } catch {
-    return {};
-  }
-}
+export {
+  createCorsHeaders,
+  json,
+  readJson
+} from "./_http.js";
 
 export function getPlayerScope(url, body = {}) {
   const projectId = url.searchParams.get("project") || body.projectId || null;
@@ -33,7 +13,7 @@ export function getPlayerScope(url, body = {}) {
 
 export async function ensurePlayerProfile(env, scope) {
   if (!env.SOCIA_DB) {
-    throw new Error("D1 binding SOCIA_DB is required");
+    throw new Error("D1 \u30d0\u30a4\u30f3\u30c7\u30a3\u30f3\u30b0 SOCIA_DB \u304c\u5fc5\u8981\u3067\u3059");
   }
 
   const existing = await env.SOCIA_DB.prepare(`
@@ -138,7 +118,7 @@ export async function loadPlayerCurrencyBalances(env, playerProfileId, options =
   const nowIso = now.toISOString();
 
   if (!env?.SOCIA_DB || !playerProfileId) {
-    if (requireStorage) throw new Error("D1 binding SOCIA_DB is required");
+    if (requireStorage) throw new Error("D1 \u30d0\u30a4\u30f3\u30c7\u30a3\u30f3\u30b0 SOCIA_DB \u304c\u5fc5\u8981\u3067\u3059");
     return getDefaultCurrencyDefinitions().map(currency => makeCurrencyBalance(currency, null, nowIso));
   }
 
@@ -328,7 +308,8 @@ export async function ensureCanonicalGacha(env, projectId, gachaId) {
     JSON.stringify({
       bannerImage: payload.bannerImage || "",
       featured: Array.isArray(payload.featured) ? payload.featured : [],
-      rates: payload.rates || {}
+      rates: payload.rates || {},
+      gachaType: payload.gachaType || "character"
     }),
     now,
     now

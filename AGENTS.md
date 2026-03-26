@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Document Role
+- This file is the agent-facing working reality for the repository.
+- Use it for current implementation status, fragile areas, refactor direction, recovery notes, and operational constraints.
+- For the human-facing project entry, see [`README.md`](./README.md).
+- For docs navigation, see [`docs/README.md`](./docs/README.md).
+
 ## Project
 - Name: `socia_maker`
 - Purpose: pseudo-social-game maker web app
@@ -40,6 +46,32 @@
 - Config:
   - [`wrangler.toml`](./wrangler.toml)
   - [`package.json`](./package.json)
+
+## Current Docs Layout
+- Docs index:
+  - [`docs/README.md`](./docs/README.md)
+- Current working docs:
+  - [`docs/current/`](./docs/current)
+- Active implementation specs:
+  - [`docs/specs/`](./docs/specs)
+- Background/reference docs:
+  - [`docs/reference/`](./docs/reference)
+- Keep [`docs/refactor-commit-plan-2026-03-27.md`](./docs/refactor-commit-plan-2026-03-27.md) in mind if it still remains at `docs/` root during active use
+
+## Current Most Useful Docs
+- Architecture / schema:
+  - [`docs/current/architecture-v2.md`](./docs/current/architecture-v2.md)
+  - [`docs/current/schema-v2.md`](./docs/current/schema-v2.md)
+- Current fix notes:
+  - [`docs/current/player-state-api-fix-notes-2026-03-27.md`](./docs/current/player-state-api-fix-notes-2026-03-27.md)
+  - [`docs/current/shared-content-api-fix-notes-2026-03-27.md`](./docs/current/shared-content-api-fix-notes-2026-03-27.md)
+  - [`docs/current/share-license-api-fix-notes-2026-03-27.md`](./docs/current/share-license-api-fix-notes-2026-03-27.md)
+- Current refactor instructions:
+  - [`docs/current/refactor-priority-instructions-2026-03-27.md`](./docs/current/refactor-priority-instructions-2026-03-27.md)
+  - [`docs/refactor-commit-plan-2026-03-27.md`](./docs/refactor-commit-plan-2026-03-27.md)
+  - [`docs/current/refactor-backlog-risk-notes-2026-03-27.md`](./docs/current/refactor-backlog-risk-notes-2026-03-27.md)
+- Text repair workflow:
+  - [`docs/current/text-repair-workflow.md`](./docs/current/text-repair-workflow.md)
 
 ## Cloudflare State
 - KV binding name: `SOCIA_DATA`
@@ -149,6 +181,29 @@
 - Card and story lists support project-shared folders
 - Folder groups are collapsible
 
+### Editor Snapshot Before Redesign
+- Current editor runtime is being retired and redesigned from scratch
+- Existing editor responsibilities before retirement:
+  - base character form editing and list management
+  - card form editing and list management
+  - story form editing and list management
+  - gacha form editing and list management
+  - system form editing and shared config editing
+  - folder manager window for cards / stories / UI assets
+  - editor overlay experiments
+  - home edit experiments layered on top of home screen
+- Existing editor-related modules that remain on disk for reference:
+  - [`public/screens/editor-screen.js`](./public/screens/editor-screen.js)
+  - [`public/screens/system-editor.js`](./public/screens/system-editor.js)
+  - [`public/screens/entry-editor.js`](./public/screens/entry-editor.js)
+  - [`public/screens/base-char-editor.js`](./public/screens/base-char-editor.js)
+  - [`public/screens/story-editor.js`](./public/screens/story-editor.js)
+- Current redesign direction:
+  - do not restore the old giant editor screen
+  - do not continue patching the old editor overlay
+  - rebuild editing around direct on-screen editing modes per target screen
+  - home should use direct home editing, not the old editor screen
+
 ### Base Character Data
 - Basic profile
 - Birthday
@@ -203,7 +258,7 @@
   - `story progress`, `inventory`, `gacha history`, `home preferences` exist
 - Productized app architecture:
   - still in progress
-  - auth/member/public-share/license layers are not implemented yet
+  - auth/member/public-share/license layers are partially implemented in draft form on disk, but are not production-ready yet
 
 ## Current Known Problems
 - Remote D1 migration for `player_home_preferences` is not yet applied because `wrangler d1 execute --remote` hit Cloudflare authentication error `10000`
@@ -211,6 +266,7 @@
 - Some UI text is still historically mojibake in source and should be cleaned gradually
 - Folder UI currently exists for `cards` and `stories`, but not yet for other content types
 - Story unlock logic still follows current display order; this is acceptable for now because display order is treated as presentation, not strict progression schema
+- Share / license endpoints and related access rules exist on disk, but still have open authorization and behavior issues and should be treated as implementation-in-progress
 
 ## Important Recovery Notes
 - Last known good commit for SPA navigation before Cloudflare migration troubles:
@@ -262,8 +318,13 @@
 4. Clean editor UX:
    - more UTF-8 text cleanup
    - optional folder management improvements
-5. Only after that:
-   - start auth/member/public-share implementation
+5. Fix the current share / license draft implementation before treating it as a stable product layer:
+   - auth boundary
+   - owner/member verification
+   - public-share validity rules
+6. Continue staged frontend refactor using:
+   - [`docs/current/refactor-priority-instructions-2026-03-27.md`](./docs/current/refactor-priority-instructions-2026-03-27.md)
+   - [`docs/refactor-commit-plan-2026-03-27.md`](./docs/refactor-commit-plan-2026-03-27.md)
 
 ## If App Still Does Not Open
 - First inspect browser console for runtime errors
@@ -310,9 +371,98 @@
 - PowerShell display encoding is noisy.
 - Browser behavior and UTF-8 file reads matter more than terminal glyphs.
 
+## Current Stabilization State
+- As of `2026-03-24`, the app was stabilized by reverting CSS loading back to single-file [`public/styles.css`](./public/styles.css).
+- Split CSS files under [`public/styles/`](./public/styles/) currently exist but are not trusted as the active runtime source of truth.
+- [`public/index.html`](./public/index.html) currently loads only [`public/styles.css`](./public/styles.css) again.
+- [`public/app.js`](./public/app.js) is still mid-refactor and should be treated as a fragile orchestrator under recovery.
+- A backup of the current orchestrator exists at [`public/app.legacy.js`](./public/app.legacy.js).
+- [`public/screens/home-layout-overlay.js`](./public/screens/home-layout-overlay.js) was temporarily changed to stop overlay rendering and fall back to legacy home DOM only.
+- If the UI looks duplicated again, first suspect `home-layout-overlay` or another overlay path re-enabling itself on top of legacy DOM.
+
+## Rebuild Direction Agreed On
+- Do not continue large in-place rewrites on top of the current partially refactored runtime.
+- Keep the current visible UI as the `legacy stable line` until the replacement path is ready.
+- Rebuild forward by creating a thin bootstrap/orchestrator and a separate real-screen editing workspace.
+
+### Legacy Stable Line
+- Keep current [`public/index.html`](./public/index.html) and [`public/styles.css`](./public/styles.css) working first.
+- Do not re-enable split CSS files as active runtime sources until the new architecture is ready.
+- Do not re-enable home overlay rendering until duplication is intentionally rebuilt.
+
+### New Architecture Direction
+- New [`public/app.js`](./public/app.js) should become a thin bootstrap only:
+  - state initialization
+  - module wiring
+  - `init()`
+  - minimum `window.*` hooks
+- Business logic should live in:
+  - [`public/lib/`](./public/lib)
+  - [`public/screens/`](./public/screens)
+  - future `public/core/` style modules if added
+
+### Intended New Editing Model
+- Do not use preview-window-first editing.
+- Use real-screen editing mode on top of the actual `home`, later `gacha` and `story`.
+- Floating windows should be support UI only:
+  - `Layers`
+  - `Properties`
+  - `Assets`
+  - `Folders`
+- Editing target should be the real rendered screen, not a separate mock preview.
+
+### Recommended Next Implementation Order
+1. Keep the current legacy UI stable.
+2. Replace [`public/app.js`](./public/app.js) with a truly thin bootstrap.
+3. Create a new home-only workspace/editor path separate from legacy editor flow.
+4. First target only one real on-screen object for direct manipulation.
+   - initially discussed target: the home-side battle button
+5. After direct manipulation works:
+   - add `Layers`
+   - add `Properties`
+   - add `Assets/Folders`
+   - add role binding
+6. Only after home workspace is stable:
+   - expand the same system to `gacha`
+   - then to `story`
+
+### Important Constraint For Next Session
+- Prefer building the new path beside legacy code rather than replacing legacy code piecemeal.
+- When in doubt, stabilize first, then branch into the new system.
+
 ## Text Encoding Policy
 - All frontend text files must be saved as UTF-8.
 - Prefer UTF-8 without BOM for edited or newly created `.html`, `.js`, `.css`, `.json`, `.md`, `.toml`.
 - Treat browser rendering and UTF-8-aware file reads as the source of truth, not PowerShell glyph display.
 - If Japanese UI text looks broken in the browser, assume actual file corruption and restore the text immediately.
 - When recovering files from git history, verify the restored content still uses UTF-8 and re-check in browser after reload.
+
+## PowerShell UTF-8 Workflow
+- Before inspecting or editing Japanese-heavy frontend files in PowerShell, switch the console to UTF-8 first.
+- Recommended commands:
+  - `chcp 65001`
+  - `[Console]::InputEncoding = [System.Text.UTF8Encoding]::new()`
+  - `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()`
+  - `$OutputEncoding = [System.Text.UTF8Encoding]::new()`
+- A helper script exists at [`scripts/setup-utf8-console.ps1`](./scripts/setup-utf8-console.ps1).
+- Prefer `Get-Content -Encoding UTF8 <path>` when direct file reads are needed.
+- Prefer `rg`, `node --check`, and browser verification over trusting PowerShell glyph rendering.
+- Avoid pushing long Japanese text blocks through ad-hoc shell commands when `apply_patch` is sufficient.
+- User-facing feature descriptions, labels, guidance text, and explanatory UI copy must be written in Japanese unless there is a clear product reason not to.
+
+## Frontend Refactor Direction
+- `public/app.js` is being reduced toward orchestration only.
+- Pure state/config helpers should move into `public/lib/` first.
+- Screen-specific behavior should move into `public/screens/` rather than growing `app.js`.
+- `public/styles.css` is being decomposed starting with token extraction.
+- Prefer this order for refactor safety:
+  1. pure helpers
+  2. screen modules
+  3. shared UI primitives
+  4. CSS token/base/component split
+- Avoid re-expanding `app.js` with new pure utility functions during this phase.
+
+## UI Text Safety
+- Repeated editor empty-state and note text should prefer shared definitions in [`public/lib/ui-text.js`](./public/lib/ui-text.js) instead of being duplicated inline.
+- When touching multiple editor-facing files, prefer running [`scripts/check-editor-files.ps1`](./scripts/check-editor-files.ps1) after edits.
+- [`scripts/repair-editor-text.js`](./scripts/repair-editor-text.js) and [`scripts/repair-system-text.js`](./scripts/repair-system-text.js) are emergency repair helpers, not the default editing path.

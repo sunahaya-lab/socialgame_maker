@@ -1,20 +1,25 @@
+import {
+  buildContentScope,
+  createCorsHeaders,
+  ensureReadableAccess,
+  ensureSharedContentWriteAccess,
+  json,
+  readJson,
+  resolveShareAccess
+} from "./_share-auth.js";
+
 export async function onRequest(context) {
   const { request, env } = context;
-  const url = new URL(request.url);
-  const room = url.searchParams.get("room") || null;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-  };
+  const corsHeaders = createCorsHeaders();
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const key = room ? `room:${room}:projects` : "projects";
-  const scopeKey = room ? `room:${room}` : "global";
+  const access = await resolveShareAccess(request, env);
+  const blockedRead = ensureReadableAccess(access, corsHeaders);
+  if (blockedRead) return blockedRead;
+  const { key, scopeKey, projectId } = buildContentScope(access, "projects");
 
   if (request.method === "GET") {
     const result = await listProjects(env, { key, scopeKey });
@@ -22,33 +27,25 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    const input = await request.json();
-    const project = sanitizeProject(input);
+    const input = await readJson(request);
+    const blockedWrite = await ensureSharedContentWriteAccess(request, env, access, corsHeaders, input);
+    if (blockedWrite) return blockedWrite;
+    const project = sanitizeProject(input, projectId);
     const result = await saveProject(env, { key, scopeKey, project });
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "Method not allowed" }, 405, corsHeaders);
+  return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
-function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
-  });
-}
-
-function sanitizeProject(input) {
+function sanitizeProject(input, forcedProjectId = null) {
   const text = (value, maxLength, fallback = "") =>
     String(value || fallback).trim().slice(0, maxLength);
 
   const now = new Date().toISOString();
   return {
-    id: text(input?.id, 80, crypto.randomUUID()),
-    name: text(input?.name, 80, "Untitled Project"),
+    id: text(forcedProjectId || input?.id, 80, crypto.randomUUID()),
+    name: text(input?.name, 80, "新しいプロジェクト"),
     createdAt: text(input?.createdAt, 40, now),
     updatedAt: now
   };
@@ -91,7 +88,7 @@ async function listProjectsFromD1(env, scopeKey) {
 
     return (result.results || []).map(row => ({
       id: String(row.project_id || "").trim(),
-      name: String(row.name || "").trim() || "Untitled Project",
+      name: String(row.name || "").trim() || "新しいプロジェクト",
       createdAt: String(row.created_at || ""),
       updatedAt: String(row.updated_at || row.created_at || "")
     }));

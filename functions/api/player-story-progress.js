@@ -12,7 +12,7 @@ export async function onRequest(context) {
   const body = request.method === "POST" ? await readJson(request) : {};
   const scope = getPlayerScope(url, body);
   if (!scope.projectId || !scope.userId) {
-    return json({ error: "Missing project or user" }, 400, corsHeaders);
+    return json({ error: "project \u307e\u305f\u306f user \u304c\u4e0d\u8db3\u3057\u3066\u3044\u307e\u3059" }, 400, corsHeaders);
   }
 
   try {
@@ -29,12 +29,12 @@ export async function onRequest(context) {
     }
 
     if (request.method !== "POST") {
-      return json({ error: "Method not allowed" }, 405, corsHeaders);
+      return json({ error: "\u3053\u306e\u30e1\u30bd\u30c3\u30c9\u306f\u5229\u7528\u3067\u304d\u307e\u305b\u3093" }, 405, corsHeaders);
     }
 
     const storyId = String(body.storyId || "").trim().slice(0, 80);
     if (!storyId) {
-      return json({ error: "Missing storyId" }, 400, corsHeaders);
+      return json({ error: "storyId \u304c\u5fc5\u8981\u3067\u3059" }, 400, corsHeaders);
     }
 
     const projectScope = `project:${scope.projectId}`;
@@ -47,7 +47,7 @@ export async function onRequest(context) {
       `).bind(projectScope, storyId).first()
     ]);
     if (!story && !bridgeStory) {
-      return json({ error: "Unknown story" }, 400, corsHeaders);
+      return json({ error: "\u6307\u5b9a\u3055\u308c\u305f\u30b9\u30c8\u30fc\u30ea\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093" }, 400, corsHeaders);
     }
     await ensureCanonicalStory(env, scope.projectId, storyId);
 
@@ -56,9 +56,7 @@ export async function onRequest(context) {
       : "in_progress";
     const lastSceneIndex = Math.max(0, Number(body.lastSceneIndex) || 0);
     const now = new Date().toISOString();
-    const unlockedAt = status === "locked"
-      ? null
-      : String(body.unlockedAt || now).trim().slice(0, 40);
+    const unlockedAt = status === "locked" ? null : String(body.unlockedAt || now).trim().slice(0, 40);
     const readAt = status === "completed"
       ? String(body.readAt || now).trim().slice(0, 40)
       : body.readAt
@@ -110,7 +108,7 @@ export async function onRequest(context) {
       storage: "d1"
     }, 200, corsHeaders);
   } catch (error) {
-    return json({ error: error.message || "Failed to update story progress" }, 400, corsHeaders);
+    return json({ error: error.message || "\u30b9\u30c8\u30fc\u30ea\u30fc\u9032\u884c\u306e\u66f4\u65b0\u306b\u5931\u6557\u3057\u307e\u3057\u305f" }, 400, corsHeaders);
   }
 }
 

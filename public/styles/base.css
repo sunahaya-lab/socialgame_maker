@@ -1,0 +1,77 @@
+﻿/* ===== Gacha Screen ===== */
+.gacha-banner-list {
+  padding: 0 16px;
+  display: grid;
+  gap: 12px;
+}
+.gacha-banner-card {
+  position: relative;
+  padding: 18px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(108,92,231,0.2), rgba(255,212,71,0.1));
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  transition: transform 0.15s;
+  overflow: hidden;
+}
+.gacha-banner-card:active { transform: scale(0.98); }
+.gacha-banner-card.is-active {
+  border-color: rgba(162,155,254,0.62);
+  box-shadow: 0 0 0 1px rgba(162,155,254,0.28), 0 14px 28px rgba(18,12,46,0.28);
+  background: linear-gradient(135deg, rgba(108,92,231,0.34), rgba(255,212,71,0.16));
+}
+.gacha-banner-card h4 { font-size: 1.1rem; margin-bottom: 4px; }
+.gacha-banner-card p { font-size: 0.8rem; color: var(--muted); }
+.gacha-banner-card .gacha-banner-tag {
+  position: absolute;
+  top: 12px; right: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--gold-dim);
+  color: var(--gold);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.gacha-active-area {
+  padding: 16px;
+}
+.gacha-subtools {
+  margin-top: 12px;
+}
+.gacha-banner-display {
+  position: relative;
+  padding: 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #1a1040, #2d1b69);
+  border: 1px solid rgba(108,92,231,0.3);
+  text-align: center;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.gacha-hero-stage {
+  position: relative;
+  min-height: 360px;
+  margin: -20px -20px 16px;
+  border-radius: 16px 16px 28px 28px;
+  overflow: hidden;
+  background: radial-gradient(circle at top, rgba(255,255,255,0.18), transparent 52%), linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.22));
+}
+.gacha-hero-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 18%, rgba(255,205,120,0.36), transparent 28%),
+    radial-gradient(circle at 82% 24%, rgba(129,236,236,0.26), transparent 30%),
+    radial-gradient(circle at 50% 75%, rgba(255,255,255,0.08), transparent 34%);
+  filter: saturate(1.15);
+}
+.gacha-hero-images {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  padding: 36px 12px 0;

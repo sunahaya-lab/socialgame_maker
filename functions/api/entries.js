@@ -1,21 +1,44 @@
+import {
+  ensureUserLicenseState,
+  getRequiredPackForFeature,
+  hasFeatureAccess
+} from "./_billing.js";
+import {
+  buildContentScope,
+  createCorsHeaders,
+  ensureReadableAccess,
+  ensureSharedContentWriteAccess,
+  errorJson,
+  getRequesterUserId,
+  json,
+  readJson,
+  resolveShareAccess
+} from "./_share-auth.js";
+import { sanitizeImageSource, trimText } from "./_content-sanitize.js";
+import {
+  sanitizeCropImages,
+  sanitizeCropPresets,
+  sanitizeSdImages,
+  sanitizeBattleKit
+} from "./_content-sanitize-entry.js";
+import {
+  sanitizeConversationList,
+  sanitizeRecord,
+  sanitizeRelationList
+} from "./_content-sanitize-relations.js";
+
 export async function onRequest(context) {
   const { request, env } = context;
-  const url = new URL(request.url);
-  const project = url.searchParams.get("project") || null;
-  const room = url.searchParams.get("room") || null;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-  };
+  const corsHeaders = createCorsHeaders();
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const key = project ? `project:${project}:entries` : room ? `room:${room}:entries` : "entries";
-  const scopeKey = project ? `project:${project}` : room ? `room:${room}` : "global";
+  const access = await resolveShareAccess(request, env);
+  const blockedRead = ensureReadableAccess(access, corsHeaders);
+  if (blockedRead) return blockedRead;
+  const { key, scopeKey } = buildContentScope(access, "entries");
 
   if (request.method === "GET") {
     const result = await listEntries(env, { key, scopeKey });
@@ -23,28 +46,68 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    const input = await request.json();
+    const input = await readJson(request);
+    const blockedWrite = await ensureSharedContentWriteAccess(request, env, access, corsHeaders, input);
+    if (blockedWrite) return blockedWrite;
+    const blockedBilling = await ensureEntryBillingAccess(request, env, access, input, corsHeaders);
+    if (blockedBilling) return blockedBilling;
     const entry = sanitizeEntry(input);
     const result = await saveEntry(env, { key, scopeKey, entry });
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "Method not allowed" }, 405, corsHeaders);
+  return json({ error: "ã“ã®ãƒ¡ã‚½ãƒƒãƒ‰ã¯åˆ©ç”¨ã§ãã¾ã›ã‚“ã€‚" }, 405, corsHeaders);
 }
 
-function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
+async function ensureEntryBillingAccess(request, env, access, input, corsHeaders) {
+  if (!access?.projectId || !usesBattleFeature(input)) {
+    return null;
+  }
+
+  const userId = getRequesterUserId(request, input);
+  if (!userId) {
+    return errorJson("Battle Pack 機能の保存には user が必要です。", 403, corsHeaders, {
+      code: "billing_user_required",
+      feature: "battle_controls",
+      requiredPack: getRequiredPackForFeature("battle_controls")
+    });
+  }
+
+  const license = await ensureUserLicenseState(env, userId);
+  if (hasFeatureAccess(license, "battle_controls")) {
+    return null;
+  }
+
+  return errorJson("このバトル設定の保存には Battle Pack が必要です。", 403, corsHeaders, {
+    code: "billing_feature_required",
+    feature: "battle_controls",
+    requiredPack: getRequiredPackForFeature("battle_controls")
+  });
+}
+
+function usesBattleFeature(input) {
+  const battleKit = input?.battleKit;
+  if (!battleKit || typeof battleKit !== "object") return false;
+
+  if (Number(battleKit.hp) || Number(battleKit.atk)) return true;
+
+  return ["normalSkill", "activeSkill", "passiveSkill", "linkSkill", "specialSkill"].some(key => {
+    const skill = battleKit?.[key];
+    if (!skill || typeof skill !== "object") return false;
+    return Boolean(
+      String(skill.name || "").trim() ||
+      Number(skill.recast) ||
+      (Array.isArray(skill.parts) && skill.parts.some(part =>
+        String(part?.type || "").trim() ||
+        String(part?.magnitude || "").trim() ||
+        String(part?.detail || "").trim()
+      ))
+    );
   });
 }
 
 function sanitizeEntry(input) {
-  const text = (value, maxLength, fallback = "") =>
-    String(value || fallback).trim().slice(0, maxLength);
+  const text = trimText;
 
   const allowedRarities = ["N", "R", "SR", "SSR", "UR", "STAR1", "STAR2", "STAR3", "STAR4", "STAR5", "1", "2", "3", "4", "5"];
   const rawRarity = String(input?.rarity || "").toUpperCase();
@@ -52,13 +115,17 @@ function sanitizeEntry(input) {
 
   return {
     id: text(input?.id, 80, crypto.randomUUID()),
-    name: text(input?.name, 40, "カード"),
+    name: text(input?.name, 40, "ã‚«ãƒ¼ãƒ‰"),
     baseCharId: input?.baseCharId ? text(input.baseCharId, 80) : null,
     folderId: input?.folderId ? text(input.folderId, 80) : null,
     catch: text(input?.catch, 120, ""),
     rarity,
     attribute: text(input?.attribute, 24, ""),
     image: sanitizeImageSource(input?.image),
+    cropImages: sanitizeCropImages(input?.cropImages || input?.autoCrops),
+    cropPresets: sanitizeCropPresets(input?.cropPresets),
+    sdImages: sanitizeSdImages(input?.sdImages),
+    battleKit: sanitizeBattleKit(input?.battleKit),
     lines: Array.isArray(input?.lines) ? input.lines.slice(0, 20).map(line => text(line, 120, "")).filter(Boolean) : [],
     voiceLines: sanitizeRecord(input?.voiceLines),
     homeVoices: sanitizeRecord(input?.homeVoices),
@@ -66,44 +133,6 @@ function sanitizeEntry(input) {
     homeConversations: sanitizeConversationList(input?.homeConversations),
     homeBirthdays: sanitizeRelationList(input?.homeBirthdays)
   };
-}
-
-function sanitizeRecord(value) {
-  const out = {};
-  if (!value || typeof value !== "object") return out;
-  for (const [key, val] of Object.entries(value)) {
-    out[String(key)] = String(val || "").trim().slice(0, 200);
-  }
-  return out;
-}
-
-function sanitizeRelationList(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map(item => ({
-      targetBaseCharId: String(item?.targetBaseCharId || "").trim().slice(0, 80),
-      text: String(item?.text || "").trim().slice(0, 200)
-    }))
-    .filter(item => item.targetBaseCharId && item.text);
-}
-
-function sanitizeConversationList(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map(item => ({
-      targetBaseCharId: String(item?.targetBaseCharId || "").trim().slice(0, 80),
-      selfText: String(item?.selfText || "").trim().slice(0, 200),
-      partnerText: String(item?.partnerText || "").trim().slice(0, 200)
-    }))
-    .filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
-}
-
-function sanitizeImageSource(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text.startsWith("data:image/")) return text;
-  if (/^https:\/\//i.test(text)) return text;
-  return "";
 }
 
 async function listEntries(env, scope) {

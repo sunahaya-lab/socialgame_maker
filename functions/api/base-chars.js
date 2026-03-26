@@ -1,21 +1,31 @@
+import {
+  buildContentScope,
+  createCorsHeaders,
+  ensureReadableAccess,
+  ensureSharedContentWriteAccess,
+  json,
+  readJson,
+  resolveShareAccess
+} from "./_share-auth.js";
+import { sanitizeImageSource, trimText } from "./_content-sanitize.js";
+import {
+  sanitizeConversationList,
+  sanitizeRecord,
+  sanitizeRelationList
+} from "./_content-sanitize-relations.js";
+
 export async function onRequest(context) {
   const { request, env } = context;
-  const url = new URL(request.url);
-  const project = url.searchParams.get("project") || null;
-  const room = url.searchParams.get("room") || null;
-
-  const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS"
-  };
+  const corsHeaders = createCorsHeaders();
 
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
-  const key = project ? `project:${project}:base-chars` : room ? `room:${room}:base-chars` : "base-chars";
-  const scopeKey = project ? `project:${project}` : room ? `room:${room}` : "global";
+  const access = await resolveShareAccess(request, env);
+  const blockedRead = ensureReadableAccess(access, corsHeaders);
+  if (blockedRead) return blockedRead;
+  const { key, scopeKey } = buildContentScope(access, "base-chars");
 
   if (request.method === "GET") {
     const result = await listBaseChars(env, { key, scopeKey });
@@ -23,28 +33,19 @@ export async function onRequest(context) {
   }
 
   if (request.method === "POST") {
-    const input = await request.json();
+    const input = await readJson(request);
+    const blockedWrite = await ensureSharedContentWriteAccess(request, env, access, corsHeaders, input);
+    if (blockedWrite) return blockedWrite;
     const item = sanitizeBaseChar(input);
     const result = await saveBaseChar(env, { key, scopeKey, item });
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "Method not allowed" }, 405, corsHeaders);
-}
-
-function json(data, status, corsHeaders) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      ...corsHeaders,
-      "Content-Type": "application/json; charset=utf-8"
-    }
-  });
+  return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
 function sanitizeBaseChar(input) {
-  const text = (value, maxLength, fallback = "") =>
-    String(value || fallback).trim().slice(0, maxLength);
+  const text = trimText;
 
   const color = /^#[0-9a-fA-F]{6}$/.test(input?.color) ? input.color : "#a29bfe";
 
@@ -67,36 +68,6 @@ function sanitizeBaseChar(input) {
   };
 }
 
-function sanitizeRecord(value) {
-  const out = {};
-  if (!value || typeof value !== "object") return out;
-  for (const [key, val] of Object.entries(value)) {
-    out[String(key)] = String(val || "").trim().slice(0, 200);
-  }
-  return out;
-}
-
-function sanitizeRelationList(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map(item => ({
-      targetBaseCharId: String(item?.targetBaseCharId || "").trim().slice(0, 80),
-      text: String(item?.text || "").trim().slice(0, 200)
-    }))
-    .filter(item => item.targetBaseCharId && item.text);
-}
-
-function sanitizeConversationList(value) {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map(item => ({
-      targetBaseCharId: String(item?.targetBaseCharId || "").trim().slice(0, 80),
-      selfText: String(item?.selfText || "").trim().slice(0, 200),
-      partnerText: String(item?.partnerText || "").trim().slice(0, 200)
-    }))
-    .filter(item => item.targetBaseCharId && (item.selfText || item.partnerText));
-}
-
 function sanitizeImageList(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -105,14 +76,6 @@ function sanitizeImageList(value) {
       image: sanitizeImageSource(item?.image)
     }))
     .filter(item => item.name && item.image);
-}
-
-function sanitizeImageSource(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  if (text.startsWith("data:image/")) return text;
-  if (/^https:\/\//i.test(text)) return text;
-  return "";
 }
 
 async function listBaseChars(env, scope) {

@@ -1,0 +1,405 @@
+﻿.editor-panel {
+  display: none;
+  padding: 0 16px 20px;
+}
+.editor-panel.active { display: block; }
+
+.editor-form {
+  display: grid;
+  gap: 14px;
+}
+.editor-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.editor-form input,
+.editor-form select,
+.editor-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.editor-form select {
+  color: var(--text);
+}
+.editor-form select option {
+  color: #fff;
+  background: #0a0a12;
+}
+.editor-form textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.editor-form input::file-selector-button {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.editor-preview {
+  border-radius: 12px;
+  overflow: hidden;
+  max-height: 200px;
+}
+.editor-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.character-crop-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+.character-collapsible > summary {
+  font-weight: 700;
+}
+.character-crop-body,
+.character-sd-body,
+.character-battle-body {
+  display: grid;
+  gap: 14px;
+  padding-top: 12px;
+}
+.character-crop-header {
+  display: grid;
+  gap: 12px;
+}
+.character-crop-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.character-crop-help {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.character-crop-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.character-crop-tab {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.character-crop-tab.active {
+  background: rgba(162,155,254,0.24);
+  border-color: rgba(162,155,254,0.6);
+  color: #fff;
+}
+.character-crop-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.character-crop-card {
+  margin: 0;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(7,10,20,0.38);
+  cursor: pointer;
+}
+.character-crop-card.active {
+  border-color: rgba(162,155,254,0.65);
+  box-shadow: 0 0 0 1px rgba(162,155,254,0.32) inset;
+}
+.character-crop-card figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.character-crop-frame {
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+}
+.character-crop-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.character-crop-frame-icon {
+  aspect-ratio: 1 / 1;
+}
+.character-crop-frame-formationPortrait {
+  aspect-ratio: 4 / 5;
+}
+.character-crop-frame-formationWide {
+  aspect-ratio: 16 / 9;
+}
+.character-crop-frame-cutin {
+  aspect-ratio: 21 / 9;
+}
+.character-crop-controls {
+  display: grid;
+  gap: 10px;
+}
+.character-crop-controls label {
+  display: grid;
+  grid-template-columns: 56px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.character-crop-controls input[type="range"] {
+  padding: 0;
+}
+.character-crop-controls span {
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.character-sd-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+.character-sd-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.character-sd-help {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.character-sd-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.character-sd-card {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.character-sd-label {
+  color: var(--text);
+  font-weight: 700;
+}
+.character-sd-preview {
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.character-sd-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.character-battle-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+}
+.character-battle-header h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.character-battle-help {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.character-battle-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.character-battle-skills {
+  display: grid;
+  gap: 12px;
+}
+.character-skill-block {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(7,10,20,0.32);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.character-skill-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.character-skill-head h5 {
+  font-size: 0.88rem;
+}
+.character-skill-name {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.character-skill-part-list {
+  display: grid;
+  gap: 8px;
+}
+.character-skill-part-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr auto;
+  gap: 8px;
+}
+
+.editor-record-list {
+  display: grid;
+  gap: 10px;
+}
+.editor-record-list-cards {
+  grid-template-columns: 1fr;
+}
+.editor-record-empty {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.editor-record-item,
+.editor-record-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+.editor-record-item {
+  padding: 14px;
+}
+.editor-record-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  overflow: hidden;
+  padding: 0;
+}
+.editor-record-card img {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+.editor-record-card-body {
+  padding: 12px 12px 12px 0;
+}
+.editor-record-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.editor-record-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(162,155,254,0.18);
+  color: var(--accent-light);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.editor-record-badge.rarity-tier-5 {
+  background: rgba(255,107,107,0.14);
+  color: var(--ur);
+}
+.editor-record-badge.rarity-tier-4 {
+  background: rgba(255,212,71,0.14);
+  color: var(--ssr);
+}
+.editor-record-badge.rarity-tier-3 {
+  background: rgba(162,155,254,0.18);
+  color: var(--sr);
+}
+.editor-record-badge.rarity-tier-2 {
+  background: rgba(116,185,255,0.16);
+  color: var(--r);
+}
+.editor-record-badge.rarity-tier-1 {
+  background: rgba(178,190,195,0.16);
+  color: var(--n);
+}
+.editor-record-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.editor-record-item h5,
+.editor-record-card h5 {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.editor-record-item p,
+.editor-record-card p {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.editor-record-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.editor-inline-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+#editor-story-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.editor-folder-row {

@@ -23,6 +23,7 @@
       saveLocal,
       postJSON,
       showToast,
+      getFeatureAccess,
       upsertItem,
       updateEditorSubmitLabels,
       renderHome,
@@ -40,7 +41,7 @@
       const scenes = collectStoryScenes();
 
       if (scenes.length === 0) {
-        showToast("シーンを1つ以上追加してください。");
+        showToast("ã‚·ãƒ¼ãƒ³ã‚’1ã¤ä»¥ä¸Šè¿½åŠ ã—ã¦ãã ã•ã„ã€‚");
         return;
       }
 
@@ -63,13 +64,16 @@
         await postJSON(getApi().stories, story);
       } catch (error) {
         console.error("Failed to save story:", error);
-        showToast("ストーリーの保存に失敗しました。ローカルには保持されています。");
+        showToast(getStoryBillingErrorMessage(
+          error,
+          "ã‚¹ãƒˆãƒ¼ãƒªãƒ¼ã®ä¿å­˜ã«å¤±æ•—ã—ã¾ã—ãŸã€‚ãƒ­ãƒ¼ã‚«ãƒ«ã«ã¯ä¿æŒã•ã‚Œã¦ã„ã¾ã™ã€‚"
+        ));
       }
 
       resetStoryForm();
       renderHome();
       renderEditorStoryList();
-      showToast(`${story.title}を${existing ? "更新" : "登録"}しました。`);
+      showToast(`${story.title}ã‚’${existing ? "æ›´æ–°" : "ç™»éŒ²"}ã—ã¾ã—ãŸã€‚`);
     }
 
     function collectStoryScenes() {
@@ -100,14 +104,26 @@
       })).filter(item => item.characterId && item.variantName);
     }
 
+    function getStoryBillingErrorMessage(error, fallback) {
+      const code = String(error?.data?.code || "");
+      const requiredPack = String(error?.data?.requiredPack || "").trim();
+      if (code !== "billing_feature_required" || !requiredPack) return fallback;
+      if (requiredPack === "story_fx") {
+        return "このストーリー演出を保存するには Story FX Pack が必要です。ローカルには保持されています。";
+      }
+      return `${requiredPack} が必要なため保存できませんでした。ローカルには保持されています。`;
+    }
+
     function renderStoryVariantDefaults(assignments = []) {
       const list = document.getElementById("story-variant-default-list");
       if (!list) return;
       list.innerHTML = "";
+      ensureStoryFxPackNote();
 
       const candidates = getBaseChars().filter(baseChar => baseChar.variants?.length);
       if (candidates.length === 0) {
-        list.innerHTML = '<p class="editor-record-empty">イベント差分立ち絵を持つベースキャラがありません。</p>';
+        list.innerHTML = '<p class="editor-record-empty">ã‚¤ãƒ™ãƒ³ãƒˆå·®åˆ†ç«‹ã¡çµµã‚’æŒã¤ãƒ™ãƒ¼ã‚¹ã‚­ãƒ£ãƒ©ãŒã‚ã‚Šã¾ã›ã‚“</p>';
+        void refreshStoryFxUi();
         return;
       }
 
@@ -119,12 +135,13 @@
         item.innerHTML = `
           <span class="story-variant-default-name">${esc(baseChar.name)}</span>
           <select name="story-default-variant">
-            <option value="">指定しない</option>
+            <option value="">æŒ‡å®šã—ãªã„</option>
             ${baseChar.variants.map(variant => `<option value="${esc(variant.name)}"${assignmentMap.get(baseChar.id) === variant.name ? " selected" : ""}>${esc(variant.name)}</option>`).join("")}
           </select>
         `;
         list.appendChild(item);
       });
+      void refreshStoryFxUi();
     }
 
     function addSceneInput(scene = null) {
@@ -146,29 +163,29 @@
 
       item.innerHTML = `
         <label>
-          キャラ
+          ã‚­ãƒ£ãƒ©
           <select name="scene-character-id">
-            <option value="">キャラなし</option>
+            <option value="">ã‚­ãƒ£ãƒ©ãªã—</option>
             ${baseCharOptions}
           </select>
         </label>
         <label>
-          イベント差分
+          ã‚¤ãƒ™ãƒ³ãƒˆå·®åˆ†
           <select name="scene-variant">
-            <option value="">指定しない</option>
+            <option value="">æŒ‡å®šã—ãªã„</option>
             ${variantOptions}
           </select>
         </label>
         <label>
-          表情差分
+          è¡¨æƒ…å·®åˆ†
           <select name="scene-expression">
-            <option value="">指定しない</option>
+            <option value="">æŒ‡å®šã—ãªã„</option>
             ${expressionOptions}
           </select>
         </label>
         <label>
-          セリフ
-          <textarea name="scene-text" maxlength="300" rows="2" placeholder="セリフを入力">${esc(scene?.text || "")}</textarea>
+          ã‚»ãƒªãƒ•
+          <textarea name="scene-text" maxlength="300" rows="2" placeholder="ã‚»ãƒªãƒ•ã‚’å…¥åŠ›">${esc(scene?.text || "")}</textarea>
         </label>
         <div class="scene-extras" ${scene?.bgm || scene?.background ? "" : "hidden"}>
           <label>
@@ -176,14 +193,14 @@
             <input name="scene-bgm" type="url" placeholder="https://..." value="${esc(scene?.bgm || "")}">
           </label>
           <label class="upload-field">
-            背景画像
+            èƒŒæ™¯ç”»åƒ
             <input name="scene-background" type="file" accept="image/*">
           </label>
-          ${scene?.background ? '<p class="scene-bg-set">背景画像を設定済み</p>' : ""}
+          ${scene?.background ? '<p class="scene-bg-set">èƒŒæ™¯ç”»åƒã‚’è¨­å®šæ¸ˆã¿</p>' : ""}
         </div>
         <div class="scene-bottom-actions">
-          <button type="button" class="scene-extras-toggle">${scene?.bgm || scene?.background ? "追加設定を閉じる" : "+ 追加設定"}</button>
-          <button type="button" class="scene-remove">削除</button>
+          <button type="button" class="scene-extras-toggle">${scene?.bgm || scene?.background ? "è¿½åŠ è¨­å®šã‚’é–‰ã˜ã‚‹" : "+ è¿½åŠ è¨­å®š"}</button>
+          <button type="button" class="scene-remove">å‰Šé™¤</button>
         </div>
       `;
 
@@ -192,7 +209,7 @@
         const extras = item.querySelector(".scene-extras");
         const btn = item.querySelector(".scene-extras-toggle");
         extras.hidden = !extras.hidden;
-        btn.textContent = extras.hidden ? "+ 追加設定" : "追加設定を閉じる";
+        btn.textContent = extras.hidden ? "+ è¿½åŠ è¨­å®š" : "è¿½åŠ è¨­å®šã‚’é–‰ã˜ã‚‹";
       });
       item.querySelector("[name='scene-character-id']").addEventListener("change", () => updateSceneCharacterOptions(item));
       item.querySelector("[name='scene-background']").addEventListener("change", async e => {
@@ -205,10 +222,22 @@
           label.className = "scene-bg-set";
           e.target.closest("label").after(label);
         }
-        label.textContent = "背景画像を設定済み";
+        label.textContent = "èƒŒæ™¯ç”»åƒã‚’è¨­å®šæ¸ˆã¿";
       });
 
       list.appendChild(item);
+      void refreshStoryFxUi();
+    }
+
+    function ensureStoryFxPackNote() {
+      const list = document.getElementById("story-variant-default-list");
+      if (!list || document.getElementById("story-fx-pack-note")) return;
+      const note = document.createElement("p");
+      note.id = "story-fx-pack-note";
+      note.className = "editor-pack-note";
+      note.hidden = true;
+      note.textContent = "Story FX Pack がない場合、デフォルト差分とシーン別 BGM は保存できません。";
+      list.before(note);
     }
 
     function handleStoryTypeChange() {
@@ -238,6 +267,7 @@
       if (story.scenes?.length) story.scenes.forEach(scene => addSceneInput(scene));
       else addSceneInput();
 
+      void refreshStoryFxUi();
       updateEditorSubmitLabels();
       form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
@@ -253,7 +283,22 @@
       const sceneList = document.getElementById("scene-list");
       sceneList.innerHTML = "";
       addSceneInput();
+      void refreshStoryFxUi();
       updateEditorSubmitLabels();
+    }
+
+    async function refreshStoryFxUi() {
+      if (typeof getFeatureAccess !== "function") return;
+      const access = await getFeatureAccess();
+      const hasStoryFx = Boolean(access?.storyFx);
+      const note = document.getElementById("story-fx-pack-note");
+      if (note) note.hidden = hasStoryFx;
+      document.querySelectorAll("[name='story-default-variant']").forEach(select => {
+        select.disabled = !hasStoryFx;
+      });
+      document.querySelectorAll("[name='scene-bgm']").forEach(input => {
+        input.disabled = !hasStoryFx;
+      });
     }
 
     async function moveStoryOrder(storyId, direction) {
@@ -282,7 +327,7 @@
         await Promise.all(sorted.map(story => postJSON(getApi().stories, story)));
       } catch (error) {
         console.error("Failed to reorder stories:", error);
-        showToast("ストーリー順の保存に失敗しました。ローカルには保持されています。");
+        showToast("ã‚¹ãƒˆãƒ¼ãƒªãƒ¼é †ã®ä¿å­˜ã«å¤±æ•—ã—ã¾ã—ãŸã€‚ãƒ­ãƒ¼ã‚«ãƒ«ã«ã¯ä¿æŒã•ã‚Œã¦ã„ã¾ã™ã€‚");
       }
     }
 
@@ -349,7 +394,7 @@
         await Promise.all(list.map(story => postJSON(getApi().stories, story)));
       } catch (error) {
         console.error("Failed to save stories:", error);
-        showToast("ストーリー保存に失敗しました。ローカルには保持されています。");
+        showToast(getStoryBillingErrorMessage(error, "ã‚¹ãƒˆãƒ¼ãƒªãƒ¼ä¿å­˜ã«å¤±æ•—ã—ã¾ã—ãŸã€‚ãƒ­ãƒ¼ã‚«ãƒ«ã«ã¯ä¿æŒã•ã‚Œã¦ã„ã¾ã™ã€‚"));
       }
     }
 
@@ -359,8 +404,8 @@
       const expressionSelect = sceneItem.querySelector("[name='scene-expression']");
       const baseChar = charId ? getBaseCharById(charId) : null;
 
-      variantSelect.innerHTML = '<option value="">指定しない</option>';
-      expressionSelect.innerHTML = '<option value="">指定しない</option>';
+      variantSelect.innerHTML = '<option value="">æŒ‡å®šã—ãªã„</option>';
+      expressionSelect.innerHTML = '<option value="">æŒ‡å®šã—ãªã„</option>';
 
       (baseChar?.variants || []).forEach(variant => {
         const option = document.createElement("option");
@@ -386,6 +431,7 @@
       handleStoryTypeChange,
       beginStoryEdit,
       resetStoryForm,
+      refreshStoryFxUi,
       handleCreateStoryFolder,
       moveStoryOrder,
       assignStoryFolder,

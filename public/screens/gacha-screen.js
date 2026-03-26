@@ -2,9 +2,10 @@
   function setupGachaScreen(deps) {
     const api = createGachaScreen(deps);
 
+    api.ensureInfoControls();
     document.getElementById("gacha-single").addEventListener("click", () => api.pullGacha(1));
     document.getElementById("gacha-ten").addEventListener("click", () => api.pullGacha(10));
-    document.getElementById("gacha-history-toggle").addEventListener("click", () => api.toggleHistory());
+    document.getElementById("gacha-history-toggle")?.addEventListener("click", () => api.toggleHistory());
     document.getElementById("gacha-results-ok").addEventListener("click", () => {
       document.getElementById("gacha-results").hidden = true;
       document.getElementById("gacha-active-area").hidden = false;
@@ -38,6 +39,19 @@
       esc
     } = deps;
 
+    function normalizeGachaType(value) {
+      if (value === "equipment") return "equipment";
+      if (value === "mixed") return "mixed";
+      return "character";
+    }
+
+    function getGachaTypeLabel(value) {
+      const type = normalizeGachaType(value);
+      if (type === "equipment") return "\u88c5\u5099\u30ac\u30c1\u30e3";
+      if (type === "mixed") return "\u6df7\u5408\u30ac\u30c1\u30e3";
+      return "\u30ad\u30e3\u30e9\u30ac\u30c1\u30e3";
+    }
+
     function renderGachaScreen() {
       const characters = getCharacters();
       const gachas = getGachas();
@@ -49,7 +63,7 @@
       bannerList.innerHTML = "";
       results.hidden = true;
 
-      if (characters.length === 0 || gachas.length === 0) {
+      if (gachas.length === 0) {
         noBanner.hidden = false;
         activeArea.hidden = true;
         return;
@@ -58,13 +72,23 @@
       noBanner.hidden = true;
       document.getElementById("gacha-history-panel").hidden = true;
       document.getElementById("gacha-history-toggle").setAttribute("aria-expanded", "false");
+      const infoPanel = document.getElementById("gacha-info-panel");
+      const infoToggle = document.getElementById("gacha-info-toggle");
+      if (infoPanel) infoPanel.hidden = true;
+      if (infoToggle) infoToggle.setAttribute("aria-expanded", "false");
       gachas.forEach((gacha, index) => {
         const card = document.createElement("div");
-        card.className = "gacha-banner-card";
+        card.className = `gacha-banner-card${index === getActiveGacha() ? " is-active" : ""}`;
+        const previewImage = normalizeHeroImages(gacha)[0] || gacha.bannerImage || "";
+        if (previewImage) {
+          card.style.backgroundImage = `linear-gradient(135deg, rgba(8,10,18,0.86), rgba(8,10,18,0.42)), url("${previewImage}")`;
+          card.style.backgroundSize = "cover";
+          card.style.backgroundPosition = "center";
+        }
         card.innerHTML = `
           <h4>${esc(gacha.title)}</h4>
           <p>${esc(gacha.description || buildGachaRateSummary(gacha.rates))}</p>
-          <span class="gacha-banner-tag">pickup</span>
+          <span class="gacha-banner-tag">${esc(getGachaTypeLabel(gacha.gachaType))}</span>
         `;
         card.addEventListener("click", () => selectGacha(index));
         bannerList.appendChild(card);
@@ -75,12 +99,14 @@
       }
       showActiveGacha();
       renderGachaHistory();
+      syncActiveBannerCard();
     }
 
     function selectGacha(index) {
       setActiveGacha(index);
       showActiveGacha();
       renderGachaHistory();
+      syncActiveBannerCard();
     }
 
     function showActiveGacha() {
@@ -93,12 +119,19 @@
       document.getElementById("gacha-active-desc").textContent = gacha.description || "";
 
       const rates = normalizeRates(gacha.rates || getDefaultRates(mode), mode);
-      document.getElementById("gacha-rates").innerHTML =
-        getRarityModeConfig(mode).tiers.map(tier =>
-          `<span>${getRarityLabel(tier.value, mode)}: ${rates[tier.value] || 0}%</span>`
-        ).join("");
+      const rateMarkup = getRarityModeConfig(mode).tiers.map(tier =>
+        `<span>${getRarityLabel(tier.value, mode)}: ${rates[tier.value] || 0}%</span>`
+      ).join("");
+      document.getElementById("gacha-rates").innerHTML = rateMarkup;
+      updateInfoPanel(gacha, rateMarkup);
 
       renderGachaHero(gacha);
+    }
+
+    function syncActiveBannerCard() {
+      document.querySelectorAll(".gacha-banner-card").forEach((card, index) => {
+        card.classList.toggle("is-active", index === getActiveGacha());
+      });
     }
 
     function renderGachaHero(gacha) {
@@ -129,6 +162,14 @@
     }
 
     function resolveHeroEntries(gacha) {
+      if (normalizeGachaType(gacha?.gachaType) === "equipment") {
+        return normalizeHeroImages(gacha).map((image, index) => ({
+          id: `equipment-${index}`,
+          name: gacha.title,
+          image
+        }));
+      }
+
       if (gacha?.displayMode === "manualImages") {
         return normalizeHeroImages(gacha).map((image, index) => ({
           id: `manual-${index}`,
@@ -191,9 +232,9 @@
       const history = Array.isArray(playerState?.gachaHistory)
         ? playerState.gachaHistory.filter(item => !activeGacha || item.gachaId === activeGacha.id).slice(0, 20)
         : [];
-      const list = document.getElementById("gacha-history-list");
-      const empty = document.getElementById("gacha-history-empty");
-      const meta = document.getElementById("gacha-history-meta");
+      const list = document.getElementById("gacha-info-history-list") || document.getElementById("gacha-history-list");
+      const empty = document.getElementById("gacha-info-history-empty") || document.getElementById("gacha-history-empty");
+      const meta = document.getElementById("gacha-info-history-meta") || document.getElementById("gacha-history-meta");
       const toggleMeta = document.getElementById("gacha-history-toggle-meta");
 
       if (!list || !empty) return;
@@ -229,11 +270,64 @@
     }
 
     function toggleHistory() {
+      const infoPanel = document.getElementById("gacha-info-panel");
+      const infoToggle = document.getElementById("gacha-info-toggle");
       const panel = document.getElementById("gacha-history-panel");
       const toggle = document.getElementById("gacha-history-toggle");
       if (!panel || !toggle) return;
+      if (infoPanel) infoPanel.hidden = true;
+      if (infoToggle) infoToggle.setAttribute("aria-expanded", "false");
       panel.hidden = !panel.hidden;
       toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    }
+
+    function ensureInfoControls() {
+      const subtools = document.querySelector(".gacha-subtools");
+      if (!subtools || document.getElementById("gacha-info-toggle")) return;
+      const historyToggle = document.getElementById("gacha-history-toggle");
+      const historyPanel = document.getElementById("gacha-history-panel");
+      if (historyToggle) historyToggle.hidden = true;
+      if (historyPanel) historyPanel.hidden = true;
+
+      const infoToggle = document.createElement("button");
+      infoToggle.type = "button";
+      infoToggle.className = "gacha-info-toggle";
+      infoToggle.id = "gacha-info-toggle";
+      infoToggle.setAttribute("aria-expanded", "false");
+      infoToggle.setAttribute("aria-controls", "gacha-info-panel");
+      infoToggle.textContent = "\u8a73\u7d30";
+      subtools.prepend(infoToggle);
+
+      const infoPanel = document.createElement("div");
+      infoPanel.className = "gacha-info-panel";
+      infoPanel.id = "gacha-info-panel";
+      infoPanel.hidden = true;
+      infoPanel.innerHTML = `
+        <h4 class="gacha-info-title">ガチャ詳細</h4>
+        <p class="gacha-info-desc" id="gacha-info-desc"></p>
+        <div class="gacha-info-rates" id="gacha-info-rates"></div>
+        <div class="gacha-info-history-head">
+          <h5 class="gacha-info-history-label">履歴</h5>
+          <span class="gacha-history-meta" id="gacha-info-history-meta">0件</span>
+        </div>
+        <div class="gacha-history-empty" id="gacha-info-history-empty">まだガチャ履歴はありません。</div>
+        <div class="gacha-history-list" id="gacha-info-history-list" hidden></div>
+      `;
+      subtools.after(infoPanel);
+
+      infoToggle.addEventListener("click", () => {
+        if (historyPanel) historyPanel.hidden = true;
+        if (historyToggle) historyToggle.setAttribute("aria-expanded", "false");
+        infoPanel.hidden = !infoPanel.hidden;
+        infoToggle.setAttribute("aria-expanded", String(!infoPanel.hidden));
+      });
+    }
+
+    function updateInfoPanel(gacha, rateMarkup) {
+      const desc = document.getElementById("gacha-info-desc");
+      const rates = document.getElementById("gacha-info-rates");
+      if (desc) desc.textContent = gacha.description || "詳細情報はここに表示されます。";
+      if (rates) rates.innerHTML = rateMarkup;
     }
 
     function formatHistoryTime(value) {
@@ -248,60 +342,67 @@
 
     function pullGacha(count) {
       const characters = getCharacters();
-      if (characters.length === 0) return;
-
-      const gemCost = count === 10 ? 300 : count * 30;
-      if (getPlayerCurrencyAmount && getPlayerCurrencyAmount("gems") < gemCost) {
-        if (showToast) showToast("Not enough gems.");
+      const gacha = getGachas()[getActiveGacha()];
+      if (!gacha) return;
+      if (normalizeGachaType(gacha.gachaType) === "equipment") {
+        if (showToast) showToast("\u88c5\u5099\u30ac\u30c1\u30e3\u306e\u6392\u51fa\u51e6\u7406\u306f\u307e\u3060\u672a\u5b9f\u88c5\u3067\u3059");
+        return;
+      }
+      if (normalizeGachaType(gacha.gachaType) === "mixed") {
+        if (showToast) showToast("\u6df7\u5408\u30ac\u30c1\u30e3\u306e\u6392\u51fa\u51e6\u7406\u306f\u307e\u3060\u672a\u5b9f\u88c5\u3067\u3059");
+        return;
+      }
+      if (characters.length === 0) {
+        if (showToast) showToast("\u30ad\u30e3\u30e9\u30c7\u30fc\u30bf\u304c\u306a\u3044\u305f\u3081\u30ad\u30e3\u30e9\u30ac\u30c1\u30e3\u3092\u5f15\u3051\u307e\u305b\u3093");
         return;
       }
 
-      const mode = getSystemConfig().rarityMode;
-      const gacha = getGachas()[getActiveGacha()];
-      const rates = normalizeRates(gacha?.rates || getDefaultRates(mode), mode);
+      const gemCost = count === 10 ? 300 : count * 30;
+      if (getPlayerCurrencyAmount && getPlayerCurrencyAmount("gems") < gemCost) {
+        if (showToast) showToast("\u30b8\u30a7\u30e0\u304c\u8db3\u308a\u307e\u305b\u3093");
+        return;
+      }
 
       document.getElementById("gacha-overlay").hidden = false;
       document.getElementById("gacha-active-area").hidden = true;
 
       setTimeout(async () => {
         document.getElementById("gacha-overlay").hidden = true;
-        const results = [];
-
-        for (let i = 0; i < count; i += 1) {
-          const rarity = rollRarity(rates, mode);
-          const pool = characters.filter(char => normalizeRarityValue(char.rarity, mode) === rarity);
-          const char = pool.length > 0
-            ? pool[Math.floor(Math.random() * pool.length)]
-            : characters[Math.floor(Math.random() * characters.length)];
-          results.push({ ...char, rolledRarity: rarity });
-        }
-
         if (recordGachaPulls && gacha?.id) {
           try {
-            await recordGachaPulls(gacha.id, results);
+            const response = await recordGachaPulls(gacha.id, count);
             if (refreshPlayerState) await refreshPlayerState();
             renderGachaHistory();
+            const results = (response?.results || []).map(result => {
+              const char = characters.find(item => item.id === result.cardId);
+              if (!char) {
+                return {
+                  id: result.cardId,
+                  name: result.cardId,
+                  rarity: result.rarityAtPull || "",
+                  rolledRarity: result.rarityAtPull || "",
+                  image: ""
+                };
+              }
+              return {
+                ...char,
+                rolledRarity: result.rarityAtPull || char.rarity
+              };
+            });
+            if (results.length !== count) {
+              document.getElementById("gacha-active-area").hidden = false;
+              if (showToast) showToast("\u30ac\u30c1\u30e3\u7d50\u679c\u306e\u53d6\u5f97\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
+              return;
+            }
+            showGachaResults(results);
           } catch (error) {
             console.error("Failed to save gacha results:", error);
             document.getElementById("gacha-active-area").hidden = false;
-            if (showToast) showToast("Gacha pull failed.");
+            if (showToast) showToast("\u30ac\u30c1\u30e3\u306e\u5b9f\u884c\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
             return;
           }
         }
-
-        showGachaResults(results);
       }, 1500);
-    }
-
-    function rollRarity(rates, mode) {
-      const roll = Math.random() * 100;
-      let cumulative = 0;
-      const tiers = [...getRarityModeConfig(mode).tiers].sort((a, b) => b.rank - a.rank);
-      for (const tier of tiers) {
-        cumulative += rates[tier.value] || 0;
-        if (roll < cumulative) return tier.value;
-      }
-      return getRarityModeConfig(mode).tiers[0].value;
     }
 
     function showGachaResults(results) {
@@ -333,7 +434,8 @@
       selectGacha,
       showActiveGacha,
       pullGacha,
-      toggleHistory
+      toggleHistory,
+      ensureInfoControls
     };
   }
 
