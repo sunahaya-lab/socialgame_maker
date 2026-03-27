@@ -126,9 +126,37 @@ Key fields:
 
 - `id`
 - `project_id`
+- `owner_user_id`
 - `kind`
+- `usage_type`
 - `r2_key`
 - `mime_type`
+- `stored_format`
+- `quota_bytes`
+- `source_mime_type`
+- `source_byte_size`
+- `source_width`
+- `source_height`
+- `normalization_status`
+- `normalization_version`
+
+Additional rules:
+
+- static image uploads should be normalized to `WebP`
+- the canonical stored static object is the normalized file, not the uploaded
+  original
+- `project_id` describes project scope, while `owner_user_id` describes storage
+  ownership and quota responsibility
+- `kind` describes product role, while `usage_type` describes processing bucket
+
+Suggested `usage_type` values:
+
+- `portrait`
+- `expression`
+- `card`
+- `banner`
+- `background`
+- `generic`
 
 Suggested `kind` values:
 
