@@ -1,4 +1,5 @@
 import { createCorsHeaders, json, loadPlayerCurrencyBalances } from "./_player-state";
+import { loadPlayerEventState, loadProjectEventConfig } from "./_player-event.js";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -38,7 +39,8 @@ async function loadPlayerBootstrap(env, scope) {
     return makeEmptyBootstrap(scope);
   }
 
-  const [inventoryResult, historyResult, progressResult, homePreferencesResult, currencies] = await Promise.all([
+  const eventConfig = await loadProjectEventConfig(env, scope.projectId);
+  const [inventoryResult, historyResult, progressResult, homePreferencesResult, currencies, eventState] = await Promise.all([
     env.SOCIA_DB.prepare(`
       SELECT id, card_id, quantity, first_acquired_at, last_acquired_at, created_at, updated_at
       FROM player_inventories
@@ -59,7 +61,8 @@ async function loadPlayerBootstrap(env, scope) {
       ORDER BY updated_at DESC, created_at DESC
     `).bind(profile.id).all(),
     getHomePreferencesRow(env, profile.id),
-    loadPlayerCurrencyBalances(env, profile.id)
+    loadPlayerCurrencyBalances(env, profile.id),
+    loadPlayerEventState(env, profile.id, eventConfig)
   ]);
 
   return {
@@ -68,7 +71,10 @@ async function loadPlayerBootstrap(env, scope) {
     gachaHistory: (historyResult.results || []).map(mapGachaHistory),
     storyProgress: (progressResult.results || []).map(mapStoryProgress),
     homePreferences: mapHomePreferences(homePreferencesResult),
-    currencies
+    currencies,
+    loginBonuses: eventState.loginBonuses || {},
+    eventExchangePurchases: eventState.eventExchangePurchases || {},
+    eventItems: eventState.eventItems || {}
   };
 }
 
@@ -87,7 +93,10 @@ function makeEmptyBootstrap(scope) {
     gachaHistory: [],
     storyProgress: [],
     homePreferences: null,
-    currencies: []
+    currencies: [],
+    loginBonuses: {},
+    eventExchangePurchases: {},
+    eventItems: {}
   };
 }
 

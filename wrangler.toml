@@ -12,3 +12,8 @@ binding = "SOCIA_DB"
 database_name = "socia-maker"
 database_id = "06c10043-76cc-4d8c-b85e-9328cb2e24bb"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "SOCIA_ASSETS"
+bucket_name = "socia-maker-assets"
+preview_bucket_name = "socia-maker-assets-preview"

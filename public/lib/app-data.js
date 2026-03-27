@@ -405,6 +405,25 @@
       return items && typeof items === "object" ? items : {};
     }
 
+    function applyRemoteEventState(payload = {}) {
+      const playerState = getPlayerState();
+      playerState.eventItems = payload?.eventItems && typeof payload.eventItems === "object"
+        ? payload.eventItems
+        : {};
+      playerState.loginBonuses = payload?.loginBonuses && typeof payload.loginBonuses === "object"
+        ? payload.loginBonuses
+        : {};
+      playerState.eventExchangePurchases = payload?.eventExchangePurchases && typeof payload.eventExchangePurchases === "object"
+        ? payload.eventExchangePurchases
+        : {};
+      if (Array.isArray(payload?.currencies)) {
+        playerState.currencies = normalizePlayerCurrencies(payload.currencies);
+      }
+      setPlayerState(playerState);
+      persistPlayerState();
+      return playerState;
+    }
+
     function normalizeLoginBonusProgress(input = {}) {
       return {
         claimedDays: Math.max(0, Number(input?.claimedDays || 0)),
@@ -464,7 +483,7 @@
       };
     }
 
-    function claimEventLoginBonus(config = {}) {
+    async function claimEventLoginBonus(config = {}) {
       ensureEventCurrencies(config);
       const status = getEventLoginBonusStatus(config);
       if (!status.currentReward) {
@@ -474,28 +493,34 @@
         return { ok: false, code: "login_bonus_already_claimed", status };
       }
 
-      const reward = status.currentReward;
-      const playerState = getPlayerState();
-      const currency = updatePlayerCurrencyAmount(reward.currencyKey, reward.amount);
-      playerState.loginBonuses = {
-        ...(playerState.loginBonuses && typeof playerState.loginBonuses === "object" ? playerState.loginBonuses : {}),
-        [status.eventKey]: {
-          claimedDays: status.progress.claimedDays + 1,
-          lastClaimedOn: status.today
-        }
-      };
-      setPlayerState(playerState);
-      persistPlayerState();
+      if (!getCurrentProjectId()) {
+        return { ok: false, code: "project_required" };
+      }
 
-      return {
-        ok: true,
-        reward,
-        currency,
-        status: getEventLoginBonusStatus(config)
-      };
+      try {
+        const response = await postJSON(getPlayerApiUrl(API.playerEventLoginBonusClaim), {});
+        applyRemoteEventState({
+          eventItems: response?.eventState?.eventItems,
+          loginBonuses: response?.eventState?.loginBonuses,
+          eventExchangePurchases: response?.eventState?.eventExchangePurchases,
+          currencies: response?.currencies
+        });
+        return {
+          ok: true,
+          reward: response?.reward || status.currentReward,
+          status: getEventLoginBonusStatus(config)
+        };
+      } catch (error) {
+        console.error("Failed to claim event login bonus:", error);
+        return {
+          ok: false,
+          code: String(error?.data?.code || "event_login_bonus_claim_failed"),
+          status: getEventLoginBonusStatus(config)
+        };
+      }
     }
 
-    function purchaseEventExchangeItem(config = {}, itemId = "") {
+    async function purchaseEventExchangeItem(config = {}, itemId = "") {
       ensureEventCurrencies(config);
       const status = getEventExchangeStatus(config);
       const item = status.items.find(entry => entry.id === String(itemId || "").trim());
@@ -509,45 +534,47 @@
         return { ok: false, code: "exchange_currency_shortage", item };
       }
 
-      const playerState = getPlayerState();
-      updatePlayerCurrencyAmount(item.costCurrencyKey, -Number(item.costAmount || 0));
-      let rewardResult = null;
-      if (item.rewardKind === "growth") {
-        rewardResult = addGrowthResources({ resonance: Number(item.rewardAmount || 0) });
-      } else if (item.rewardKind === "event_item") {
-        const currentItems = getEventItemCounts();
-        playerState.eventItems = {
-          ...currentItems,
-          [item.rewardValue]: Math.max(0, Number(currentItems[item.rewardValue] || 0)) + Number(item.rewardAmount || 0)
-        };
-      } else if (item.rewardKind === "card") {
-        updateInventoryQuantity(item.rewardValue, Number(item.rewardAmount || 0));
-        rewardResult = { cardId: item.rewardValue, amount: Number(item.rewardAmount || 0) };
-      } else {
-        rewardResult = updatePlayerCurrencyAmount(item.rewardValue, Number(item.rewardAmount || 0));
+      if (!getCurrentProjectId()) {
+        return { ok: false, code: "project_required", item };
       }
-      const currentMap = playerState.eventExchangePurchases && typeof playerState.eventExchangePurchases === "object"
-        ? playerState.eventExchangePurchases
-        : {};
-      const currentEventMap = currentMap[status.exchangeKey] && typeof currentMap[status.exchangeKey] === "object"
-        ? currentMap[status.exchangeKey]
-        : {};
-      playerState.eventExchangePurchases = {
-        ...currentMap,
-        [status.exchangeKey]: {
-          ...currentEventMap,
-          [item.id]: Math.max(0, Number(currentEventMap[item.id] || 0)) + 1
-        }
-      };
-      setPlayerState(playerState);
-      persistPlayerState();
 
-      return {
-        ok: true,
-        item,
-        rewardResult,
-        status: getEventExchangeStatus(config)
-      };
+      try {
+        const response = await postJSON(getPlayerApiUrl(API.playerEventExchangePurchase), {
+          itemId: item.id
+        });
+        applyRemoteEventState({
+          eventItems: response?.eventState?.eventItems,
+          loginBonuses: response?.eventState?.loginBonuses,
+          eventExchangePurchases: response?.eventState?.eventExchangePurchases,
+          currencies: response?.currencies
+        });
+
+        const rewardResult = response?.rewardResult || null;
+        if (rewardResult?.kind === "growth" && rewardResult.value === "resonance") {
+          addGrowthResources({ resonance: Number(rewardResult.amount || 0) });
+        }
+        if (rewardResult?.cardId) {
+          upsertInventoryRecord({
+            cardId: rewardResult.cardId,
+            quantity: Math.max(0, Number(rewardResult.quantity || 0))
+          });
+        }
+
+        return {
+          ok: true,
+          item: response?.item || item,
+          rewardResult,
+          status: getEventExchangeStatus(config)
+        };
+      } catch (error) {
+        console.error("Failed to purchase event exchange item:", error);
+        return {
+          ok: false,
+          code: String(error?.data?.code || "event_exchange_purchase_failed"),
+          item,
+          status: getEventExchangeStatus(config)
+        };
+      }
     }
 
     function getCurrentPlayerId() {
@@ -614,6 +641,15 @@
         : {};
       nextState.equipmentGrowth = nextState.equipmentGrowth && typeof nextState.equipmentGrowth === "object"
         ? nextState.equipmentGrowth
+        : {};
+      nextState.loginBonuses = nextState.loginBonuses && typeof nextState.loginBonuses === "object"
+        ? nextState.loginBonuses
+        : {};
+      nextState.eventExchangePurchases = nextState.eventExchangePurchases && typeof nextState.eventExchangePurchases === "object"
+        ? nextState.eventExchangePurchases
+        : {};
+      nextState.eventItems = nextState.eventItems && typeof nextState.eventItems === "object"
+        ? nextState.eventItems
         : {};
       nextState.growthResources = normalizeGrowthResources(nextState.growthResources);
       ensureInstanceCollections(nextState);

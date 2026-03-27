@@ -129,6 +129,15 @@
       defaults?.currencies || []
     );
     merged.homePreferences = remoteState?.homePreferences || localState?.homePreferences || null;
+    merged.loginBonuses = remoteState?.loginBonuses && typeof remoteState.loginBonuses === "object"
+      ? remoteState.loginBonuses
+      : (localState?.loginBonuses || {});
+    merged.eventExchangePurchases = remoteState?.eventExchangePurchases && typeof remoteState.eventExchangePurchases === "object"
+      ? remoteState.eventExchangePurchases
+      : (localState?.eventExchangePurchases || {});
+    merged.eventItems = remoteState?.eventItems && typeof remoteState.eventItems === "object"
+      ? remoteState.eventItems
+      : (localState?.eventItems || {});
     return merged;
   }
 

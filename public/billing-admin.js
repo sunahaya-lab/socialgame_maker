@@ -62,7 +62,7 @@
 
     setStatus("取得中...", "");
     try {
-      const data = await get("/api/user-license", {
+      const data = await get("/api/admin/user-license", {
         query: { user: userId },
         headers: buildHeaders()
       });
@@ -89,7 +89,7 @@
 
     setStatus("保存中...", "");
     try {
-      const data = await post("/api/user-license", payload, {
+      const data = await post("/api/admin/user-license", payload, {
         headers: buildHeaders()
       });
       state.catalog = Array.isArray(data?.catalog) ? data.catalog : state.catalog;
@@ -113,7 +113,7 @@
 
     setStatus("プロジェクト課金状態を取得中...", "");
     try {
-      const data = await get("/api/project-license", {
+      const data = await get("/api/admin/project-license", {
         query: { project: projectId, user: userId },
         headers: buildHeaders()
       });

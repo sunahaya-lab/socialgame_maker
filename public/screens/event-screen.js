@@ -300,9 +300,9 @@
       openStoryReader?.(story);
     }
 
-    function purchaseExchangeItem(itemId) {
+    async function purchaseExchangeItem(itemId) {
       const config = getEventConfig();
-      const result = purchaseEventExchangeItem?.(config, itemId);
+      const result = await purchaseEventExchangeItem?.(config, itemId);
       if (!result?.ok) {
         if (result?.code === "exchange_currency_shortage") {
           showToast("交換に必要な通貨が足りません。");
@@ -318,13 +318,13 @@
       renderEventScreen();
     }
 
-    function claimLoginBonus() {
+    async function claimLoginBonus() {
       const config = getEventConfig();
       if (!config.loginBonusEnabled) {
         showToast("ログインボーナスはまだ公開されていません。");
         return;
       }
-      const result = claimEventLoginBonus?.(config);
+      const result = await claimEventLoginBonus?.(config);
       if (!result?.ok) {
         if (result?.code === "login_bonus_already_claimed") {
           showToast("今日はすでに受け取り済みです。");
