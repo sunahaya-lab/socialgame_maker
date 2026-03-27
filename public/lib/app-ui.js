@@ -17,33 +17,41 @@
       baseCharHomeVoiceDefs
     } = deps;
 
+    function getEditorApiMethod(name) {
+      const editorScreen = getEditorScreen?.();
+      const legacyMethod = editorScreen?.__legacyApi?.[name];
+      if (typeof legacyMethod === "function") return legacyMethod;
+      const method = editorScreen?.[name];
+      return typeof method === "function" ? method.bind(editorScreen) : null;
+    }
+
     function renderAll() {
       getCollectionScreen()?.renderCollectionFilters?.("all");
       getFormationScreen()?.renderFormationScreen?.();
       populateFolderSelects();
       renderHome("refresh");
       renderBattleScreen();
-      getEditorScreen()?.renderEditorScreen?.();
+      getEditorApiMethod("renderEditorScreen")?.();
     }
 
     function renderBaseCharList() {
-      getEditorScreen()?.renderBaseCharList?.();
+      getEditorApiMethod("renderBaseCharList")?.();
     }
 
     function renderEditorCharacterList() {
-      getEditorScreen()?.renderEditorCharacterList?.();
+      getEditorApiMethod("renderEditorCharacterList")?.();
     }
 
     function renderEditorStoryList() {
-      getEditorScreen()?.renderEditorStoryList?.();
+      getEditorApiMethod("renderEditorStoryList")?.();
     }
 
     function renderEditorGachaList() {
-      getEditorScreen()?.renderEditorGachaList?.();
+      getEditorApiMethod("renderEditorGachaList")?.();
     }
 
     function renderGachaPoolChars(selectedIds) {
-      getEditorScreen()?.renderGachaPoolChars?.(selectedIds);
+      getEditorApiMethod("renderGachaPoolChars")?.(selectedIds);
     }
 
     function pickLine(card) {

@@ -24,6 +24,7 @@ const {
 } = window.ApiClient;
 const {
   readFileAsDataUrl: imageReadFileAsDataUrl,
+  uploadStaticImageAsset: imageUploadStaticImageAsset,
   makeBaseCharFallback: imageMakeBaseCharFallback,
   makeFallbackImage: imageMakeFallbackImage,
   escapeHtml
@@ -31,6 +32,10 @@ const {
 const {
   showToast: toastShowToast
 } = window.ToastLib;
+const {
+  MODES: APP_MODES,
+  normalizeAppMode
+} = window.AppModeLib;
 const {
   getDefaultSystemConfig: appStateGetDefaultSystemConfig,
   getDefaultCurrencies: appStateGetDefaultCurrencies,
@@ -72,6 +77,7 @@ let gachas = [];
 let projects = [];
 let systemConfig = appStateGetDefaultSystemConfig(getDefaultRarityMode());
 let playerState = null;
+let currentMode = APP_MODES.play;
 let currentScreen = "home";
 let currentStoryType = "main";
 let activeGacha = null;
@@ -145,6 +151,8 @@ const API = {
   baseChars: "/api/base-chars",
   characters: "/api/entries",
   equipmentCards: "/api/equipment-cards",
+  assetsUpload: "/api/assets-upload",
+  assetsContent: "/api/assets-content",
   stories: "/api/stories",
   gachas: "/api/gachas",
   system: "/api/system",
@@ -153,11 +161,13 @@ const API = {
   playerStoryProgress: "/api/player-story-progress",
   playerGachaPulls: "/api/player-gacha-pulls",
   playerHomePreferences: "/api/player-home-preferences",
+  playerEventLoginBonusClaim: "/api/player-event-login-bonus-claim",
+  playerEventExchangePurchase: "/api/player-event-exchange-purchase",
   collabShareResolve: "/api/collab-share-resolve",
-  collabShareRotate: "/api/collab-share-rotate",
-  publicShareCreate: "/api/public-share-create",
+  shareCollabLink: "/api/share-collab-link",
+  sharePublicLink: "/api/share-public-link",
   publicShareResolve: "/api/public-share-resolve",
-  projectLicense: "/api/project-license"
+  projectShareSummary: "/api/project-share-summary"
 };
 
 const getDefaultSystemConfig = () => appStateGetDefaultSystemConfig(getDefaultRarityMode());
@@ -184,6 +194,20 @@ const normalizeRates = (rates = {}, mode = systemConfig?.rarityMode) => rarityLi
 
 function getCurrentRarityValues() {
   return rarityLibGetModeConfig(systemConfig?.rarityMode).tiers.map(tier => tier.value);
+}
+
+function applyAppMode(nextMode) {
+  const mode = normalizeAppMode(nextMode);
+  document.body.dataset.appMode = mode;
+  document.body.classList.toggle("app-mode-play", mode === APP_MODES.play);
+  document.body.classList.toggle("app-mode-edit", mode === APP_MODES.edit);
+  document.body.classList.toggle("app-mode-admin", mode === APP_MODES.admin);
+  return mode;
+}
+
+function setAppMode(nextMode) {
+  currentMode = applyAppMode(nextMode);
+  return currentMode;
 }
 
 const baseCharVoiceLineDefs = [
@@ -240,6 +264,7 @@ const baseCharHomeVoiceDefs = [
 void init();
 
 async function init() {
+  applyAppMode(currentMode);
   ensureAppEditorApi().ensureEditorFolderControls();
   collectionScreen = window.CollectionScreen.setupCollectionScreen({
     getCharacters: () => characters,
@@ -305,6 +330,9 @@ async function init() {
     convertSelectedEquipmentInstances,
     convertStaminaToGrowthPoints,
     getPlayerCurrencyAmount: key => ensureAppDataApi().getPlayerCurrencyAmount(key),
+    getDefaultBattleState: () => getDefaultBattleState(),
+    setBattleState: value => { battleState = value; },
+    navigateTo,
     showToast: message => ensureAppUiApi().showToast(message),
     esc: str => ensureAppUiApi().esc(str)
   });
@@ -385,6 +413,11 @@ async function init() {
         console.error("Failed to save system config:", error);
         const code = String(error?.data?.code || "");
         const requiredPack = String(error?.data?.requiredPack || "").trim();
+        if (code === "billing_feature_required" && (requiredPack === "battle" || requiredPack === "event")) {
+          const label = requiredPack === "battle" ? "Battle Pack" : "Event Pack";
+          ensureAppUiApi().showToast(`\u3053\u306e\u8a2d\u5b9a\u3092\u5171\u6709\u4fdd\u5b58\u3059\u308b\u306b\u306f ${label} \u304c\u5fc5\u8981\u3067\u3059\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002`);
+          return;
+        }
         if (code === "billing_feature_required" && requiredPack === "battle") {
           ensureAppUiApi().showToast("このシステム設定を保存するには Battle Pack が必要です。");
           return;
@@ -400,7 +433,7 @@ async function init() {
     applyOrientation: () => ensureAppRuntimeApi().applyOrientation(systemConfig),
     refreshCollection: () => collectionScreen.renderCollectionScreen(),
     refreshGacha: () => gachaScreen.renderGachaScreen(),
-    openFolderManager: kind => editorScreen?.openFolderManager?.(kind),
+    openFolderManager: kind => getEditorLegacyMethod("openFolderManager")?.(kind),
     getFeatureAccess: options => getEditorFeatureAccess(options),
     rarityApi: {
       getRarityModeConfig: (mode = systemConfig?.rarityMode) => rarityLibGetModeConfig(mode),
@@ -443,6 +476,14 @@ async function init() {
     renderGachaPoolChars: selectedIds => ensureAppUiApi().renderGachaPoolChars(selectedIds),
     getEditingFeaturedIds: () => ensureAppEditorApi().getEditingFeaturedIds(),
     createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
+    uploadStaticImageAsset: (file, options = {}) => imageUploadStaticImageAsset(file, {
+      uploadUrl: apiUrl(API.assetsUpload, {
+        query: { user: getCurrentPlayerId() }
+      }),
+      projectId: currentProjectId,
+      userId: getCurrentPlayerId(),
+      ...options
+    }),
     renderVoiceLineFields: (containerId, prefix, defs, values = {}) => ensureAppUiApi().renderVoiceLineFields(containerId, prefix, defs, values),
     collectVoiceLineFields: (containerId, prefix, defs) => ensureAppUiApi().collectVoiceLineFields(containerId, prefix, defs),
     baseCharVoiceLineDefs,
@@ -471,6 +512,14 @@ async function init() {
     getEditState: () => editState,
     getApi: () => ({ baseChars: apiUrl(API.baseChars) }),
     readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
+    uploadStaticImageAsset: (file, options = {}) => imageUploadStaticImageAsset(file, {
+      uploadUrl: apiUrl(API.assetsUpload, {
+        query: { user: getCurrentPlayerId() }
+      }),
+      projectId: currentProjectId,
+      userId: getCurrentPlayerId(),
+      ...options
+    }),
     makeBaseCharFallback: (name, color) => ensureAppUiApi().makeBaseCharFallback(name, color),
     normalizeBirthday: value => ensureContentStateApi().normalizeBirthday(value),
     saveLocal,
@@ -508,6 +557,9 @@ async function init() {
     esc: str => ensureAppUiApi().esc(str)
   });
   editorScreen = window.EditorScreen.setupEditorScreen({
+    getCurrentProjectId: () => currentProjectId,
+    getCurrentProjectName: () => projects.find(project => project.id === currentProjectId)?.name || "無題のプロジェクト",
+    getCurrentPlayerId,
     getBaseChars: () => baseChars,
     getCharacters: () => characters,
     getStories: () => stories,
@@ -536,15 +588,21 @@ async function init() {
     populateFolderSelects: () => ensureAppEditorApi().populateFolderSelects(),
     updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
     createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
-    persistSystemConfigState: () => ensureAppEditorApi().persistSystemConfigState()
+    persistSystemConfigState: () => ensureAppEditorApi().persistSystemConfigState(),
+    openShareSettings: () => ensureAppEditorApi().handleShare(),
+    getShareManagementSummary: () => ensureAppEditorApi().getShareManagementSummary(currentProjectId),
+    rotateCollaborativeShare: () => ensureAppEditorApi().rotateCollaborativeShare(currentProjectId),
+    createPublicShare: () => ensureAppEditorApi().createPublicShare(currentProjectId)
   });
   ensureAppRuntimeApi().setupProjectControls();
   ensureAppRuntimeApi().configurePrimaryNavigation({
-    openHomeEditMode: () => ensureAppHomeApi().openHomeEditMode(),
+    openEditorScreen,
     navigateTo
   });
   ensureAppRuntimeApi().ensureBattleEntryButton(navigateTo);
   ensureAppRuntimeApi().setupNavigation();
+  ensureEditorRuntimeApi().setupEditorOverlay();
+  ensureEditorRuntimeApi().bindEditorOverlayTabs();
   ensureEditorRuntimeApi().disableLegacyEditorUi();
   ensureAppEditorApi().setupForms();
   ensureAppEditorApi().setupPreviews();
@@ -562,6 +620,17 @@ function navigateTo(screen) {
   return ensureAppRuntimeApi().navigateTo(screen);
 }
 
+function openHomeEditMode() {
+  setAppMode(APP_MODES.edit);
+  return ensureAppHomeApi().openHomeEditMode();
+}
+
+function closeHomeEditMode() {
+  const result = ensureAppHomeApi().closeHomeEditMode();
+  if (currentScreen === "home") setAppMode(APP_MODES.play);
+  return result;
+}
+
 // Legacy overlay/editor modules still consume these runtime hooks directly.
 window.navigateTo = navigateTo;
 window.openEditorScreen = openEditorScreen;
@@ -572,10 +641,12 @@ function openEditorSurface(tabName = null, screen = currentScreen) {
 }
 
 function openEditorScreen(tabName = null) {
+  setAppMode(APP_MODES.edit);
   return ensureEditorRuntimeApi().openEditorScreen(tabName);
 }
 
 function closeEditorScreen() {
+  setAppMode(APP_MODES.play);
   return ensureEditorRuntimeApi().closeEditorScreen();
 }
 
@@ -614,18 +685,17 @@ async function getEditorFeatureAccess(options = {}) {
   }
 
   const request = postJSON(
-    apiUrl(API.projectLicense, {
+    apiUrl(API.projectShareSummary, {
       includeProject: false,
       query: { project: projectId, user: userId }
     }),
     { projectId, userId }
   ).then(response => {
-    const actingUserLicense = response?.billing?.actingUserLicense || {};
-    const entitlements = actingUserLicense?.entitlements || {};
+    const entitlements = response?.featureAccess || {};
     const value = {
-      battle: Boolean(entitlements.canUseBattleControls),
-      storyFx: Boolean(entitlements.canUseStoryFx),
-      event: Boolean(entitlements.canUseEventControls)
+      battle: Boolean(entitlements.battle),
+      storyFx: Boolean(entitlements.storyFx),
+      event: Boolean(entitlements.event)
     };
     editorFeatureAccessCache = {
       projectId,
@@ -635,11 +705,7 @@ async function getEditorFeatureAccess(options = {}) {
     };
     return value;
   }).catch(error => {
-    const code = String(error?.data?.code || "");
-    const isExpectedDevFallback = error?.status === 503 && code === "admin_secret_required";
-    if (!isExpectedDevFallback) {
-      console.error("Failed to load editor feature access:", error);
-    }
+    console.error("Failed to load editor feature access:", error);
     const value = { battle: false, storyFx: false, event: false };
     editorFeatureAccessCache = {
       projectId,
@@ -876,6 +942,17 @@ function isHomeEventActive(now = new Date()) {
 
 function ensureBattleScreenApi() {
   if (!battleScreenModuleApi) {
+    const battleControllerLib = window.BattleControllerLib.create();
+    const battleEngineLib = window.BattleEngineLib.create();
+    const battleStateLib = window.BattleStateLib.create({
+      getCharacters: () => characters
+    });
+    const battleViewLib = window.BattleViewLib.create({
+      getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
+      normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
+      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
+      esc: str => ensureAppUiApi().esc(str)
+    });
     battleScreenModuleApi = window.BattleScreenModule.create({
       getCharacters: () => characters,
       getPartyFormation: () => partyFormation,
@@ -887,6 +964,10 @@ function ensureBattleScreenApi() {
       setBattleLoopTimer: value => { battleLoopTimer = value; },
       getDefaultBattleState: () => appStateGetDefaultBattleState(),
       normalizePartyFormation,
+      battleControllerLib,
+      battleEngineLib,
+      battleStateLib,
+      battleViewLib,
       getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
       normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
       makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
@@ -904,6 +985,9 @@ function ensureAppRuntimeApi() {
       setProjects: value => { projects = value; },
       getCurrentProjectId: () => currentProjectId,
       setCurrentProjectId: value => { currentProjectId = value; },
+      getCurrentMode: () => currentMode,
+      setCurrentMode: value => { currentMode = normalizeAppMode(value); },
+      applyAppMode,
       getCurrentScreen: () => currentScreen,
       setCurrentScreen: value => { currentScreen = value; },
       getFormationScreen: () => formationScreen,
@@ -935,12 +1019,24 @@ function ensureAppRuntimeApi() {
       renderFormationScreen: () => formationScreen?.renderFormationScreen?.(),
       startBattleLoop,
       stopBattleLoop,
-      closeHomeEditMode: () => ensureAppHomeApi().closeHomeEditMode(),
+      closeHomeEditMode,
       showToast: message => toastShowToast(message),
       esc: value => escapeHtml(value)
     });
   }
   return appRuntimeModuleApi;
+}
+
+function getEditorLegacyMethod(name) {
+  const legacyApi = editorScreen?.__legacyApi;
+  if (legacyApi && typeof legacyApi[name] === "function") {
+    return legacyApi[name];
+  }
+  const direct = editorScreen?.[name];
+  if (typeof direct === "function") {
+    return direct.bind(editorScreen);
+  }
+  return null;
 }
 
 function ensureAppDataApi() {
@@ -1105,7 +1201,7 @@ function ensureAppEditorApi() {
       postJSON,
       saveLocal,
       renderHome,
-      renderEditorScreen: () => editorScreen?.renderEditorScreen?.(),
+      renderEditorScreen: () => getEditorLegacyMethod("renderEditorScreen")?.(),
       renderGachaPoolChars: selectedIds => ensureAppUiApi().renderGachaPoolChars(selectedIds),
       showToast: message => ensureAppUiApi().showToast(message),
       esc: str => ensureAppUiApi().esc(str),
@@ -1131,8 +1227,10 @@ function ensureEditorRuntimeApi() {
   if (!editorRuntimeModuleApi) {
     editorRuntimeModuleApi = window.EditorRuntimeLib.create({
       getCurrentScreen: () => currentScreen,
+      setCurrentScreen: value => { currentScreen = value; },
       getEditorScreen: () => editorScreen,
-      closeHomeEditMode: () => ensureAppHomeApi().closeHomeEditMode(),
+      closeHomeEditMode,
+      renderHome,
       showToast: message => ensureAppUiApi().showToast(message)
     });
   }

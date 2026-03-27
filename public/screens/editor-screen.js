@@ -9,6 +9,9 @@
   function createEditorScreen(deps) {
     const attributeLib = window.AttributeLib;
     const {
+      getCurrentProjectId,
+      getCurrentProjectName,
+      getCurrentPlayerId,
       getBaseChars,
       getCharacters,
       getStories,
@@ -37,7 +40,11 @@
       populateFolderSelects,
       updateEditorSubmitLabels,
       createContentFolder,
-      persistSystemConfigState
+      persistSystemConfigState,
+      openShareSettings,
+      getShareManagementSummary,
+      rotateCollaborativeShare,
+      createPublicShare
     } = deps;
 
     let activeFolderManagerKind = "card";
@@ -53,7 +60,8 @@
       { tab: "character", title: "カード", x: 136, y: 132 },
       { tab: "story", title: "ストーリー", x: 224, y: 156 },
       { tab: "gacha", title: "ガチャ", x: 312, y: 180 },
-      { tab: "system", title: "システム", x: 400, y: 204 }
+      { tab: "system", title: "システム", x: 400, y: 204 },
+      { tab: "event", title: "イベント", x: 488, y: 228 }
     ];
 
     function renderEditorScreen() {
@@ -100,11 +108,19 @@
       editorWindowDefs.forEach(def => ensureEditorWindow(shell, def));
     }
 
+    /* legacy duplicate launcher variants
+    /* legacy duplicate launcher
     function ensureEditorLauncher(shell) {
-      if (document.getElementById("editor-window-launcher")) return;
-      const launcher = document.createElement("div");
-      launcher.id = "editor-window-launcher";
-      launcher.className = "editor-floating-window editor-window-launcher";
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
       launcher.innerHTML = `
         <div class="editor-floating-window-head">
           <div>
@@ -121,16 +137,12 @@
           `).join("")}
         </div>
       `;
-      shell.appendChild(launcher);
       launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
         button.addEventListener("click", () => activateEditorTab(button.dataset.editorTab || "base-char"));
       });
       launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
         window.closeEditorScreen?.();
       });
-      enableEditorWindowDrag(launcher);
-      launcher.style.left = "24px";
-      launcher.style.top = "24px";
     }
 
     function ensureEditorWindow(shell, def) {
@@ -843,8 +855,718 @@
       return folders.find(folder => folder.id === folderId)?.name || "No Folder";
     }
 
+    /* legacy duplicate launcher variants
+    function ensureEditorLauncher(shell) {
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+            <p>開きたい編集画面を選んでください</p>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <div class="editor-window-launcher-grid">
+          ${editorWindowDefs.map(def => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-tab="${def.tab}">
+              <span class="editor-window-launcher-btn-title">${def.title}</span>
+              <span class="editor-window-launcher-btn-sub">この画面を開く</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => activateEditorTab(button.dataset.editorTab || "base-char"));
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "share", title: "共有", sub: "共同編集URLと公開URL", action: () => openShareSettings?.() }
+      ];
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+            <p>開きたい編集画面を選んでください</p>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          launcher.querySelectorAll(".editor-window-launcher-btn").forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "share", title: "共有", sub: "共同編集URLと公開URL", action: () => openShareSettings?.() }
+      ];
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const summaryCards = [
+        { label: "ベースキャラ", value: Array.isArray(getBaseChars()) ? getBaseChars().length : 0 },
+        { label: "カード", value: Array.isArray(getCharacters()) ? getCharacters().length : 0 },
+        { label: "ストーリー", value: Array.isArray(getStories()) ? getStories().length : 0 },
+        { label: "ガチャ", value: Array.isArray(getGachas()) ? getGachas().length : 0 }
+      ];
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+            <p>開きたい編集画面を選んでください</p>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <section class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+          <div class="editor-dashboard-summary-stats">
+            ${summaryCards.map(item => `
+              <div class="editor-dashboard-stat">
+                <span class="editor-dashboard-stat-label">${item.label}</span>
+                <strong class="editor-dashboard-stat-value">${item.value}</strong>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          launcher.querySelectorAll(".editor-window-launcher-btn").forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "publish-share", title: "公開/共有", sub: "共同編集URLと公開URL", action: () => openShareSettings?.() },
+        { key: "members", title: "メンバー", sub: "参加者と権限の管理", action: () => openMemberManagement?.() }
+      ];
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const summaryCards = [
+        { label: "ベースキャラ", value: Array.isArray(getBaseChars()) ? getBaseChars().length : 0 },
+        { label: "カード", value: Array.isArray(getCharacters()) ? getCharacters().length : 0 },
+        { label: "ストーリー", value: Array.isArray(getStories()) ? getStories().length : 0 },
+        { label: "ガチャ", value: Array.isArray(getGachas()) ? getGachas().length : 0 }
+      ];
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+            <p>開きたい編集画面を選んでください</p>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <section class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+          <div class="editor-dashboard-summary-stats">
+            ${summaryCards.map(item => `
+              <div class="editor-dashboard-stat">
+                <span class="editor-dashboard-stat-label">${item.label}</span>
+                <strong class="editor-dashboard-stat-value">${item.value}</strong>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          launcher.querySelectorAll(".editor-window-launcher-btn").forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    */
+    function ensureShareManagementWindow() {
+      const shell = document.querySelector(".editor-overlay-shell");
+      if (!shell) return null;
+      let windowEl = document.getElementById("editor-share-window");
+      if (!windowEl) {
+        windowEl = document.createElement("section");
+        windowEl.id = "editor-share-window";
+        windowEl.className = "editor-floating-window editor-content-window editor-share-window";
+        windowEl.hidden = true;
+        windowEl.innerHTML = `
+          <div class="editor-floating-window-head">
+            <div>
+              <h4>公開/共有</h4>
+              <p>共同編集URLと公開URLを管理します</p>
+            </div>
+            <button type="button" class="editor-floating-window-close" data-close-share-window>閉じる</button>
+          </div>
+          <div class="editor-content-window-body editor-share-window-body"></div>
+        `;
+        shell.appendChild(windowEl);
+        enableEditorWindowDrag(windowEl);
+        windowEl.style.left = "52px";
+        windowEl.style.top = "118px";
+        windowEl.querySelector("[data-close-share-window]")?.addEventListener("click", closeShareManagement);
+      }
+      return windowEl;
+    }
+
+    async function renderShareManagement() {
+      const windowEl = ensureShareManagementWindow();
+      const body = windowEl?.querySelector(".editor-share-window-body");
+      if (!body) return;
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      body.innerHTML = `
+        <div class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+        </div>
+        <p class="editor-share-copy">共同編集URLまたは公開プレイURLをここから発行できます</p>
+        <div class="editor-share-actions">
+          <button type="button" class="btn-primary" data-editor-share-action="collab">共同編集URL</button>
+          <button type="button" class="btn-secondary" data-editor-share-action="public">公開URL</button>
+        </div>
+        <p class="editor-share-plan" id="editor-share-plan">プラン情報を確認しています...</p>
+        <p class="editor-share-note">共同編集URL: 無料版で利用可能です。再発行すると以前のURLは失効します</p>
+        <p class="editor-share-note">公開URL: 有料版限定です。プレイ専用で編集はできません</p>
+        <p class="editor-share-status" id="editor-share-status"></p>
+      `;
+      const collabButton = body.querySelector('[data-editor-share-action="collab"]');
+      const publicButton = body.querySelector('[data-editor-share-action="public"]');
+      const planEl = body.querySelector("#editor-share-plan");
+      const statusEl = body.querySelector("#editor-share-status");
+
+      collabButton?.addEventListener("click", async () => {
+        if (statusEl) statusEl.textContent = "";
+        const result = await rotateCollaborativeShare?.();
+        if (!statusEl || !result || result.cancelled) return;
+        statusEl.textContent = result.message || "";
+        statusEl.classList.toggle("is-error", result.ok === false);
+      });
+
+      publicButton?.addEventListener("click", async () => {
+        if (statusEl) statusEl.textContent = "";
+        const result = await createPublicShare?.();
+        if (!statusEl || !result) return;
+        statusEl.textContent = result.message || "";
+        statusEl.classList.toggle("is-error", result.ok === false);
+      });
+
+      try {
+        const summary = await getShareManagementSummary?.();
+        const isPaid = Boolean(summary?.isPaid);
+        if (planEl) {
+          planEl.textContent = String(summary?.message || "");
+          planEl.classList.toggle("is-paid", isPaid);
+          planEl.classList.toggle("is-free", !isPaid);
+        }
+        if (publicButton) publicButton.disabled = !isPaid;
+      } catch (error) {
+        const message = String(error?.data?.error || error?.message || "共有設定の取得に失敗しました").trim();
+        if (planEl) {
+          planEl.textContent = message;
+          planEl.classList.remove("is-paid");
+          planEl.classList.add("is-free");
+        }
+        if (statusEl) {
+          statusEl.textContent = message;
+          statusEl.classList.add("is-error");
+        }
+        if (publicButton) publicButton.disabled = true;
+      }
+    }
+
+    function openShareManagement() {
+      closeAllEditorWindows();
+      const windowEl = ensureShareManagementWindow();
+      if (!windowEl) return;
+      windowEl.hidden = false;
+      bringEditorWindowToFront(windowEl);
+      renderShareManagement();
+      document.querySelectorAll(".editor-window-launcher-btn").forEach(item => {
+        item.classList.toggle("active", item.dataset.editorAction === "publish-share");
+      });
+    }
+
+    function closeShareManagement() {
+      const windowEl = document.getElementById("editor-share-window");
+      if (!windowEl) return;
+      windowEl.hidden = true;
+      document.querySelectorAll(".editor-window-launcher-btn").forEach(item => {
+        if (item.dataset.editorAction === "publish-share") item.classList.remove("active");
+      });
+    }
+
+    function ensureMemberManagementWindow() {
+      const shell = document.querySelector(".editor-overlay-shell");
+      if (!shell) return null;
+      let windowEl = document.getElementById("editor-member-window");
+      if (!windowEl) {
+        windowEl = document.createElement("section");
+        windowEl.id = "editor-member-window";
+        windowEl.className = "editor-floating-window editor-content-window editor-member-window";
+        windowEl.hidden = true;
+        windowEl.innerHTML = `
+          <div class="editor-floating-window-head">
+            <div>
+              <h4>メンバー</h4>
+              <p>このプロジェクトに参加するメンバーを確認します</p>
+            </div>
+            <button type="button" class="editor-floating-window-close" data-close-member-window>閉じる</button>
+          </div>
+          <div class="editor-content-window-body editor-member-window-body"></div>
+        `;
+        shell.appendChild(windowEl);
+        enableEditorWindowDrag(windowEl);
+        windowEl.style.left = "40px";
+        windowEl.style.top = "96px";
+        windowEl.querySelector("[data-close-member-window]")?.addEventListener("click", closeMemberManagement);
+      }
+      return windowEl;
+    }
+
+    function renderMemberManagement() {
+      const windowEl = ensureMemberManagementWindow();
+      const body = windowEl?.querySelector(".editor-member-window-body");
+      if (!body) return;
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const playerId = String(getCurrentPlayerId?.() || "").trim() || "local-player";
+      body.innerHTML = `
+        <div class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+        </div>
+        <div class="editor-member-list">
+          <div class="editor-member-row editor-member-row-head">
+            <span>ユーザー</span>
+            <span>ロール</span>
+            <span>状態</span>
+          </div>
+          <div class="editor-member-row">
+            <span class="editor-member-user">${esc(playerId)}</span>
+            <span class="editor-member-role">owner</span>
+            <span class="editor-member-status">active</span>
+          </div>
+        </div>
+        <p class="editor-member-note">メンバー招待と権限変更は次の段階で追加します。いまは Project Dashboard 配下に独立させています</p>
+      `;
+    }
+
+    function openMemberManagement() {
+      closeAllEditorWindows();
+      const windowEl = ensureMemberManagementWindow();
+      if (!windowEl) return;
+      renderMemberManagement();
+      windowEl.hidden = false;
+      bringEditorWindowToFront(windowEl);
+      document.querySelectorAll(".editor-window-launcher-btn").forEach(item => {
+        item.classList.toggle("active", item.dataset.editorAction === "members");
+      });
+    }
+
+    function closeMemberManagement() {
+      const windowEl = document.getElementById("editor-member-window");
+      if (!windowEl) return;
+      windowEl.hidden = true;
+      document.querySelectorAll(".editor-window-launcher-btn").forEach(item => {
+        if (item.dataset.editorAction === "members") item.classList.remove("active");
+      });
+    }
+
+    /* legacy duplicate launcher variants
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "publish-share", title: "公開/共有", sub: "共同編集URLと公開URL", action: () => openShareManagement() },
+        { key: "members", title: "メンバー", sub: "参加者と権限の管理", action: () => openMemberManagement() }
+      ];
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const summaryCards = [
+        { label: "ベースキャラ", value: Array.isArray(getBaseChars()) ? getBaseChars().length : 0 },
+        { label: "カード", value: Array.isArray(getCharacters()) ? getCharacters().length : 0 },
+        { label: "ストーリー", value: Array.isArray(getStories()) ? getStories().length : 0 },
+        { label: "ガチャ", value: Array.isArray(getGachas()) ? getGachas().length : 0 }
+      ];
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+            <p>開きたい編集画面を選んでください</p>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <section class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+          <div class="editor-dashboard-summary-stats">
+            ${summaryCards.map(item => `
+              <div class="editor-dashboard-stat">
+                <span class="editor-dashboard-stat-label">${item.label}</span>
+                <strong class="editor-dashboard-stat-value">${item.value}</strong>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          launcher.querySelectorAll(".editor-window-launcher-btn").forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "publish-share", title: "公開/共有", sub: "共同編集URLと公開URL", action: () => openShareManagement() },
+        { key: "members", title: "メンバー", sub: "参加者と権限の管理", action: () => openMemberManagement() }
+      ];
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const summaryCards = [
+        { label: "ベースキャラ", value: Array.isArray(getBaseChars()) ? getBaseChars().length : 0 },
+        { label: "カード", value: Array.isArray(getCharacters()) ? getCharacters().length : 0 },
+        { label: "ストーリー", value: Array.isArray(getStories()) ? getStories().length : 0 },
+        { label: "ガチャ", value: Array.isArray(getGachas()) ? getGachas().length : 0 }
+      ];
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <section class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+          <div class="editor-dashboard-summary-stats">
+            ${summaryCards.map(item => `
+              <div class="editor-dashboard-stat">
+                <span class="editor-dashboard-stat-label">${item.label}</span>
+                <strong class="editor-dashboard-stat-value">${item.value}</strong>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          launcher.querySelectorAll(".editor-window-launcher-btn").forEach(item => item.classList.remove("active"));
+          button.classList.add("active");
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    */
+    // Active legacy source of truth begins here. V1 wrappers depend on the
+    // definitions below; older variants above are retained only as staged cleanup.
+    editorWindowDefs.length = 0;
+    editorWindowDefs.push(
+      { tab: "base-char", title: "ベースキャラ", x: 48, y: 108 },
+      { tab: "character", title: "カード", x: 136, y: 132 },
+      { tab: "story", title: "ストーリー", x: 224, y: 156 },
+      { tab: "gacha", title: "ガチャ", x: 312, y: 180 },
+      { tab: "system", title: "システム", x: 400, y: 204 }
+    );
+
+    function getEditorSummaryCards() {
+      return [
+        { label: "ベースキャラ", value: Array.isArray(getBaseChars()) ? getBaseChars().length : 0 },
+        { label: "カード", value: Array.isArray(getCharacters()) ? getCharacters().length : 0 },
+        { label: "ストーリー", value: Array.isArray(getStories()) ? getStories().length : 0 },
+        { label: "ガチャ", value: Array.isArray(getGachas()) ? getGachas().length : 0 }
+      ];
+    }
+
+    function getDashboardItems() {
+      return [
+        { key: "base-char", title: "ベースキャラ", sub: "プロフィールと音声の編集", action: () => activateEditorTab("base-char") },
+        { key: "character", title: "カード", sub: "カード登録と画像の編集", action: () => activateEditorTab("character") },
+        { key: "story", title: "ストーリー", sub: "本文とシーン構成の編集", action: () => activateEditorTab("story") },
+        { key: "gacha", title: "ガチャ", sub: "排出設定とバナーの編集", action: () => activateEditorTab("gacha") },
+        { key: "system", title: "システム", sub: "基本設定と表示の編集", action: () => activateEditorTab("system") },
+        { key: "publish-share", title: "公開/共有", sub: "共同編集URLと公開URL", action: () => openShareManagement() },
+        { key: "members", title: "メンバー", sub: "参加者と権限の管理", action: () => openMemberManagement() }
+      ];
+    }
+
+    function updateLauncherActiveState(activeKey) {
+      document.querySelectorAll(".editor-window-launcher-btn").forEach(item => {
+        item.classList.toggle("active", item.dataset.editorAction === activeKey);
+      });
+    }
+
+    function closeAllEditorWindows() {
+      editorWindowDefs.forEach(def => closeEditorWindow(def.tab));
+      closeShareManagement();
+      closeMemberManagement();
+      updateLauncherActiveState("");
+    }
+
+    function activateEditorTab(tabName) {
+      const nextTab = tabName || "base-char";
+      ensureEditorWindows();
+      closeAllEditorWindows();
+      openEditorWindow(nextTab);
+      updateLauncherActiveState(nextTab);
+      if (nextTab === "gacha") renderGachaPoolChars(getEditingFeaturedIds());
+      if (nextTab === "system") systemEditor.renderSystemForm();
+    }
+
+    function ensureEditorWindows() {
+      const overlay = document.getElementById("screen-editor");
+      const shell = document.querySelector(".editor-overlay-shell");
+      if (!overlay || !shell) return;
+      overlay.classList.add("editor-window-mode");
+      overlay.querySelector(".screen-header")?.remove();
+      overlay.querySelector(".editor-tabs")?.remove();
+      ensureEditorLauncher(shell);
+      editorWindowDefs.forEach(def => ensureEditorWindow(shell, def));
+    }
+
+    function ensureEditorLauncher(shell) {
+      const dashboardItems = getDashboardItems();
+      const projectName = String(getCurrentProjectName?.() || "無題のプロジェクト").trim() || "無題のプロジェクト";
+      const projectId = String(getCurrentProjectId?.() || "").trim();
+      const summaryCards = getEditorSummaryCards();
+      let launcher = document.getElementById("editor-window-launcher");
+      if (!launcher) {
+        launcher = document.createElement("div");
+        launcher.id = "editor-window-launcher";
+        launcher.className = "editor-floating-window editor-window-launcher";
+        shell.appendChild(launcher);
+        enableEditorWindowDrag(launcher);
+        launcher.style.left = "24px";
+        launcher.style.top = "24px";
+      }
+      launcher.innerHTML = `
+        <div class="editor-floating-window-head">
+          <div>
+            <h4>編集ダッシュボード</h4>
+          </div>
+          <button type="button" class="editor-floating-window-close" data-close-editor-overlay>閉じる</button>
+        </div>
+        <section class="editor-dashboard-summary">
+          <div class="editor-dashboard-summary-head">
+            <p class="editor-dashboard-summary-label">Project</p>
+            <h5 class="editor-dashboard-summary-name">${esc(projectName)}</h5>
+            <p class="editor-dashboard-summary-id">${projectId ? `ID: ${esc(projectId)}` : ""}</p>
+          </div>
+          <div class="editor-dashboard-summary-stats">
+            ${summaryCards.map(item => `
+              <div class="editor-dashboard-stat">
+                <span class="editor-dashboard-stat-label">${item.label}</span>
+                <strong class="editor-dashboard-stat-value">${item.value}</strong>
+              </div>
+            `).join("")}
+          </div>
+        </section>
+        <div class="editor-window-launcher-grid">
+          ${dashboardItems.map(item => `
+            <button type="button" class="editor-window-launcher-btn" data-editor-action="${item.key}">
+              <span class="editor-window-launcher-btn-title">${item.title}</span>
+              <span class="editor-window-launcher-btn-sub">${item.sub}</span>
+            </button>
+          `).join("")}
+        </div>
+      `;
+      launcher.querySelectorAll(".editor-window-launcher-btn").forEach(button => {
+        button.addEventListener("click", () => {
+          const item = dashboardItems.find(entry => entry.key === button.dataset.editorAction);
+          item?.action?.();
+        });
+      });
+      launcher.querySelector("[data-close-editor-overlay]")?.addEventListener("click", () => {
+        window.closeEditorScreen?.();
+      });
+    }
+
+    editorWindowDefs.length = 0;
+    editorWindowDefs.push(
+      { tab: "base-char", title: "ベースキャラ", x: 48, y: 108 },
+      { tab: "character", title: "カード", x: 136, y: 132 },
+      { tab: "story", title: "ストーリー", x: 224, y: 156 },
+      { tab: "gacha", title: "ガチャ", x: 312, y: 180 },
+      { tab: "system", title: "システム", x: 400, y: 204 }
+    );
+
     return {
       activateEditorTab,
+      closeAllEditorWindows,
       ensureEditorWindows,
       ensureFolderManagerWindow,
       openFolderManager,

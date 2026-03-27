@@ -5,6 +5,9 @@
       setProjects,
       getCurrentProjectId,
       setCurrentProjectId,
+      getCurrentMode,
+      setCurrentMode,
+      applyAppMode,
       getCurrentScreen,
       setCurrentScreen,
       getFormationScreen,
@@ -197,6 +200,10 @@
       if (screen !== "home") closeHomeEditMode();
       const previousScreen = getCurrentScreen();
       setCurrentScreen(screen);
+      if (getCurrentMode() !== "play") {
+        setCurrentMode("play");
+        applyAppMode("play");
+      }
       document.querySelectorAll(".screen").forEach(screenEl => screenEl.classList.remove("active"));
       const nextScreen = document.getElementById(`screen-${screen}`);
       if (!nextScreen) return;
@@ -252,9 +259,9 @@
     };
   }
 
-  function configurePrimaryNavigation({ openHomeEditMode, navigateTo }) {
+  function configurePrimaryNavigation({ openEditorScreen, navigateTo }) {
     const bottomNav = document.querySelector(".bottom-nav");
-    const homeEditButton = document.querySelector(".home-side-left .home-side-btn:nth-of-type(2)");
+    const homeEditButton = document.getElementById("home-edit-mode-btn");
     const homeMenuWrap = document.querySelector(".home-side-right");
     const homeButton = document.querySelector('.bottom-nav-btn[data-go="home"]');
     const formationButton = document.querySelector('.bottom-nav-btn[data-go="formation"]');
@@ -267,7 +274,7 @@
       homeEditButton.setAttribute("type", "button");
       homeEditButton.onclick = event => {
         event?.preventDefault?.();
-        openHomeEditMode();
+        openEditorScreen?.();
       };
     }
 

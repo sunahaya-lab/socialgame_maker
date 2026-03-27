@@ -34,6 +34,19 @@
       esc
     } = deps;
 
+    function getEditorApiMethod(name) {
+      const screen = getEditorScreen?.();
+      const legacyApi = screen?.__legacyApi;
+      if (legacyApi && typeof legacyApi[name] === "function") {
+        return legacyApi[name];
+      }
+      const direct = screen?.[name];
+      if (typeof direct === "function") {
+        return direct.bind(screen);
+      }
+      return null;
+    }
+
     function setupForms() {
       document.getElementById("gacha-form")?.addEventListener("submit", handleGachaSubmit);
       document.querySelector("#gacha-form select[name='gachaType']")?.addEventListener("change", updateGachaFormMode);
@@ -61,13 +74,21 @@
       openSharePanel(currentProjectId);
     }
 
+    function getApiErrorMessage(error, fallback) {
+      const apiMessage = String(error?.data?.error || "").trim();
+      if (apiMessage) return apiMessage;
+      const message = String(error?.message || "").trim();
+      if (message) return message;
+      return fallback;
+    }
+
     async function rotateCollaborativeShare(projectId) {
       const confirmed = window.confirm("\u5171\u540c\u7de8\u96c6URL\u3092\u518d\u767a\u884c\u3057\u307e\u3059\u304b\uff1f \u4ee5\u524d\u306eURL\u306f\u4f7f\u3048\u306a\u304f\u306a\u308a\u307e\u3059");
-      if (!confirmed) return;
+      if (!confirmed) return { ok: false, cancelled: true, message: "" };
       try {
         setSharePanelBusy(true);
         const response = await postJSON(
-          apiUrl(API.collabShareRotate, {
+          apiUrl(API.shareCollabLink, {
             includeProject: false,
             query: { project: projectId }
           }),
@@ -76,11 +97,15 @@
         const token = String(response?.collabShare?.token || "").trim();
         if (!token) throw new Error("missing_collab_token");
         copyShareUrl(buildSharedUrl(projectId, { collab: token }));
-        renderSharePanelStatus("\u5171\u540c\u7de8\u96c6URL\u3092\u518d\u767a\u884c\u3057\u3001\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f");
+        const message = "\u5171\u540c\u7de8\u96c6URL\u3092\u518d\u767a\u884c\u3057\u3001\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f";
+        renderSharePanelStatus(message);
+        return { ok: true, message };
       } catch (error) {
         console.error("Failed to rotate collaborative share:", error);
-        showToast("\u5171\u540c\u7de8\u96c6URL\u306e\u767a\u884c\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
-        renderSharePanelStatus("\u5171\u540c\u7de8\u96c6URL\u306e\u767a\u884c\u306b\u5931\u6557\u3057\u307e\u3057\u305f", true);
+        const message = getApiErrorMessage(error, "\u5171\u540c\u7de8\u96c6URL\u306e\u767a\u884c\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
+        showToast(message);
+        renderSharePanelStatus(message, true);
+        return { ok: false, message };
       } finally {
         setSharePanelBusy(false);
       }
@@ -90,7 +115,7 @@
       try {
         setSharePanelBusy(true);
         const response = await postJSON(
-          apiUrl(API.publicShareCreate, {
+          apiUrl(API.sharePublicLink, {
             includeProject: false,
             query: { project: projectId }
           }),
@@ -99,11 +124,15 @@
         const token = String(response?.publicShare?.token || "").trim();
         if (!token) throw new Error("missing_public_token");
         copyShareUrl(buildSharedUrl(projectId, { share: token }));
-        renderSharePanelStatus("\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528URL\u3092\u767a\u884c\u3057\u3001\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f");
+        const message = "\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528URL\u3092\u767a\u884c\u3057\u3001\u30b3\u30d4\u30fc\u3057\u307e\u3057\u305f";
+        renderSharePanelStatus(message);
+        return { ok: true, message };
       } catch (error) {
         console.error("Failed to create public share:", error);
-        showToast("\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3067\u306f\u516c\u958b\u5171\u6709\u3092\u5229\u7528\u3067\u304d\u307e\u305b\u3093");
-        renderSharePanelStatus("\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3067\u306f\u516c\u958b\u5171\u6709\u3092\u5229\u7528\u3067\u304d\u307e\u305b\u3093", true);
+        const message = getApiErrorMessage(error, "\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3067\u306f\u516c\u958b\u5171\u6709\u3092\u5229\u7528\u3067\u304d\u307e\u305b\u3093");
+        showToast(message);
+        renderSharePanelStatus(message, true);
+        return { ok: false, message };
       } finally {
         setSharePanelBusy(false);
       }
@@ -130,8 +159,8 @@
     }
 
     function ensureSharePanel() {
-      const screen = document.getElementById("screen-home");
-      if (!screen || document.getElementById("share-panel")) return;
+      const host = document.querySelector(".app-shell") || document.body;
+      if (!host || document.getElementById("share-panel")) return;
       const panel = document.createElement("div");
       panel.className = "share-panel";
       panel.id = "share-panel";
@@ -157,7 +186,7 @@
         </p>
         <p class="share-panel-status" id="share-panel-status"></p>
       `;
-      screen.appendChild(panel);
+      host.appendChild(panel);
       panel.querySelector("[data-share-close]")?.addEventListener("click", closeSharePanel);
       panel.querySelectorAll("[data-share-action]").forEach(button => {
         button.addEventListener("click", () => {
@@ -213,6 +242,25 @@
       status.classList.toggle("is-error", Boolean(isError));
     }
 
+    async function getShareManagementSummary(projectId) {
+      const response = await postJSON(
+        apiUrl(API.projectShareSummary, {
+          includeProject: false,
+          query: { project: projectId, user: getCurrentPlayerId() }
+        }),
+        { projectId, userId: getCurrentPlayerId() }
+      );
+      const isPaid = String(response?.licensePlan || "free") === "publish" && Boolean(response?.canCreatePublicShare);
+      return {
+        isPaid,
+        licensePlan: String(response?.licensePlan || "free"),
+        canCreatePublicShare: Boolean(response?.canCreatePublicShare),
+        message: isPaid
+          ? "\u30d7\u30e9\u30f3: \u6709\u6599\u7248\u3002\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528\u5171\u6709\u3092\u5229\u7528\u3067\u304d\u307e\u3059"
+          : "\u30d7\u30e9\u30f3: \u7121\u6599\u7248\u3002\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528\u5171\u6709\u306f\u5229\u7528\u3067\u304d\u307e\u305b\u3093"
+      };
+    }
+
     async function loadSharePanelLicense(projectId) {
       const planEl = document.getElementById("share-panel-plan");
       const publicButton = document.querySelector("#share-panel [data-share-action='public']");
@@ -223,31 +271,24 @@
       if (publicButton) publicButton.disabled = true;
 
       try {
-        const response = await postJSON(
-          apiUrl(API.projectLicense, {
-            includeProject: false,
-            query: { project: projectId, user: getCurrentPlayerId() }
-          }),
-          { projectId, userId: getCurrentPlayerId() }
-        );
-        const license = response?.license || {};
-        const isPaid = String(license.licensePlan || "free") === "paid" && Number(license.publicShareEnabled || 0) === 1;
+        const summary = await getShareManagementSummary(projectId);
+        const isPaid = Boolean(summary.isPaid);
         if (planEl) {
-          planEl.textContent = isPaid
-            ? "\u30d7\u30e9\u30f3: \u6709\u6599\u7248\u3002\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528\u5171\u6709\u3092\u5229\u7528\u3067\u304d\u307e\u3059"
-            : "\u30d7\u30e9\u30f3: \u7121\u6599\u7248\u3002\u516c\u958b\u30d7\u30ec\u30a4\u5c02\u7528\u5171\u6709\u306f\u5229\u7528\u3067\u304d\u307e\u305b\u3093";
+          planEl.textContent = summary.message;
           planEl.classList.toggle("is-paid", isPaid);
           planEl.classList.toggle("is-free", !isPaid);
         }
         if (publicButton) publicButton.disabled = !isPaid;
       } catch (error) {
         console.error("Failed to load project license:", error);
+        const message = getApiErrorMessage(error, "\u30d7\u30e9\u30f3\u60c5\u5831\u306e\u78ba\u8a8d\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
         if (planEl) {
-          planEl.textContent = "\u30d7\u30e9\u30f3\u60c5\u5831\u306e\u78ba\u8a8d\u306b\u5931\u6557\u3057\u307e\u3057\u305f";
+          planEl.textContent = message;
           planEl.classList.remove("is-paid");
           planEl.classList.add("is-free");
         }
         if (publicButton) publicButton.disabled = true;
+        renderSharePanelStatus(message, true);
       }
     }
     function normalizeGachaCatalogMode(value) {
@@ -353,7 +394,7 @@
       }
       resetGachaForm();
       renderHome();
-      getEditorScreen()?.renderEditorGachaList?.();
+      getEditorApiMethod("renderEditorGachaList")?.();
       showToast(`${gacha.title}を${existing ? "更新" : "保存"}しました。`);
     }
 
@@ -653,6 +694,9 @@
       populateFolderSelects,
       populateFolderSelect,
       persistSystemConfigState,
+      rotateCollaborativeShare,
+      createPublicShare,
+      getShareManagementSummary,
       createContentFolder,
       resetEditorForms
     };
