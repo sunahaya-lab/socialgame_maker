@@ -7,6 +7,7 @@ export function sanitizeImageSource(value) {
   if (!text) return "";
   if (text.startsWith("data:image/")) return text;
   if (/^https:\/\//i.test(text)) return text;
+  if (/^\/api\/assets-content\?id=[A-Za-z0-9_-]+$/i.test(text)) return text;
   return "";
 }
 

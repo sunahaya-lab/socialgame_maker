@@ -19,6 +19,7 @@
       getEditState,
       getApi,
       readFileAsDataUrl,
+      uploadStaticImageAsset,
       makeBaseCharFallback,
       normalizeBirthday,
       saveLocal,
@@ -35,13 +36,32 @@
       esc
     } = deps;
 
+    async function resolveStaticImage(file, options = {}, fallback = "") {
+      if (!file) return fallback;
+      if (typeof uploadStaticImageAsset === "function") {
+        try {
+          const uploaded = await uploadStaticImageAsset(file, options);
+          if (uploaded?.src) return uploaded.src;
+        } catch (error) {
+          console.error("Failed to upload normalized image, falling back to data URL:", error);
+          showToast("画像アップロードに失敗したため、一時的にローカル画像を使用します。");
+        }
+      }
+      return readFileAsDataUrl(file);
+    }
+
     async function handleBaseCharSubmit(e) {
       e.preventDefault();
       const form = e.target;
       const baseChars = getBaseChars();
       const existing = getEditState().baseCharId ? baseChars.find(item => item.id === getEditState().baseCharId) : null;
       const portraitFile = form.portrait.files[0];
-      const portrait = portraitFile ? await readFileAsDataUrl(portraitFile) : (existing?.portrait || "");
+      const portrait = portraitFile
+        ? await resolveStaticImage(portraitFile, {
+          usageType: "portrait",
+          kind: "base-character-portrait"
+        }, existing?.portrait || "")
+        : (existing?.portrait || "");
 
       const baseChar = {
         id: getEditState().baseCharId || crypto.randomUUID(),
@@ -258,7 +278,12 @@
         if (!name) continue;
         const fileInput = item.querySelector("[name='expr-image']");
         let image = item.dataset.exprImage || "";
-        if (fileInput.files[0]) image = await readFileAsDataUrl(fileInput.files[0]);
+        if (fileInput.files[0]) {
+          image = await resolveStaticImage(fileInput.files[0], {
+            usageType: "expression",
+            kind: "base-character-expression"
+          }, image);
+        }
         expressions.push({ name, image });
       }
       return expressions;
@@ -272,7 +297,12 @@
         if (!name) continue;
         const fileInput = item.querySelector("[name='variant-image']");
         let image = item.dataset.variantImage || "";
-        if (fileInput.files[0]) image = await readFileAsDataUrl(fileInput.files[0]);
+        if (fileInput.files[0]) {
+          image = await resolveStaticImage(fileInput.files[0], {
+            usageType: "portrait",
+            kind: "base-character-variant"
+          }, image);
+        }
         variants.push({ name, image });
       }
       return variants;

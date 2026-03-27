@@ -56,7 +56,7 @@ export async function onRequest(context) {
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "ã“ã®ãƒ¡ã‚½ãƒƒãƒ‰ã¯åˆ©ç”¨ã§ãã¾ã›ã‚“ã€‚" }, 405, corsHeaders);
+  return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
 async function ensureEntryBillingAccess(request, env, access, input, corsHeaders) {
@@ -115,7 +115,7 @@ function sanitizeEntry(input) {
 
   return {
     id: text(input?.id, 80, crypto.randomUUID()),
-    name: text(input?.name, 40, "ã‚«ãƒ¼ãƒ‰"),
+    name: text(input?.name, 40, "カード"),
     baseCharId: input?.baseCharId ? text(input.baseCharId, 80) : null,
     folderId: input?.folderId ? text(input.folderId, 80) : null,
     catch: text(input?.catch, 120, ""),

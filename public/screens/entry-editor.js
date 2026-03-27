@@ -27,6 +27,7 @@
       getApi,
       getSystemApi,
       readFileAsDataUrl,
+      uploadStaticImageAsset,
       generateCharacterCropAssets,
       normalizeCharacterCropImages,
       normalizeCharacterCropPresets,
@@ -106,10 +107,31 @@
       (char?.homeBirthdays || []).forEach(item => addCardHomeBirthdayInput(item));
     }
 
+    async function resolveStaticImage(file, options = {}, fallback = "") {
+      if (!file) return fallback;
+      if (typeof uploadStaticImageAsset === "function") {
+        try {
+          const uploaded = await uploadStaticImageAsset(file, options);
+          if (uploaded?.src) return uploaded.src;
+        } catch (error) {
+          console.error("Failed to upload normalized card image, falling back to data URL:", error);
+          showToast("画像アップロードに失敗したため、一時的にローカル画像を使用します。");
+        }
+      }
+      return readFileAsDataUrl(file);
+    }
+
     async function buildCharacterPayload(form, existing) {
       const imageCleared = isCharacterImageCleared(form);
       const imageFile = getCharacterImageInput(form)?.files?.[0] || null;
-      const image = imageCleared ? "" : imageFile ? await readFileAsDataUrl(imageFile) : (existing?.image || "");
+      const image = imageCleared
+        ? ""
+        : imageFile
+          ? await resolveStaticImage(imageFile, {
+            usageType: "card",
+            kind: "card-image"
+          }, existing?.image || "")
+          : (existing?.image || "");
       const cropAssets = image
         ? await resolveCharacterCropAssets(image, imageFile ? null : existing)
         : { cropImages: normalizeCharacterCropImages(null), cropPresets: normalizeCharacterCropPresets(null) };
@@ -828,6 +850,32 @@
       resetCharacterBattleEditor();
       updateEditorSubmitLabels();
       setCharacterImageCleared(nextForm, false);
+    }
+
+    async function refreshBattlePackUi() {
+      const section = document.getElementById("character-battle-editor");
+      const note = document.getElementById("character-battle-pack-note");
+      if (!section || !note || typeof getFeatureAccess !== "function") return;
+      const access = await getFeatureAccess();
+      const hasBattlePack = Boolean(access?.battle);
+      note.hidden = hasBattlePack;
+      note.textContent = hasBattlePack
+        ? ""
+        : "\u672a\u6240\u6301\u306e\u5834\u5408\u3001\u3053\u306e\u9805\u76ee\u306f\u30ed\u30fc\u30ab\u30eb\u4fdd\u5b58\u306e\u307f\u3067\u3059";
+      section.classList.toggle("is-pack-locked", !hasBattlePack);
+      section.querySelectorAll(".character-battle-body input, .character-battle-body select, .character-battle-body textarea, .character-battle-body button").forEach(control => {
+        control.disabled = false;
+      });
+    }
+
+    function getBillingSaveErrorMessage(error, fallback) {
+      const code = String(error?.data?.code || "");
+      const requiredPack = String(error?.data?.requiredPack || "").trim();
+      if (code !== "billing_feature_required" || !requiredPack) return fallback;
+      if (requiredPack === "battle") {
+        return "\u3053\u306e\u30ab\u30fc\u30c9\u306e\u30d0\u30c8\u30eb\u8a2d\u5b9a\u3092\u5171\u6709\u4fdd\u5b58\u3059\u308b\u306b\u306f Battle Pack \u304c\u5fc5\u8981\u3067\u3059\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002";
+      }
+      return `${requiredPack} \u304c\u5fc5\u8981\u306a\u305f\u3081\u5171\u6709\u4fdd\u5b58\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002`;
     }
 
     return {

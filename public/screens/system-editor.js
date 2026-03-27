@@ -35,7 +35,6 @@
     let homeCustomPartsDraft = [];
     let selectedCustomPartId = "";
     let selectedHomeFolderId = "";
-
     const HOME_NODE_META = {
       "level-label": { label: "レベルラベル", kind: "表示パーツ" },
       "level-value": { label: "レベル値", kind: "表示パーツ" },
@@ -266,74 +265,78 @@
         preview.before(battlePackNote);
       }
 
-      if (!document.getElementById("system-event-pack-section")) {
-        const eventSection = document.createElement("section");
-        eventSection.id = "system-event-pack-section";
-        eventSection.className = "editor-subsection";
-        eventSection.innerHTML = `
-          <h4>イベント運用</h4>
-          <p id="system-event-pack-note" class="editor-pack-note" hidden>Event Pack がない場合、イベント導線やログインボーナス設定は編集できません。</p>
-          <label class="editor-check">
-            <input type="checkbox" name="eventEnabled" id="system-event-enabled">
-            ホームにイベント導線を表示する
-          </label>
-          <div id="system-event-pack-fields">
-            <label>
-              イベント名
-              <input type="text" name="eventTitle" id="system-event-title" maxlength="80" placeholder="期間限定イベント">
-            </label>
-            <label>
-              補足テキスト
-              <input type="text" name="eventSubtitle" id="system-event-subtitle" maxlength="200" placeholder="イベントストーリーや交換所へ遷移できます">
-            </label>
-            <label>
-              導線先ストーリー
-              <select name="eventStoryId" id="system-event-story-id"></select>
-            </label>
-            <label>
-              イベント通貨
-              <textarea name="eventCurrencies" id="system-event-currencies" rows="4" placeholder="event_medal,イベントメダル,0&#10;event_ticket,イベントチケット,0"></textarea>
-            </label>
-            <label class="editor-check">
-              <input type="checkbox" name="eventExchangeEnabled" id="system-event-exchange-enabled">
-              交換所を有効にする
-            </label>
-            <label>
-              交換所ラベル
-              <input type="text" name="eventExchangeLabel" id="system-event-exchange-label" maxlength="40" placeholder="イベント交換所">
-            </label>
-            <label>
-              交換所アイテム
-              <textarea name="eventExchangeItems" id="system-event-exchange-items" rows="7" placeholder="item-1,育成ポイント補給,gold,5000,growth,resonance,100,1&#10;item-2,記念バッジ,gems,30,event_item,event-badge,1,5&#10;item-3,限定カード,gems,150,card,card-id,1,1"></textarea>
-            </label>
-            <label>
-              表示アイテム
-              <textarea name="eventDisplayItems" id="system-event-display-items" rows="5" placeholder="event-badge,記念バッジ,イベント画面に並べるだけの記念アイテム"></textarea>
-            </label>
-            <label>
-              イベント限定カードID
-              <textarea name="eventCardIds" id="system-event-card-ids" rows="4" placeholder="card-id-1,イベント限定,交換所で入手&#10;card-id-2,ログイン配布,ログインボーナス7日目で入手"></textarea>
-            </label>
-            <label class="editor-check">
-              <input type="checkbox" name="eventLoginBonusEnabled" id="system-event-login-bonus-enabled">
-              ログインボーナスを有効にする
-            </label>
-            <label>
-              ログインボーナス名
-              <input type="text" name="eventLoginBonusLabel" id="system-event-login-bonus-label" maxlength="40" placeholder="春ログインボーナス">
-            </label>
-            <label>
-              ログインボーナス報酬
-              <textarea name="eventLoginBonusRewards" id="system-event-login-bonus-rewards" rows="7" placeholder="1,gems,50,ジェム x50&#10;2,gold,3000,ゴールド x3000"></textarea>
-            </label>
-          </div>
-        `;
-        preview.before(eventSection);
-      }
-
+      ensureEventEditorPanel();
       renderEventStoryOptions();
       void refreshBattlePackUi();
       void refreshEventPackUi();
+    }
+
+    function ensureEventEditorPanel() {
+      const screen = document.getElementById("screen-editor");
+      if (!screen || document.getElementById("editor-event")) return;
+
+      const panel = document.createElement("div");
+      panel.className = "editor-panel";
+      panel.id = "editor-event";
+      panel.innerHTML = `
+        <p class="editor-desc">イベント導線、交換所、イベント限定カード、ログインボーナスをここで編集します。</p>
+        <div id="system-event-pack-fields" class="system-event-window-fields">
+          <p id="system-event-panel-note" class="editor-pack-note" hidden>Event Pack がない場合、イベント運用は編集できません。</p>
+          <label class="editor-check">
+            <input form="system-form" type="checkbox" name="eventEnabled" id="system-event-enabled">
+            ホームにイベント導線を表示する
+          </label>
+          <label>
+            イベント名
+            <input form="system-form" type="text" name="eventTitle" id="system-event-title" maxlength="80" placeholder="期間限定イベント">
+          </label>
+          <label>
+            補足テキスト
+            <input form="system-form" type="text" name="eventSubtitle" id="system-event-subtitle" maxlength="200" placeholder="イベントストーリーや交換所へ遷移できます">
+          </label>
+          <label>
+            導線先ストーリー
+            <select form="system-form" name="eventStoryId" id="system-event-story-id"></select>
+          </label>
+          <label>
+            イベント通貨
+            <textarea form="system-form" name="eventCurrencies" id="system-event-currencies" rows="4" placeholder="event_medal,イベントメダル,0&#10;event_ticket,イベントチケット,0"></textarea>
+          </label>
+          <label class="editor-check">
+            <input form="system-form" type="checkbox" name="eventExchangeEnabled" id="system-event-exchange-enabled">
+            交換所を有効にする
+          </label>
+          <label>
+            交換所ラベル
+            <input form="system-form" type="text" name="eventExchangeLabel" id="system-event-exchange-label" maxlength="40" placeholder="イベント交換所">
+          </label>
+          <label>
+            交換所アイテム
+            <textarea form="system-form" name="eventExchangeItems" id="system-event-exchange-items" rows="7" placeholder="item-1,育成ポイント補給,gold,5000,growth,resonance,100,1&#10;item-2,記念バッジ,gems,30,event_item,event-badge,1,5&#10;item-3,限定カード,gems,150,card,card-id,1,1"></textarea>
+          </label>
+          <label>
+            表示アイテム
+            <textarea form="system-form" name="eventDisplayItems" id="system-event-display-items" rows="5" placeholder="event-badge,記念バッジ,イベント画面に並べるだけの記念アイテム"></textarea>
+          </label>
+          <label>
+            イベント限定カードID
+            <textarea form="system-form" name="eventCardIds" id="system-event-card-ids" rows="4" placeholder="card-id-1,イベント限定,交換所で入手&#10;card-id-2,ログイン配布,ログインボーナス7日目で入手"></textarea>
+          </label>
+          <label class="editor-check">
+            <input form="system-form" type="checkbox" name="eventLoginBonusEnabled" id="system-event-login-bonus-enabled">
+            ログインボーナスを有効にする
+          </label>
+          <label>
+            ログインボーナス名
+            <input form="system-form" type="text" name="eventLoginBonusLabel" id="system-event-login-bonus-label" maxlength="40" placeholder="春ログインボーナス">
+          </label>
+          <label>
+            ログインボーナス報酬
+            <textarea form="system-form" name="eventLoginBonusRewards" id="system-event-login-bonus-rewards" rows="7" placeholder="1,gems,50,ジェム x50&#10;2,gold,3000,ゴールド x3000"></textarea>
+          </label>
+        </div>
+      `;
+      screen.appendChild(panel);
     }
 
     function renderSystemForm() {
@@ -392,7 +395,13 @@
       if (!battleModeSelect || !note || typeof getFeatureAccess !== "function") return;
       const access = await getFeatureAccess();
       const hasBattlePack = Boolean(access?.battle);
+      note.hidden = hasBattlePack;
+      note.textContent = hasBattlePack
+        ? ""
+        : "\u672a\u6240\u6301\u306e\u5834\u5408\u3001\u6226\u95d8\u8a2d\u5b9a\u306f\u30ed\u30fc\u30ab\u30eb\u306e\u307f\u4fdd\u6301\u3055\u308c\u307e\u3059";
       const semiAutoOption = battleModeSelect.querySelector('option[value="semiAuto"]');
+      if (semiAutoOption) semiAutoOption.disabled = false;
+      return;
       if (semiAutoOption) semiAutoOption.disabled = !hasBattlePack;
       note.hidden = hasBattlePack;
       if (!hasBattlePack && battleModeSelect.value === "semiAuto") {
@@ -403,12 +412,22 @@
     async function refreshEventPackUi() {
       const eventEnabled = document.getElementById("system-event-enabled");
       const fields = document.getElementById("system-event-pack-fields");
-      const note = document.getElementById("system-event-pack-note");
-      if (!eventEnabled || !fields || !note || typeof getFeatureAccess !== "function") return;
+      const panelNote = document.getElementById("system-event-panel-note");
+      if (!eventEnabled || !fields || typeof getFeatureAccess !== "function") return;
       const access = await getFeatureAccess();
       const hasEventPack = Boolean(access?.event);
+      if (panelNote) {
+        panelNote.hidden = hasEventPack;
+        panelNote.textContent = hasEventPack
+          ? ""
+          : "\u672a\u6240\u6301\u306e\u5834\u5408\u3001\u30a4\u30d9\u30f3\u30c8\u8a2d\u5b9a\u306f\u30ed\u30fc\u30ab\u30eb\u306e\u307f\u4fdd\u6301\u3055\u308c\u307e\u3059";
+      }
+      fields.querySelectorAll("input, select, textarea, button").forEach(element => {
+        element.disabled = false;
+      });
+      return;
       eventEnabled.disabled = !hasEventPack;
-      note.hidden = hasEventPack;
+      if (panelNote) panelNote.hidden = hasEventPack;
       fields.querySelectorAll("input, select, textarea, button").forEach(element => {
         element.disabled = !hasEventPack;
       });
@@ -827,6 +846,7 @@
     async function handleSystemSubmit(event) {
       event.preventDefault();
       const form = event.target;
+      const access = typeof getFeatureAccess === "function" ? await getFeatureAccess() : null;
       const nextConfig = {
         ...getSystemConfig(),
         rarityMode: form.rarityMode.value === "stars5" ? "stars5" : "classic4",
@@ -865,6 +885,62 @@
       if (getCurrentScreen() === "gacha") refreshGacha();
       if (getCurrentScreen() === "collection") refreshCollection();
       showToast("システム設定を保存しました。");
+    }
+
+    async function handleSystemSubmit(event) {
+      event.preventDefault();
+      const form = event.target;
+      const access = typeof getFeatureAccess === "function" ? await getFeatureAccess() : null;
+      const nextConfig = {
+        ...getSystemConfig(),
+        rarityMode: form.rarityMode.value === "stars5" ? "stars5" : "classic4",
+        gachaCatalogMode: ["characters_only", "mixed_shared", "split_catalogs"].includes(form.gachaCatalogMode?.value)
+          ? form.gachaCatalogMode.value
+          : "characters_only",
+        orientation: ["portrait", "landscape", "fullscreen"].includes(form.orientation.value) ? form.orientation.value : "portrait",
+        battleMode: ["fullAuto", "semiAuto"].includes(form.battleMode?.value) ? form.battleMode.value : "fullAuto",
+        battleVisualMode: ["cardIllustration", "sdCharacter"].includes(form.battleVisualMode?.value)
+          ? form.battleVisualMode.value
+          : "cardIllustration",
+        eventConfig: {
+          enabled: form.eventEnabled?.checked === true,
+          title: String(form.eventTitle?.value || "").trim(),
+          subtitle: String(form.eventSubtitle?.value || "").trim(),
+          storyId: String(form.eventStoryId?.value || "").trim(),
+          eventCurrencies: parseEventCurrencies(form.eventCurrencies?.value),
+          exchangeEnabled: form.eventExchangeEnabled?.checked === true,
+          exchangeLabel: String(form.eventExchangeLabel?.value || "").trim(),
+          exchangeItems: parseExchangeItems(form.eventExchangeItems?.value),
+          displayItems: parseDisplayItems(form.eventDisplayItems?.value),
+          eventCardIds: parseEventCardIds(form.eventCardIds?.value),
+          loginBonusEnabled: form.eventLoginBonusEnabled?.checked === true,
+          loginBonusLabel: String(form.eventLoginBonusLabel?.value || "").trim(),
+          loginBonusRewards: parseLoginBonusRewards(form.eventLoginBonusRewards?.value)
+        },
+        layoutPresets: getSystemConfig().layoutPresets || { home: { mode: "preset", layout: "single-focus", speech: "right-bubble", advancedNodes: [], customParts: [] } },
+        layoutAssets: getSystemConfig().layoutAssets || { home: [] },
+        assetFolders: getSystemConfig().assetFolders || { home: [] }
+      };
+
+      setSystemConfig(nextConfig);
+      await saveConfig(nextConfig);
+      applyOrientation();
+      renderAll();
+      if (getCurrentScreen() === "gacha") refreshGacha();
+      if (getCurrentScreen() === "collection") refreshCollection();
+      if (!access?.battle && nextConfig.battleMode === "semiAuto") {
+        showToast("\u6226\u95d8\u8a2d\u5b9a\u306f\u30ed\u30fc\u30ab\u30eb\u306b\u306e\u307f\u4fdd\u6301\u3055\u308c\u307e\u3057\u305f");
+        return;
+      }
+      if (!access?.event && (
+        nextConfig.eventConfig?.enabled ||
+        nextConfig.eventConfig?.exchangeEnabled ||
+        nextConfig.eventConfig?.loginBonusEnabled
+      )) {
+        showToast("\u30a4\u30d9\u30f3\u30c8\u8a2d\u5b9a\u306f\u30ed\u30fc\u30ab\u30eb\u306b\u306e\u307f\u4fdd\u6301\u3055\u308c\u307e\u3057\u305f");
+        return;
+      }
+      showToast("\u30b7\u30b9\u30c6\u30e0\u8a2d\u5b9a\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f");
     }
 
     return {

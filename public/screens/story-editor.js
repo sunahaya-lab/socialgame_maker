@@ -338,6 +338,41 @@
       if (select) select.value = folder.id;
     }
 
+    function getStoryBillingErrorMessage(error, fallback) {
+      const code = String(error?.data?.code || "");
+      const requiredPack = String(error?.data?.requiredPack || "").trim();
+      if (code !== "billing_feature_required" || !requiredPack) return fallback;
+      if (requiredPack === "story_fx") {
+        return "\u3053\u306e\u30b9\u30c8\u30fc\u30ea\u30fc\u6f14\u51fa\u3092\u5171\u6709\u4fdd\u5b58\u3059\u308b\u306b\u306f Story FX Pack \u304c\u5fc5\u8981\u3067\u3059\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002";
+      }
+      return `${requiredPack} \u304c\u5fc5\u8981\u306a\u305f\u3081\u5171\u6709\u4fdd\u5b58\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002`;
+    }
+
+    function ensureStoryFxPackNote() {
+      const list = document.getElementById("story-variant-default-list");
+      if (!list || document.getElementById("story-fx-pack-note")) return;
+      const note = document.createElement("p");
+      note.id = "story-fx-pack-note";
+      note.className = "editor-pack-note";
+      note.hidden = true;
+      note.textContent = "\u672a\u6240\u6301\u306e\u5834\u5408\u3001Story FX \u9805\u76ee\u306f\u30ed\u30fc\u30ab\u30eb\u4fdd\u5b58\u306e\u307f\u3067\u3059";
+      list.before(note);
+    }
+
+    async function refreshStoryFxUi() {
+      if (typeof getFeatureAccess !== "function") return;
+      const access = await getFeatureAccess();
+      const hasStoryFx = Boolean(access?.storyFx);
+      const note = document.getElementById("story-fx-pack-note");
+      if (note) note.hidden = hasStoryFx;
+      document.querySelectorAll("[name='story-default-variant']").forEach(select => {
+        select.disabled = false;
+      });
+      document.querySelectorAll("[name='scene-bgm']").forEach(input => {
+        input.disabled = false;
+      });
+    }
+
     async function assignStoryFolder(storyId, folderId) {
       const list = getStories().slice();
       const story = list.find(item => item.id === storyId);

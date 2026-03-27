@@ -45,7 +45,7 @@ export async function onRequest(context) {
     return json(result, 201, corsHeaders);
   }
 
-  return json({ error: "ã“ã®ãƒ¡ã‚½ãƒƒãƒ‰ã¯åˆ©ç”¨ã§ãã¾ã›ã‚“ã€‚" }, 405, corsHeaders);
+  return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
 async function ensureStoryBillingAccess(request, env, access, input, corsHeaders) {
@@ -107,7 +107,7 @@ function sanitizeStory(input) {
 
   return {
     id: text(input?.id, 80, crypto.randomUUID()),
-    title: text(input?.title, 60, "ã‚¹ãƒˆãƒ¼ãƒªãƒ¼"),
+    title: text(input?.title, 60, "ストーリー"),
     type: ["main", "event", "character"].includes(input?.type) ? input.type : "main",
     entryId: input?.entryId ? text(input.entryId, 80) : null,
     folderId: input?.folderId ? text(input.folderId, 80) : null,
