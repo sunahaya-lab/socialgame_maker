@@ -49,6 +49,9 @@
       convertSelectedEquipmentInstances,
       convertStaminaToGrowthPoints,
       getPlayerCurrencyAmount,
+      getDefaultBattleState,
+      setBattleState,
+      navigateTo,
       showToast,
       esc
     } = deps;
@@ -69,8 +72,16 @@
     let selectedEquipmentCopies = new Set();
     let selectedGrowthMaterialKey = "";
     let staminaConvertAmount = STAMINA_PER_POINT;
+    const battleEntryController = window.FormationBattleEntryLib?.create?.({
+      getCharacters,
+      getPartyFormation,
+      getDefaultBattleState,
+      setBattleState,
+      navigateTo
+    }) || null;
 
     function renderFormationScreen() {
+      battleEntryController?.renderBattleEntryPanel?.();
       renderConvertControls();
       renderPartySlots();
       renderCardList();
@@ -181,6 +192,7 @@
         const image = char
           ? (getCharacterImageForUsage(char, "formationPortrait") || makeFallbackImage(char.name, char.rarity, mode))
           : "";
+        const roleLabel = getFormationSlotRoleLabel(index);
         return `
           <button
             type="button"
@@ -193,6 +205,7 @@
               ? `<img src="${image}" alt="${esc(char.name)}">`
               : `<span class="formation-slot-empty">SLOT</span>`}
             <span class="formation-slot-order">${index + 1}</span>
+            <span class="formation-slot-role">${roleLabel}</span>
           </button>
         `;
       }).join("");
@@ -208,6 +221,12 @@
         button.addEventListener("dragleave", () => button.classList.remove("is-drop-target"));
         button.addEventListener("drop", event => handleSlotDrop(event, button));
       });
+    }
+
+    function getFormationSlotRoleLabel(index) {
+      if (index === 0) return "LEADER";
+      if (index === 1) return "SUB";
+      return `MEMBER ${index - 1}`;
     }
 
     function renderCardList() {
