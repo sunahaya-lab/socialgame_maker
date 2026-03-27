@@ -24,7 +24,7 @@
           id: `home-${roleId}`,
           name: `${roleId} part`,
           src,
-          folderId: selectedFolder?.kind === "personal" ? selectedFolder.id : "",
+          folderId: selectedFolder?.kind !== "shared" ? selectedFolder.id : "",
           ownerMemberId: selectedFolder?.kind === "personal" ? selectedFolder.ownerMemberId : undefined
         });
         if (result?.config) setSystemConfig(result.config);
@@ -180,10 +180,10 @@
       const current = getSystemConfig();
       const folders = getHomeFolders();
       const nextFolder = {
-        id: `home-shared-${Date.now()}`,
+        id: `home-team-${Date.now()}`,
         name: `共有フォルダ ${folders.filter(folder => folder.kind === "shared").length + 1}`,
         ownerMemberId: null,
-        kind: "shared",
+        kind: "team_owned",
         assetIds: [],
         sourceRefs: [],
         sortOrder: folders.length
@@ -275,7 +275,7 @@
       container.innerHTML = homeAssets.map(asset => {
         const safeName = escapeHtml(asset.name || asset.id);
         const isActive = selectedNode?.assetId === `asset:${asset.id}`;
-        const canEditAsset = selectedFolder?.kind === "personal";
+        const canEditAsset = selectedFolder?.kind === "personal" || selectedFolder?.kind === "team_owned";
         return `
           <article class="layout-asset-card${isActive ? " is-active" : ""}">
             <div class="layout-asset-thumb" style="background-image:url('${String(asset.src || "").replace(/'/g, "\\'")}')"></div>
