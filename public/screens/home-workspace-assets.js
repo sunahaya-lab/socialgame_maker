@@ -30,7 +30,7 @@
     }
 
     function getTeamFolders() {
-      return getAllFolders().filter(folder => folder.kind === "shared");
+      return getAllFolders().filter(folder => folder.kind === "team_owned" || folder.kind === "shared");
     }
 
     function getDefaultFolders() {
@@ -83,7 +83,7 @@
       const next = {
         id: `home-folder-${Date.now()}`,
         name: group === "team" ? `チーム ${getTeamFolders().length + 1}` : `ユーザー ${getUserFolders().length + 1}`,
-        kind: group === "team" ? "shared" : "personal",
+        kind: group === "team" ? "team_owned" : "personal",
         ownerMemberId: group === "team" ? null : (getCurrentLayoutOwnerId?.() || "local-editor"),
         assetIds: [],
         sourceRefs: [],
@@ -179,7 +179,7 @@
       const file = event.target.files?.[0];
       if (!file) return;
       const folder = getSelectedFolder();
-      if (!folder || folder.kind !== "personal") {
+      if (!folder || folder.kind === "builtin" || folder.kind === "shared") {
         showToast?.("ユーザーフォルダを選ぶと画像を追加できます");
         event.target.value = "";
         return;
@@ -219,7 +219,10 @@
         ? folders.map(folder => `<option value="${esc(folder.id)}">${esc(folder.name)}</option>`).join("")
         : `<option value="">フォルダがありません</option>`;
       select.value = selectedFolderId || "";
-      if (uploadWrap) uploadWrap.hidden = !(selectedSource === "user" && getSelectedFolder()?.kind === "personal");
+      if (uploadWrap) {
+        const selectedFolder = getSelectedFolder();
+        uploadWrap.hidden = !selectedFolder || selectedFolder.kind === "builtin" || selectedFolder.kind === "shared";
+      }
     }
 
     function renderAssetGrid() {

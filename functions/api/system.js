@@ -393,7 +393,11 @@ function sanitizeAssetFolders(value) {
 
 function sanitizeAssetFolder(value, index = 0) {
   if (!value || typeof value !== "object") return null;
-  const kind = value.kind === "shared" ? "shared" : "personal";
+  const kind = value.kind === "shared"
+    ? "shared"
+    : value.kind === "team_owned"
+      ? "team_owned"
+      : "personal";
   const id = String(value.id || "").trim().slice(0, 80);
   const name = String(value.name || "").trim().slice(0, 80);
   if (!id || !name) return null;
@@ -405,9 +409,9 @@ function sanitizeAssetFolder(value, index = 0) {
       ? (String(value.ownerMemberId || "local-editor").trim().slice(0, 80) || "local-editor")
       : null,
     kind,
-    assetIds: kind === "personal"
-      ? Array.from(new Set((Array.isArray(value.assetIds) ? value.assetIds : []).map(item => String(item || "").trim().slice(0, 80)).filter(Boolean)))
-      : [],
+    assetIds: kind === "shared"
+      ? []
+      : Array.from(new Set((Array.isArray(value.assetIds) ? value.assetIds : []).map(item => String(item || "").trim().slice(0, 80)).filter(Boolean))),
     sourceRefs: kind === "shared" ? sanitizeFolderSourceRefs(value.sourceRefs) : [],
     sortOrder: Math.max(0, Number(value.sortOrder ?? index) || 0),
     createdAt: String(value.createdAt || now),

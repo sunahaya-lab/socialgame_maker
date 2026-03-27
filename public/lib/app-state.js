@@ -181,7 +181,11 @@
 
   function normalizeAssetFolderRecord(folder, index = 0, fallbackOwnerId = "local-editor") {
     if (!folder || typeof folder !== "object") return null;
-    const kind = folder.kind === "shared" ? "shared" : "personal";
+    const kind = folder.kind === "shared"
+      ? "shared"
+      : folder.kind === "team_owned"
+        ? "team_owned"
+        : "personal";
     const id = String(folder.id || "").trim().slice(0, 80);
     const name = String(folder.name || "").trim().slice(0, 80);
     if (!id || !name) return null;
@@ -193,9 +197,9 @@
         ? (String(folder.ownerMemberId || fallbackOwnerId || "local-editor").trim().slice(0, 80) || "local-editor")
         : null,
       kind,
-      assetIds: kind === "personal"
-        ? Array.from(new Set((Array.isArray(folder.assetIds) ? folder.assetIds : []).map(value => String(value || "").trim()).filter(Boolean)))
-        : [],
+      assetIds: kind === "shared"
+        ? []
+        : Array.from(new Set((Array.isArray(folder.assetIds) ? folder.assetIds : []).map(value => String(value || "").trim()).filter(Boolean))),
       sourceRefs: kind === "shared" ? normalizeFolderSourceRefs(folder.sourceRefs) : [],
       sortOrder: Math.max(0, Number(folder.sortOrder ?? index) || 0),
       createdAt: String(folder.createdAt || now),
@@ -311,15 +315,15 @@
     const homeFolders = getHomeAssetFolders(currentConfig, ownerMemberId)
       .map((folder, index) => normalizeAssetFolderRecord(folder, index, ownerMemberId))
       .filter(Boolean);
-    const personalFolderId = assetInput.folderId || getDefaultHomeAssetFolderId(ownerMemberId);
+    const targetFolderId = assetInput.folderId || getDefaultHomeAssetFolderId(ownerMemberId);
     let hasTargetFolder = false;
     const nextFolders = homeFolders.map((folder, index) => {
-      const isTarget = folder.id === personalFolderId && folder.kind === "personal";
+      const isTarget = folder.id === targetFolderId && (folder.kind === "personal" || folder.kind === "team_owned");
       if (!isTarget) return { ...folder, sortOrder: Math.max(0, Number(folder.sortOrder ?? index) || 0) };
       hasTargetFolder = true;
       return {
         ...folder,
-        ownerMemberId,
+        ownerMemberId: folder.kind === "personal" ? ownerMemberId : null,
         assetIds: Array.from(new Set([...(folder.assetIds || []), mergedAsset.id])),
         updatedAt: new Date().toISOString()
       };
@@ -328,14 +332,14 @@
     if (!hasTargetFolder) {
       nextFolders.push({
         ...fallbackFolder,
-        id: personalFolderId,
+        id: targetFolderId,
         assetIds: [mergedAsset.id]
       });
     }
 
     return {
       asset: mergedAsset,
-      folderId: personalFolderId,
+      folderId: targetFolderId,
       config: {
         ...currentConfig,
         layoutAssets: {
