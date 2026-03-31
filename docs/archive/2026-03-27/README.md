@@ -9,7 +9,4 @@ Active implementation docs now live in:
 
 - [`../../current/architecture-v2.md`](../../current/architecture-v2.md)
 - [`../../current/schema-v2.md`](../../current/schema-v2.md)
-- [`../../current/rebuild-v1-screen-outline-2026-03-27.md`](../../current/rebuild-v1-screen-outline-2026-03-27.md)
-- [`../../current/rebuild-v1-spec-outline-2026-03-27.md`](../../current/rebuild-v1-spec-outline-2026-03-27.md)
-- [`../../current/rebuild-v1-data-model-outline-2026-03-27.md`](../../current/rebuild-v1-data-model-outline-2026-03-27.md)
-- [`../../current/rebuild-v1-api-outline-2026-03-27.md`](../../current/rebuild-v1-api-outline-2026-03-27.md)
+- [`../2026-03-31/README.md`](../2026-03-31/README.md)

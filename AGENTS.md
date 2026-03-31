@@ -5,6 +5,111 @@
 - Use it for current implementation status, fragile areas, refactor direction, recovery notes, and operational constraints.
 - For the human-facing project entry, see [`README.md`](./README.md).
 - For docs navigation, see [`docs/README.md`](./docs/README.md).
+- Treat this file as the project constitution during active refactor.
+- If local folder-level guidance conflicts with ad-hoc convenience, follow this file and the relevant folder `README.md`.
+
+## Constitution-Level Refactor Rules
+- Refactor by responsibility boundaries, not by line-count alone.
+- Prefer making file boundaries clearer before moving behavior.
+- Do not split a dangerous file just to make it smaller if the new boundaries are not yet explicit.
+- Prefer chapterizing, annotating, and extracting thin helpers before deleting compatibility code.
+- Reject changes that blur ownership between `bootstrap`, `runtime wiring`, `screen behavior`, `editor behavior`, and `API/data access`.
+- Reject new mixed-responsibility files when the behavior can live in an existing folder with a clear README boundary.
+- Prefer one file, one primary responsibility.
+- If a file must temporarily hold two concerns during migration, mark the boundary explicitly in comments and in the relevant health-check doc.
+
+## Folder README Policy
+- Active folders must have a local `README.md` that defines:
+  - responsibility
+  - allowed dependencies
+  - split/extraction criteria
+  - what may be placed there
+  - what must not be placed there
+  - major inputs/outputs
+- Read the nearest folder `README.md` before adding a new file to that folder.
+- When creating a new active folder, create its `README.md` in the same change unless the folder is obviously temporary.
+- Do not place new files into a folder that lacks a boundary definition if a nearby defined folder already fits.
+- If folder boundaries are unclear, update the folder `README.md` first, then place the file.
+
+## Required Hooks
+
+## Allowed Dependency Direction
+
+### Frontend Layers
+- `public/index.html`
+  - may load: `public/styles.css`, bootstrap files, manifest-driven runtime entrypoints
+- `public/core/`
+  - may depend on: `public/lib/`, `public/screens/`, `public/editor/`
+  - must not depend on: section-local behavior via deep ad-hoc imports when a runtime/helper boundary already exists
+- `public/lib/`
+  - may depend on: `public/api/`, browser APIs
+  - may be used by: `public/core/`, `public/screens/`, `public/editor/`
+  - must not depend on: `public/screens/` feature-local behavior, `public/editor/sections/` section-local behavior
+- `public/api/`
+  - may depend on: endpoint path helpers, `fetch`, minimal shared normalization helpers
+  - must not depend on: DOM, screen logic, editor workflow logic
+- `public/screens/`
+  - may depend on: `public/lib/`, `public/api/`, explicitly allowed `public/editor/` mainline helpers during compatibility transition
+  - must not depend on: unrelated `public/editor/sections/<other-section>/` implementation details
+- `public/editor/`
+  - may depend on: `public/lib/`, `public/editor/shared/`, `public/editor/sections/`, explicitly needed compatibility implementations
+  - must not depend on: play-screen-local behavior unless a documented bridge exists
+- `public/editor/shared/`
+  - may depend on: `public/lib/`, `public/editor/sections/` contracts, compatibility bridges
+  - must not absorb: section-local business logic
+- `public/editor/sections/<name>/`
+  - may depend on: `public/editor/shared/`, `public/lib/`, that section's compatibility implementation
+  - must not depend on: unrelated sibling section implementation details
+
+### Backend Layers
+- `functions/api/<endpoint>.js`
+  - may depend on: `functions/api/_*.js` helpers
+  - must remain thin handlers
+- `functions/api/_*.js`
+  - may depend on: D1/KV helpers and other backend-only helpers
+  - must not depend on: frontend runtime concerns
+
+### Repo-Wide Hooks
+- Before adding or moving a file, read the nearest folder `README.md`.
+- If no suitable folder rule exists, update the folder `README.md` first, then add the file.
+- If a change alters runtime ownership, compatibility status, or deletion safety, update the relevant current doc in `docs/current/`.
+- If a file changes classification from `active compatibility implementation` to `thin adapter`, update both the file header comment and the current health check doc.
+
+### Refactor Hooks
+- When touching a dangerous file, prefer chapterizing and boundary comments before extracting behavior.
+- When extracting behavior from a dangerous file, prefer:
+  1. thin helper extraction
+  2. factory/runtime helper extraction
+  3. mainline helper preference
+  4. deletion only after caller/manifest/docs confirmation
+- If a compatibility file remains behavior-carrying, mark its future mainline destination in the file header comment.
+- If a thin adapter is introduced, its mainline source must be explicit in the file itself.
+- Do not add cross-layer imports or dependencies casually.
+- In particular, do not make `public/screens/` depend on unrelated `public/editor/sections/<other-section>/` code, and do not pull section-local editor behavior into `public/lib/` or `public/core/` without an explicit boundary reason.
+- If a new dependency direction is necessary, document it first in `AGENTS.md` and the nearest folder `README.md` in the same change.
+
+### Docs Hooks
+- If implementation guidance changes, update the nearest governing doc under `docs/current/`.
+- If the change affects code health or deletion safety, update `docs/current/code-health-check-2026-03-30.md`.
+- If the change affects active vs dormant documentation status, update `docs/current/README.md`.
+- Do not leave `docs/current/` and runtime reality diverged after a refactor batch.
+
+### UTF-8 / Text Hooks
+- If Japanese-heavy frontend text is edited, run `node scripts/check-mojibake.js` after the change.
+- If shared UI wording changes, prefer updating the nearest text-source file rather than duplicating inline literals.
+- If PowerShell display looks broken but browser/runtime behavior is correct, treat terminal glyph output as non-authoritative until UTF-8 reads or browser checks disagree.
+
+### CSS Hooks
+- Before editing `public/styles.css`, check the relevant section ownership and danger comments first.
+- If a `styles.css` section changes meaningfully, update the matching split/reference file under `public/styles/` or explicitly record why it remains unsynced.
+- Do not change active CSS loading away from `public/styles.css` without updating docs and the boot entry path together.
+- Do not add new feature styling to the monolithic `public/styles.css` by default.
+- Prefer the appropriate split/reference target under `public/styles/`, and only touch `public/styles.css` when updating the current active source intentionally and with section ownership in mind.
+
+### Boot / Runtime Hooks
+- Before editing `public/index.html`, check `public/bootstrap-script-manifest.js` and the boot-file danger annotations.
+- Do not change script load order casually; document any load-order change in `docs/current/code-health-check-2026-03-30.md`.
+- If a boot-path change moves ownership between `public/core/`, `public/editor/`, and `public/screens/`, update the relevant folder `README.md` files in the same change.
 
 ## Project
 - Name: `socia_maker`
@@ -22,21 +127,59 @@
   - [`public/index.html`](./public/index.html)
   - [`public/app.js`](./public/app.js)
   - [`public/styles.css`](./public/styles.css)
+- Frontend core runtime:
+  - [`public/core/app-init-runtime.js`](./public/core/app-init-runtime.js)
+  - [`public/core/bootstrap.js`](./public/core/bootstrap.js)
+  - [`public/core/navigation.js`](./public/core/navigation.js)
+  - [`public/core/runtime.js`](./public/core/runtime.js)
 - Frontend shared modules:
   - [`public/lib/rarity.js`](./public/lib/rarity.js)
   - [`public/lib/storage.js`](./public/lib/storage.js)
   - [`public/lib/image.js`](./public/lib/image.js)
   - [`public/lib/toast.js`](./public/lib/toast.js)
+  - [`public/lib/profile-runtime.js`](./public/lib/profile-runtime.js)
+  - [`public/lib/profile-actions.js`](./public/lib/profile-actions.js)
+  - [`public/lib/auth-panel-ui.js`](./public/lib/auth-panel-ui.js)
+  - [`public/lib/auth-session-runtime.js`](./public/lib/auth-session-runtime.js)
+  - [`public/lib/project-members-runtime.js`](./public/lib/project-members-runtime.js)
+  - [`public/lib/system-save-runtime.js`](./public/lib/system-save-runtime.js)
   - [`public/api/client.js`](./public/api/client.js)
 - Frontend screen modules:
+  - [`public/screens/collection-screen-runtime.js`](./public/screens/collection-screen-runtime.js)
   - [`public/screens/collection-screen.js`](./public/screens/collection-screen.js)
+  - [`public/screens/formation-screen-runtime.js`](./public/screens/formation-screen-runtime.js)
+  - [`public/screens/story-screen-runtime.js`](./public/screens/story-screen-runtime.js)
+  - [`public/screens/gacha-screen-runtime.js`](./public/screens/gacha-screen-runtime.js)
   - [`public/screens/gacha-screen.js`](./public/screens/gacha-screen.js)
+  - [`public/screens/event-screen-runtime.js`](./public/screens/event-screen-runtime.js)
   - [`public/screens/story-screen.js`](./public/screens/story-screen.js)
   - [`public/screens/system-editor.js`](./public/screens/system-editor.js)
   - [`public/screens/entry-editor.js`](./public/screens/entry-editor.js)
   - [`public/screens/base-char-editor.js`](./public/screens/base-char-editor.js)
   - [`public/screens/story-editor.js`](./public/screens/story-editor.js)
   - [`public/screens/editor-screen.js`](./public/screens/editor-screen.js)
+- Frontend editor runtime:
+  - [`public/editor/editor-v1-host-app.js`](./public/editor/editor-v1-host-app.js)
+  - [`public/editor/editor-app.js`](./public/editor/editor-app.js)
+  - [`public/editor/editor-dashboard.js`](./public/editor/editor-dashboard.js)
+  - [`public/editor/editor-dashboard-config.js`](./public/editor/editor-dashboard-config.js)
+  - [`public/editor/editor-dashboard-screen-app.js`](./public/editor/editor-dashboard-screen-app.js)
+  - [`public/editor/editor-runtime-bridge.js`](./public/editor/editor-runtime-bridge.js)
+  - [`public/editor/sections/system/system-editor-app.js`](./public/editor/sections/system/system-editor-app.js)
+  - [`public/editor/sections/system/system-editor-runtime.js`](./public/editor/sections/system/system-editor-runtime.js)
+  - [`public/editor/sections/system/system-editor-title-app.js`](./public/editor/sections/system/system-editor-title-app.js)
+  - [`public/editor/sections/system/system-editor-battle-app.js`](./public/editor/sections/system/system-editor-battle-app.js)
+  - [`public/editor/sections/system/system-editor-form-app.js`](./public/editor/sections/system/system-editor-form-app.js)
+  - [`public/editor/sections/system/title-editor-runtime.js`](./public/editor/sections/system/title-editor-runtime.js)
+  - [`public/editor/sections/card/entry-editor-runtime.js`](./public/editor/sections/card/entry-editor-runtime.js)
+  - [`public/editor/sections/card/equipment-card-editor-runtime.js`](./public/editor/sections/card/equipment-card-editor-runtime.js)
+  - [`public/editor/sections/base-char/base-char-editor-runtime.js`](./public/editor/sections/base-char/base-char-editor-runtime.js)
+  - [`public/editor/sections/story/story-editor-runtime.js`](./public/editor/sections/story/story-editor-runtime.js)
+  - [`public/editor/sections/music/music-editor-runtime.js`](./public/editor/sections/music/music-editor-runtime.js)
+  - [`public/editor/sections/notices/announcement-editor-app.js`](./public/editor/sections/notices/announcement-editor-app.js)
+  - [`public/editor/sections/notices/announcement-editor-runtime.js`](./public/editor/sections/notices/announcement-editor-runtime.js)
+  - [`public/editor/shared/`](./public/editor/shared)
+  - [`public/editor/sections/`](./public/editor/sections)
 - Cloudflare API:
   - [`functions/api/base-chars.js`](./functions/api/base-chars.js)
   - [`functions/api/entries.js`](./functions/api/entries.js)
@@ -72,6 +215,7 @@
   - [`docs/current/refactor-backlog-risk-notes-2026-03-27.md`](./docs/current/refactor-backlog-risk-notes-2026-03-27.md)
 - Text repair workflow:
   - [`docs/current/text-repair-workflow.md`](./docs/current/text-repair-workflow.md)
+  - [`docs/current/mojibake-repair-and-prevention-2026-03-30.md`](./docs/current/mojibake-repair-and-prevention-2026-03-30.md)
 
 ## Cloudflare State
 - KV binding name: `SOCIA_DATA`
@@ -183,6 +327,24 @@
 
 ### Editor Snapshot Before Redesign
 - Current editor runtime is being retired and redesigned from scratch
+- Current active editor v1 line now lives under [`public/editor/`](./public/editor)
+- [`public/screens/editor-v1-host.js`](./public/screens/editor-v1-host.js) is now a thin compatibility adapter that delegates to [`public/editor/editor-v1-host-app.js`](./public/editor/editor-v1-host-app.js)
+- [`public/screens/editor-dashboard-screen.js`](./public/screens/editor-dashboard-screen.js) and [`public/screens/editor-dashboard-config.js`](./public/screens/editor-dashboard-config.js) are also compatibility adapters over the `public/editor/` runtime
+- [`public/screens/system-editor.js`](./public/screens/system-editor.js) is now a thin compatibility adapter that delegates to [`public/editor/sections/system/system-editor-app.js`](./public/editor/sections/system/system-editor-app.js)
+- [`public/screens/system-editor-title.js`](./public/screens/system-editor-title.js) is now a thin compatibility adapter that delegates to [`public/editor/sections/system/system-editor-title-app.js`](./public/editor/sections/system/system-editor-title-app.js)
+- [`public/screens/system-editor-battle.js`](./public/screens/system-editor-battle.js) is now a thin compatibility adapter that delegates to [`public/editor/sections/system/system-editor-battle-app.js`](./public/editor/sections/system/system-editor-battle-app.js)
+- [`public/screens/system-editor-form.js`](./public/screens/system-editor-form.js) is now a thin compatibility adapter that delegates to [`public/editor/sections/system/system-editor-form-app.js`](./public/editor/sections/system/system-editor-form-app.js)
+- [`public/screens/system-editor-event.js`](./public/screens/system-editor-event.js) remains on disk for recovery, but is no longer part of the active release runtime
+- [`public/screens/announcement-editor.js`](./public/screens/announcement-editor.js) is now a thin compatibility adapter that delegates to [`public/editor/sections/notices/announcement-editor-app.js`](./public/editor/sections/notices/announcement-editor-app.js)
+- Deleted on 2026-03-30 because they were no longer on the active runtime path:
+  - `public/screens/editor-legacy-host.js`
+  - `public/screens/editor-base-char-host.js`
+  - `public/screens/editor-character-host.js`
+  - `public/screens/editor-story-host.js`
+  - `public/screens/editor-gacha-host.js`
+  - `public/screens/editor-system-host.js`
+  - `public/screens/editor-project-sections.js`
+  - `public/screens/editor-section-host-registry.js`
 - Existing editor responsibilities before retirement:
   - base character form editing and list management
   - card form editing and list management
@@ -445,6 +607,7 @@
   - `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()`
   - `$OutputEncoding = [System.Text.UTF8Encoding]::new()`
 - A helper script exists at [`scripts/setup-utf8-console.ps1`](./scripts/setup-utf8-console.ps1).
+- Before and after repairing suspected mojibake, run [`scripts/check-mojibake.js`](./scripts/check-mojibake.js).
 - Prefer `Get-Content -Encoding UTF8 <path>` when direct file reads are needed.
 - Prefer `rg`, `node --check`, and browser verification over trusting PowerShell glyph rendering.
 - Avoid pushing long Japanese text blocks through ad-hoc shell commands when `apply_patch` is sufficient.
@@ -465,4 +628,5 @@
 ## UI Text Safety
 - Repeated editor empty-state and note text should prefer shared definitions in [`public/lib/ui-text.js`](./public/lib/ui-text.js) instead of being duplicated inline.
 - When touching multiple editor-facing files, prefer running [`scripts/check-editor-files.ps1`](./scripts/check-editor-files.ps1) after edits.
+- When touching Japanese-heavy frontend files, also run [`scripts/check-mojibake.js`](./scripts/check-mojibake.js) and consult [`docs/current/mojibake-repair-and-prevention-2026-03-30.md`](./docs/current/mojibake-repair-and-prevention-2026-03-30.md).
 - [`scripts/repair-editor-text.js`](./scripts/repair-editor-text.js) and [`scripts/repair-system-text.js`](./scripts/repair-system-text.js) are emergency repair helpers, not the default editing path.
