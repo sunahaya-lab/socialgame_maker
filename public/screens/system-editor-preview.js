@@ -129,6 +129,7 @@
       if (event.target.closest(".layout-node-resize-handle")) return;
       const node = getHomeLayoutDraft()?.nodes?.find(item => item.id === nodeId);
       if (!node) return;
+      const preview = document.getElementById("system-home-layout-preview");
       setSelectedHomeNodeId(nodeId);
       previewDragState = {
         mode: "move",
@@ -136,7 +137,9 @@
         startX: event.clientX,
         startY: event.clientY,
         nodeX: Number(node.x) || 0,
-        nodeY: Number(node.y) || 0
+        nodeY: Number(node.y) || 0,
+        previewScaleX: getPreviewScale(preview, "x"),
+        previewScaleY: getPreviewScale(preview, "y")
       };
       renderAdvancedLayoutControls();
       renderLayoutAssetSelection?.();
@@ -148,6 +151,7 @@
     function beginPreviewNodeResize(event, nodeId) {
       const node = getHomeLayoutDraft()?.nodes?.find(item => item.id === nodeId);
       if (!node) return;
+      const preview = document.getElementById("system-home-layout-preview");
       setSelectedHomeNodeId(nodeId);
       previewDragState = {
         mode: "resize",
@@ -155,7 +159,9 @@
         startX: event.clientX,
         startY: event.clientY,
         nodeW: Number(node.w) || 0,
-        nodeH: Number(node.h) || 0
+        nodeH: Number(node.h) || 0,
+        previewScaleX: getPreviewScale(preview, "x"),
+        previewScaleY: getPreviewScale(preview, "y")
       };
       renderAdvancedLayoutControls();
       renderLayoutAssetSelection?.();
@@ -170,8 +176,10 @@
       const draft = getHomeLayoutDraft();
       const node = draft.nodes.find(item => item.id === previewDragState.nodeId);
       if (!node) return;
-      const deltaX = Math.round((event.clientX - previewDragState.startX) / 0.42);
-      const deltaY = Math.round((event.clientY - previewDragState.startY) / 0.42);
+      const scaleX = Math.max(0.0001, Number(previewDragState.previewScaleX) || 1);
+      const scaleY = Math.max(0.0001, Number(previewDragState.previewScaleY) || 1);
+      const deltaX = Math.round((event.clientX - previewDragState.startX) / scaleX);
+      const deltaY = Math.round((event.clientY - previewDragState.startY) / scaleY);
       if (previewDragState.mode === "move") {
         node.x = previewDragState.nodeX + deltaX;
         node.y = previewDragState.nodeY + deltaY;
@@ -181,6 +189,18 @@
       }
       renderAdvancedLayoutControls();
       renderLayoutPresetPreview();
+    }
+
+    function getPreviewScale(preview, axis) {
+      const draft = getHomeLayoutDraft();
+      const canvas = draft?.canvas || {};
+      const rect = preview?.getBoundingClientRect?.();
+      const renderedSize = axis === "x" ? rect?.width : rect?.height;
+      const logicalSize = axis === "x" ? Number(canvas.width) || 0 : Number(canvas.height) || 0;
+      if (renderedSize > 0 && logicalSize > 0) {
+        return renderedSize / logicalSize;
+      }
+      return 1;
     }
 
     function endPreviewPointerInteraction() {

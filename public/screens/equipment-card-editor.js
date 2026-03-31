@@ -39,15 +39,6 @@
             <select name="rarity" id="equipment-card-rarity-select"></select>
           </label>
           <label>
-            \u88c5\u5099\u7a2e\u5225
-            <select name="slotType">
-              <option value="weapon">\u6b66\u5668</option>
-              <option value="armor">\u9632\u5177</option>
-              <option value="accessory">\u30a2\u30af\u30bb\u30b5\u30ea</option>
-              <option value="other">\u305d\u306e\u4ed6</option>
-            </select>
-          </label>
-          <label>
             \u30ad\u30e3\u30c3\u30c1
             <input name="catch" type="text" maxlength="120" placeholder="\u4f1a\u5fc3\u7387\u30a2\u30c3\u30d7">
           </label>
@@ -99,7 +90,6 @@
         name: form.name.value.trim(),
         description: form.description.value.trim(),
         rarity: form.rarity.value || "SR",
-        slotType: form.slotType.value || "other",
         image,
         catch: form.catch.value.trim(),
         passiveText: form.passiveText.value.trim(),
@@ -146,7 +136,6 @@
       form.name.value = equipmentCard.name || "";
       form.description.value = equipmentCard.description || "";
       form.rarity.value = equipmentCard.rarity || "SR";
-      form.slotType.value = equipmentCard.slotType || "other";
       form.catch.value = equipmentCard.catch || "";
       form.passiveText.value = equipmentCard.passiveText || "";
       form.activeSkillName.value = equipmentCard.activeSkillName || "";
@@ -167,7 +156,6 @@
       getEditState().equipmentCardId = null;
       form.reset();
       renderEquipmentRarityOptions("SR");
-      form.slotType.value = "weapon";
       const preview = document.getElementById("equipment-card-preview");
       const image = document.getElementById("equipment-card-preview-img");
       if (preview) preview.hidden = true;
@@ -203,7 +191,7 @@
         <article class="editor-record-item">
           <div class="editor-record-item-top">
             <span class="editor-record-badge">\u88c5\u5099\u30ab\u30fc\u30c9</span>
-            <span class="editor-record-meta">${esc(card.slotType || "other")}</span>
+            <span class="editor-record-meta">${esc(card.rarity || "")}</span>
           </div>
           <h5>${esc(card.name)}</h5>
           <p>${esc(card.description || card.catch || "")}</p>

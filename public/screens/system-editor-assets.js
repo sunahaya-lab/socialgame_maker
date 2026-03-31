@@ -9,7 +9,8 @@
       setSelectedHomeFolderId,
       getHomeCustomPartsDraft,
       setHomeCustomPartsDraft,
-      renderFreePartsEditor,
+      getSelectedCustomPartId,
+      setSelectedCustomPartId,
       renderLayoutPresetPreview,
       escapeHtml,
       text
@@ -372,6 +373,125 @@
       renderFreePartsEditor();
     }
 
+    function addFreeHomePart() {
+      const assets = getAssetsForSelectedHomeFolder();
+      const firstAsset = assets[0]?.id ? `asset:${assets[0].id}` : "";
+      const scaleX = (Number(window.LayoutSchemaLib?.CANVAS_WIDTH) || 1080) / 480;
+      const scaleY = (Number(window.LayoutSchemaLib?.CANVAS_HEIGHT) || 1920) / 853;
+      const nextPart = {
+        id: `custom-home-part-${Date.now()}`,
+        assetId: firstAsset,
+        x: Math.round(120 * scaleX),
+        y: Math.round(120 * scaleY),
+        w: Math.round(120 * scaleX),
+        h: Math.round(120 * scaleY),
+        z: 60,
+        visible: true
+      };
+      setHomeCustomPartsDraft([...(getHomeCustomPartsDraft() || []), nextPart]);
+      setSelectedCustomPartId(nextPart.id);
+      renderFreePartsEditor();
+      renderLayoutPresetPreview();
+    }
+
+    function renderFreePartsEditor() {
+      const container = document.getElementById("system-home-free-parts");
+      if (!container) return;
+      const assets = getAssetsForSelectedHomeFolder();
+      const selectedCustomPartId = getSelectedCustomPartId();
+      const homeCustomPartsDraft = getHomeCustomPartsDraft();
+      const assetOptions = assets.map(asset =>
+        `<option value="asset:${asset.id}">${escapeHtml(asset.name || asset.id)}</option>`
+      ).join("");
+
+      if (homeCustomPartsDraft.length === 0) {
+        container.innerHTML = `<p class="layout-asset-library-empty">${escapeHtml(text("editor.emptyFreeParts", "フリーパーツはまだありません"))}</p>`;
+        return;
+      }
+
+      container.innerHTML = homeCustomPartsDraft.map(part => `
+        <article class="layout-free-part-card${part.id === selectedCustomPartId ? " is-active" : ""}" data-free-part-card="${part.id}">
+          <div class="layout-free-part-head">
+            <strong>${escapeHtml(part.id)}</strong>
+            <button type="button" class="btn-secondary" data-free-part-delete="${part.id}">削除</button>
+          </div>
+          <label>
+            アセット
+            <select data-free-part-asset="${part.id}">
+              <option value="">アセットを選択</option>
+              ${assetOptions}
+            </select>
+          </label>
+          <div class="layout-advanced-grid">
+            <label>X <input type="number" value="${Math.round(part.x)}" data-free-part-field="${part.id}" data-field="x"></label>
+            <label>Y <input type="number" value="${Math.round(part.y)}" data-free-part-field="${part.id}" data-field="y"></label>
+            <label>W <input type="number" value="${Math.round(part.w)}" data-free-part-field="${part.id}" data-field="w"></label>
+            <label>H <input type="number" value="${Math.round(part.h)}" data-free-part-field="${part.id}" data-field="h"></label>
+            <label>奥行き <input type="number" value="${Math.round(part.z)}" data-free-part-field="${part.id}" data-field="z"></label>
+          </div>
+          <label class="layout-advanced-visibility">
+            <input type="checkbox" data-free-part-visible="${part.id}" ${part.visible !== false ? "checked" : ""}>
+            表示
+          </label>
+        </article>
+      `).join("");
+
+      container.querySelectorAll("[data-free-part-card]").forEach(card => {
+        card.addEventListener("click", () => {
+          setSelectedCustomPartId(card.dataset.freePartCard || "");
+          renderFreePartsEditor();
+          renderLayoutPresetPreview();
+        });
+      });
+      container.querySelectorAll("[data-free-part-delete]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          deleteFreeHomePart(button.dataset.freePartDelete);
+        });
+      });
+      container.querySelectorAll("[data-free-part-asset]").forEach(select => {
+        const id = select.dataset.freePartAsset;
+        const part = homeCustomPartsDraft.find(item => item.id === id);
+        if (part) select.value = part.assetId || "";
+        select.addEventListener("change", event => updateFreeHomePart(id, { assetId: event.target.value || "" }));
+      });
+      container.querySelectorAll("[data-free-part-field]").forEach(input => {
+        input.addEventListener("input", event => {
+          const id = input.dataset.freePartField;
+          const field = input.dataset.field;
+          updateFreeHomePart(id, { [field]: Number(event.target.value || 0) });
+        });
+      });
+      container.querySelectorAll("[data-free-part-visible]").forEach(input => {
+        input.addEventListener("change", () => updateFreeHomePart(input.dataset.freePartVisible, { visible: input.checked }));
+      });
+    }
+
+    function updateFreeHomePart(id, patch) {
+      setHomeCustomPartsDraft((getHomeCustomPartsDraft() || []).map(part => {
+        if (part.id !== id) return part;
+        return {
+          ...part,
+          ...patch,
+          w: Math.max(0, Number((patch.w ?? part.w) || 0)),
+          h: Math.max(0, Number((patch.h ?? part.h) || 0))
+        };
+      }));
+      setSelectedCustomPartId(id || getSelectedCustomPartId());
+      renderFreePartsEditor();
+      renderLayoutPresetPreview();
+    }
+
+    function deleteFreeHomePart(id) {
+      const nextParts = (getHomeCustomPartsDraft() || []).filter(part => part.id !== id);
+      setHomeCustomPartsDraft(nextParts);
+      if (getSelectedCustomPartId() === id) {
+        setSelectedCustomPartId(nextParts[0]?.id || "");
+      }
+      renderFreePartsEditor();
+      renderLayoutPresetPreview();
+    }
+
     return {
       upsertHomeLayoutAsset,
       getHomeFolders,
@@ -387,7 +507,11 @@
       renderHomeAssetLibrary,
       applyLibraryAssetToRole,
       deleteLibraryAsset,
-      renameLibraryAsset
+      renameLibraryAsset,
+      addFreeHomePart,
+      renderFreePartsEditor,
+      updateFreeHomePart,
+      deleteFreeHomePart
     };
   }
 
