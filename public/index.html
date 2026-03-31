@@ -4,13 +4,44 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Socia Maker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+Rounded+1c:wght@400;500;700;800&family=Noto+Sans+JP:wght@400;500;700;900&family=Yusei+Magic&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap" rel="stylesheet">
   <!-- Active CSS source of truth: public/styles.css -->
+  <!-- Split CSS under public/styles/ is reference-only until runtime assembly is explicitly switched. -->
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Runtime entry safety notes
+    - index.html is still a high-risk boot file.
+    - Do not reorder runtime loading here unless the change is specifically about boot order.
+    - Script ownership is defined in bootstrap-script-manifest.js.
+    - Mainline lives under public/editor/ and public/core/; public/screens/ retains compatibility adapters.
+    - Safe changes here:
+      - comments
+      - DOM-only additions that do not affect loader order
+      - explicit source-of-truth annotations
+    - Unsafe changes here:
+      - script order changes
+      - removing adapter paths
+      - switching split CSS into runtime without a dedicated task
+  -->
+  <div class="app-stage">
   <div class="app-shell">
-    <div class="screen active" id="screen-home">
+    <div class="screen active" id="screen-title">
+      <div class="title-screen-bg" id="title-screen-bg"></div>
+      <button type="button" class="title-screen-hitarea" id="title-screen-hitarea" aria-label="タイトル画面を開始"></button>
+      <div class="title-screen-overlay" id="title-screen-overlay">
+        <img class="title-screen-logo" id="title-screen-logo" alt="" hidden>
+        <h1 class="title-screen-app-name" id="title-screen-app-name">Socia Maker</h1>
+        <button type="button" class="title-screen-start" id="title-screen-start">Press Start</button>
+      </div>
+    </div>
+
+    <div class="screen" id="screen-home">
       <div class="home-bg" id="home-bg"></div>
+      <audio id="home-bgm" loop></audio>
+      <audio id="battle-bgm" loop></audio>
 
       <div class="home-character" id="home-char-1"></div>
       <div class="home-character home-character-2" id="home-char-2"></div>
@@ -42,6 +73,10 @@
       </div>
 
       <div class="home-side-left">
+        <button type="button" class="home-side-btn" id="home-audio-settings-btn">
+          <span class="home-side-icon">&#x2699;&#xFE0F;</span>
+          <span>&#x8A2D;&#x5B9A;</span>
+        </button>
         <button type="button" class="home-side-btn" id="home-config-btn">
           <span class="home-side-icon">&#x1F3A8;</span>
           <span>&#x914d;&#x7f6e;</span>
@@ -65,6 +100,14 @@
           <p class="home-event-sub" id="home-event-sub">&#x65b0;&#x3057;&#x3044;&#x30ab;&#x30fc;&#x30c9;&#x3084;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;&#x3092;&#x8ffd;&#x52a0;&#x3057;&#x3066;&#x3001;&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x30d0;&#x30ca;&#x30fc;&#x306e;&#x898b;&#x305f;&#x76ee;&#x3082;&#x78ba;&#x8a8d;&#x3067;&#x304d;&#x307e;&#x3059;</p>
         </div>
       </div>
+
+      <section class="home-announcements" id="home-announcements" hidden>
+        <div class="home-announcements-head">
+          <span class="home-announcements-badge">NEWS</span>
+          <h3>お知らせ</h3>
+        </div>
+        <div class="home-announcements-list" id="home-announcements-list"></div>
+      </section>
 
       <div class="home-speech" id="home-speech">
         <p class="home-speech-name" id="home-speech-name"></p>
@@ -128,6 +171,27 @@
           </div>
         </div>
         <button class="btn-primary" id="home-config-save">&#x4fdd;&#x5b58;</button>
+      </div>
+      <div class="home-config-panel home-audio-settings-panel" id="home-audio-settings-panel" hidden>
+        <div class="home-config-head">
+          <h4>&#x97F3;&#x91CF;&#x8A2D;&#x5B9A;</h4>
+          <button type="button" class="home-config-close-icon" id="home-audio-settings-close" aria-label="&#x9589;&#x3058;&#x308b;">&times;</button>
+        </div>
+        <label class="home-audio-settings-field">
+          <span>&#xFF22;&#xFF27;&#xFF2D;</span>
+          <input type="range" id="home-audio-bgm" min="0" max="100" step="1" value="100">
+          <strong id="home-audio-bgm-val">100%</strong>
+        </label>
+        <label class="home-audio-settings-field">
+          <span>&#x4E00;&#x822C;&#x52B9;&#x679C;&#x97F3;</span>
+          <input type="range" id="home-audio-sfx" min="0" max="100" step="1" value="100">
+          <strong id="home-audio-sfx-val">100%</strong>
+        </label>
+        <label class="home-audio-settings-field">
+          <span>&#x4F1A;&#x8A71;&#x52B9;&#x679C;&#x97F3;</span>
+          <input type="range" id="home-audio-voice" min="0" max="100" step="1" value="100">
+          <strong id="home-audio-voice-val">100%</strong>
+        </label>
       </div>
       <div class="home-ticker">
         <span class="home-ticker-badge">INFO</span>
@@ -407,331 +471,7 @@
       </div>
     </div>
 
-    <div class="screen" id="screen-editor">
-      <div class="editor-panel" id="editor-base-char">
-        <p class="editor-desc">&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x30d7;&#x30ed;&#x30d5;&#x30a3;&#x30fc;&#x30eb;&#x3084;&#x30dc;&#x30a4;&#x30b9;&#x3092;&#x767b;&#x9332;&#x3057;&#x307e;&#x3059;</p>
-
-        <form id="base-char-form" class="editor-form">
-          <label>
-            &#x540d;&#x524d;
-            <input name="name" type="text" maxlength="30" placeholder="&#x30ad;&#x30e3;&#x30e9;&#x540d;" required>
-          </label>
-          <label>
-            &#x8aac;&#x660e;
-            <input name="description" type="text" maxlength="80" placeholder="&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x7d39;&#x4ecb;&#x6587;">
-          </label>
-          <label>
-            &#x8a95;&#x751f;&#x65e5;
-            <input name="birthday" type="text" maxlength="5" placeholder="08-15">
-          </label>
-          <label>
-            &#x30a4;&#x30e1;&#x30fc;&#x30b8;&#x30ab;&#x30e9;&#x30fc;
-            <input name="color" type="color" value="#a29bfe">
-          </label>
-          <label class="upload-field">
-            &#x901a;&#x5e38;&#x7acb;&#x3061;&#x7d75;
-            <input name="portrait" type="file" accept="image/*">
-          </label>
-          <div class="editor-preview" id="base-char-preview" hidden>
-            <img id="base-char-preview-img" alt="&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;">
-          </div>
-          <div class="expressions-editor">
-            <h4>&#x8868;&#x60c5;&#x5dee;&#x5206;</h4>
-            <div id="expression-list" class="expression-list"></div>
-            <button type="button" class="btn-secondary" id="add-expression-btn">+ &#x8868;&#x60c5;&#x5dee;&#x5206;&#x3092;&#x8ffd;&#x52a0;</button>
-          </div>
-          <div class="variants-editor">
-            <h4>&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x5dee;&#x5206;&#x7acb;&#x3061;&#x7d75;</h4>
-            <div id="variant-list" class="expression-list"></div>
-            <button type="button" class="btn-secondary" id="add-variant-btn">+ &#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x5dee;&#x5206;&#x3092;&#x8ffd;&#x52a0;</button>
-          </div>
-          <details class="editor-collapsible">
-            <summary>&#x30bb;&#x30ea;&#x30d5;&#x8a2d;&#x5b9a;</summary>
-            <div class="voice-lines-editor">
-              <h4>&#x30ad;&#x30e3;&#x30e9;&#x30dc;&#x30a4;&#x30b9;</h4>
-              <div id="voice-line-fields" class="voice-line-fields"></div>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x30db;&#x30fc;&#x30e0;&#x30dc;&#x30a4;&#x30b9;</h4>
-              <div id="home-voice-line-fields" class="voice-line-fields"></div>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x3007;&#x3007;&#x306b;&#x3064;&#x3044;&#x3066;</h4>
-              <div id="home-opinion-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-home-opinion-btn">+ &#x9805;&#x76ee;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x304b;&#x3051;&#x3042;&#x3044;</h4>
-              <div id="home-conversation-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ &#x304b;&#x3051;&#x3042;&#x3044;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;</h4>
-              <div id="home-birthday-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ &#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-          </details>
-          <button type="submit" class="btn-primary">&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x3092;&#x4fdd;&#x5b58;</button>
-        </form>
-
-        <div class="base-char-list-section">
-          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;</h4>
-          <div id="base-char-list" class="base-char-list"></div>
-        </div>
-      </div>
-
-      <div class="editor-panel" id="editor-character">
-        <p class="editor-desc">&#x30ac;&#x30c1;&#x30e3;&#x3084;&#x30b3;&#x30ec;&#x30af;&#x30b7;&#x30e7;&#x30f3;&#x306b;&#x8868;&#x793a;&#x3059;&#x308b;&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x767b;&#x9332;&#x3057;&#x307e;&#x3059;&#x3002;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x7d10;&#x3065;&#x3051;&#x308b;&#x3068;&#x3001;&#x672a;&#x8a2d;&#x5b9a;&#x306e;&#x30bb;&#x30ea;&#x30d5;&#x306f;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x5074;&#x306e;&#x5024;&#x3092;&#x6d41;&#x7528;&#x3067;&#x304d;&#x307e;&#x3059;</p>
-
-        <form id="character-form" class="editor-form">
-          <div class="editor-form-actions-top">
-            <button type="button" class="editor-inline-btn" id="character-form-clear-btn">&#x5165;&#x529b;&#x3092;&#x30af;&#x30ea;&#x30a2;</button>
-          </div>
-          <label>
-            &#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x9078;&#x629e;
-            <select name="baseCharId" id="card-base-char-select">
-              <option value="">-- &#x9078;&#x629e;&#x306a;&#x3057; --</option>
-            </select>
-          </label>
-          <label>
-            &#x30ab;&#x30fc;&#x30c9;&#x540d;
-            <input name="name" type="text" maxlength="40" placeholder="&#x30ab;&#x30fc;&#x30c9;&#x540d;" required>
-          </label>
-          <label>
-            &#x30d5;&#x30a9;&#x30eb;&#x30c0;
-            <select name="folderId">
-              <option value="">-- &#x672a;&#x5206;&#x985e; --</option>
-            </select>
-          </label>
-          <label>
-            &#x30ad;&#x30e3;&#x30c3;&#x30c1;&#x30b3;&#x30d4;&#x30fc;
-            <input name="catch" type="text" maxlength="80" placeholder="&#x30ab;&#x30fc;&#x30c9;&#x306e;&#x4e00;&#x8a00;&#x8aac;&#x660e;" required>
-          </label>
-          <label>
-            &#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;
-            <select name="rarity" id="character-rarity-select"></select>
-          </label>
-          <label>
-            &#x5c5e;&#x6027;
-            <select name="attribute">
-              <option value="&#x708e;">&#x708e;</option>
-              <option value="&#x96f7;">&#x96f7;</option>
-              <option value="&#x98a8;">&#x98a8;</option>
-              <option value="&#x6c34;">&#x6c34;</option>
-              <option value="&#x5730;">&#x5730;</option>
-              <option value="&#x5149;">&#x5149;</option>
-              <option value="&#x95c7;">&#x95c7;</option>
-              <option value="&#x7121;">&#x7121;</option>
-            </select>
-          </label>
-          <label class="upload-field">
-            &#x30ab;&#x30fc;&#x30c9;&#x753b;&#x50cf;
-            <input name="image" type="file" accept="image/*">
-          </label>
-          <div class="editor-form-actions-inline">
-            <button type="button" class="editor-inline-btn" id="character-image-clear-btn">&#x753b;&#x50cf;&#x3092;&#x30af;&#x30ea;&#x30a2;</button>
-          </div>
-          <div class="editor-preview" id="char-preview" hidden>
-            <img id="char-preview-img" alt="&#x30ab;&#x30fc;&#x30c9;&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;">
-          </div>
-          <details class="editor-collapsible">
-            <summary>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x306e;&#x30bb;&#x30ea;&#x30d5;&#x8a2d;&#x5b9a;</summary>
-            <div class="voice-lines-editor">
-              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x30dc;&#x30a4;&#x30b9;</h4>
-              <div id="card-voice-line-fields" class="voice-line-fields"></div>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x30db;&#x30fc;&#x30e0;&#x30dc;&#x30a4;&#x30b9;</h4>
-              <div id="card-home-voice-line-fields" class="voice-line-fields"></div>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x3007;&#x3007;&#x306b;&#x3064;&#x3044;&#x3066;</h4>
-              <div id="card-home-opinion-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-card-home-opinion-btn">+ &#x9805;&#x76ee;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x304b;&#x3051;&#x3042;&#x3044;</h4>
-              <div id="card-home-conversation-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-card-home-conversation-btn">+ &#x304b;&#x3051;&#x3042;&#x3044;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-            <div class="voice-lines-editor">
-              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;</h4>
-              <div id="card-home-birthday-list" class="relation-line-list"></div>
-              <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ &#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;&#x3092;&#x8ffd;&#x52a0;</button>
-            </div>
-          </details>
-          <button type="submit" class="btn-primary">&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x4fdd;&#x5b58;</button>
-        </form>
-
-        <div class="editor-list-section">
-          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30ab;&#x30fc;&#x30c9;</h4>
-          <div id="editor-character-list" class="editor-record-list editor-record-list-cards"></div>
-        </div>
-      </div>
-
-      <div class="editor-panel" id="editor-equipment-card"></div>
-
-      <div class="editor-panel" id="editor-story">
-        <form id="story-form" class="editor-form">
-          <label>
-            &#x30bf;&#x30a4;&#x30c8;&#x30eb;
-            <input name="title" type="text" maxlength="60" placeholder="&#x7b2c;1&#x8a71; &#x306a;&#x3069;" required>
-          </label>
-          <label>
-            &#x7a2e;&#x5225;
-            <select name="type">
-              <option value="main">&#x30e1;&#x30a4;&#x30f3;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
-              <option value="event">&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
-              <option value="character">&#x30ad;&#x30e3;&#x30e9;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
-            </select>
-          </label>
-          <label id="story-character-select-wrap" hidden>
-            &#x5bfe;&#x8c61;&#x30ab;&#x30fc;&#x30c9;
-            <select name="entryId" id="story-character-select">
-              <option value="">&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x9078;&#x629e;</option>
-            </select>
-          </label>
-          <label>
-            BGM URL
-            <input name="bgm" type="url" placeholder="https://example.com/bgm.mp3">
-          </label>
-          <label>
-            &#x4e26;&#x3073;&#x9806;
-            <input name="sortOrder" type="number" min="0" step="1" value="0">
-          </label>
-          <div class="story-variant-defaults">
-            <h4>&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x7acb;&#x3061;&#x7d75;&#x306e;&#x65e2;&#x5b9a;&#x8a2d;&#x5b9a;</h4>
-            <div id="story-variant-default-list" class="story-variant-default-list"></div>
-          </div>
-          <div class="story-scenes-editor">
-            <h4>&#x30b7;&#x30fc;&#x30f3;</h4>
-            <div id="scene-list" class="scene-list"></div>
-            <button type="button" class="btn-secondary" id="add-scene-btn">+ &#x30b7;&#x30fc;&#x30f3;&#x3092;&#x8ffd;&#x52a0;</button>
-          </div>
-          <button type="submit" class="btn-primary">&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;&#x3092;&#x4fdd;&#x5b58;</button>
-        </form>
-
-        <div class="editor-list-section">
-          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</h4>
-          <div id="editor-story-list" class="editor-record-list"></div>
-        </div>
-      </div>
-
-      <div class="editor-panel" id="editor-gacha">
-        <form id="gacha-form" class="editor-form">
-          <label>
-            &#x30ac;&#x30c1;&#x30e3;&#x7a2e;&#x5225;
-            <select name="gachaType" id="gacha-type-select">
-              <option value="character">&#x30ad;&#x30e3;&#x30e9;&#x30ac;&#x30c1;&#x30e3;</option>
-              <option value="equipment">&#x88c5;&#x5099;&#x30ac;&#x30c1;&#x30e3;</option>
-            </select>
-          </label>
-          <label>
-            &#x30ac;&#x30c1;&#x30e3;&#x540d;
-            <input name="title" type="text" maxlength="40" placeholder="&#x6625;&#x30d5;&#x30a7;&#x30b9;&#x30ac;&#x30c1;&#x30e3;" required>
-          </label>
-          <label>
-            &#x8aac;&#x660e;
-            <input name="description" type="text" maxlength="80" placeholder="SSR&#x6392;&#x51fa;&#x7387;&#x30a2;&#x30c3;&#x30d7; &#x306a;&#x3069;">
-          </label>
-          <label>
-            &#x30d0;&#x30ca;&#x30fc;&#x753b;&#x50cf;
-            <input name="bannerImage" type="file" accept="image/*">
-          </label>
-
-          <label>
-            &#x30ac;&#x30c1;&#x30e3;&#x8868;&#x793a;&#x65b9;&#x5f0f;
-            <select name="displayMode" id="gacha-display-mode">
-              <option value="featuredCards">&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;SSR&#x81ea;&#x52d5;&#x8868;&#x793a;</option>
-              <option value="manualImages">&#x4efb;&#x610f;&#x753b;&#x50cf;&#x3092;&#x8868;&#x793a;</option>
-            </select>
-          </label>
-          <div class="gacha-visual-editor" id="gacha-visual-editor">
-            <label>
-              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;1
-              <input name="heroImage1" type="file" accept="image/*">
-            </label>
-            <label>
-              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;2
-              <input name="heroImage2" type="file" accept="image/*">
-            </label>
-            <label>
-              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;3
-              <input name="heroImage3" type="file" accept="image/*">
-            </label>
-            <p class="editor-help">&#x81ea;&#x52d5;&#x8868;&#x793a;&#x3067;&#x306f;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;SSR&#x3092;&#x4f7f;&#x3044;&#x3001;&#x4efb;&#x610f;&#x753b;&#x50cf;&#x8868;&#x793a;&#x3067;&#x306f;&#x767b;&#x9332;&#x753b;&#x50cf;&#x3092;&#x6700;&#x5927;3&#x679a;&#x307e;&#x3067;&#x4e26;&#x3079;&#x307e;&#x3059;</p>
-          </div>
-
-          <p class="editor-note" id="gacha-type-note">&#x30ad;&#x30e3;&#x30e9;&#x30ac;&#x30c1;&#x30e3;&#x3067;&#x306f;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;&#x5019;&#x88dc;&#x306e;&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x9078;&#x3079;&#x307e;&#x3059;</p>
-          <div class="gacha-pool-selector" id="gacha-pool-selector">
-            <h4 id="gacha-pool-title">&#x30ad;&#x30e3;&#x30e9;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;</h4>
-            <div id="gacha-pool-chars" class="gacha-pool-chars"></div>
-          </div>
-
-          <h4>&#x6392;&#x51fa;&#x7387;</h4>
-          <div class="rate-inputs" id="gacha-rate-inputs"></div>
-
-          <button type="submit" class="btn-primary">&#x30ac;&#x30c1;&#x30e3;&#x3092;&#x4fdd;&#x5b58;</button>
-        </form>
-
-        <div class="editor-list-section">
-          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30ac;&#x30c1;&#x30e3;</h4>
-          <div id="editor-gacha-list" class="editor-record-list"></div>
-        </div>
-      </div>
-
-      <div class="editor-panel" id="editor-system">
-        <p class="editor-desc">&#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;&#x65b9;&#x5f0f;&#x3001;&#x88c5;&#x5099;&#x3001;&#x753b;&#x9762;&#x306e;&#x5411;&#x304d;&#x3001;&#x6226;&#x95d8;&#x30b7;&#x30b9;&#x30c6;&#x30e0;&#x3001;&#x6226;&#x95d8;&#x8868;&#x793a;&#x3092;&#x8abf;&#x6574;&#x3057;&#x307e;&#x3059;</p>
-
-        <form id="system-form" class="editor-form">
-          <label>
-            &#x753b;&#x9762;&#x5411;&#x304d;
-            <select name="orientation">
-              <option value="portrait">&#x7e26;&#x5411;&#x304d;</option>
-              <option value="landscape">&#x6a2a;&#x5411;&#x304d;</option>
-              <option value="fullscreen">&#x5168;&#x753b;&#x9762;</option>
-            </select>
-          </label>
-          <label>
-            &#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;&#x65b9;&#x5f0f;
-            <select name="rarityMode">
-              <option value="classic4">R&#x65b9;&#x5f0f;4&#x6bb5;&#x968e; (N / R / SR / SSR)</option>
-              <option value="stars5">&#x661f;5&#x6bb5;&#x968e; (&#x2605; / &#x2605;&#x2605; / &#x2605;&#x2605;&#x2605; / &#x2605;&#x2605;&#x2605;&#x2605; / &#x2605;&#x2605;&#x2605;&#x2605;&#x2605;)</option>
-            </select>
-          </label>
-          <label>
-            &#x88c5;&#x5099;
-            <select name="gachaCatalogMode" id="system-gacha-catalog-mode-select">
-              <option value="characters_only">&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x307f;</option>
-              <option value="mixed_shared">&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x88c5;&#x5099; &#x540c;&#x3058;&#x30ac;&#x30c1;&#x30e3;</option>
-              <option value="split_catalogs">&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x88c5;&#x5099; &#x5225;&#x30ac;&#x30c1;&#x30e3;</option>
-            </select>
-          </label>
-          <label>
-            &#x6226;&#x95d8;&#x30b7;&#x30b9;&#x30c6;&#x30e0;
-            <select name="battleMode" id="system-battle-mode-select">
-              <option value="fullAuto">&#x30d5;&#x30eb;&#x30aa;&#x30fc;&#x30c8;</option>
-              <option value="semiAuto">&#x30bb;&#x30df;&#x30aa;&#x30fc;&#x30c8;</option>
-            </select>
-          </label>
-          <label>
-            &#x6226;&#x95d8;&#x8868;&#x793a;
-            <select name="battleVisualMode" id="system-battle-visual-mode-select">
-              <option value="cardIllustration">&#x30ab;&#x30fc;&#x30c9;&#x30a4;&#x30e9;&#x30b9;&#x30c8;</option>
-              <option value="sdCharacter">SD&#x30ad;&#x30e3;&#x30e9;</option>
-            </select>
-          </label>
-
-          <div class="system-preview">
-            <h4>&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;</h4>
-            <div class="system-preview-list" id="system-rarity-preview"></div>
-          </div>
-
-          <p class="editor-note">&#x8a2d;&#x5b9a;&#x3092;&#x5207;&#x308a;&#x66ff;&#x3048;&#x308b;&#x3068;&#x3001;&#x30ab;&#x30fc;&#x30c9;&#x4f5c;&#x6210;&#x30d5;&#x30a9;&#x30fc;&#x30e0;&#x3084;&#x30ac;&#x30c1;&#x30e3;&#x6392;&#x51fa;&#x7387;&#x306e;&#x8868;&#x793a;&#x3082;&#x9023;&#x52d5;&#x3057;&#x3066;&#x5909;&#x308f;&#x308a;&#x307e;&#x3059;</p>
-          <button type="submit" class="btn-primary">&#x30b2;&#x30fc;&#x30e0;&#x30b7;&#x30b9;&#x30c6;&#x30e0;&#x3092;&#x4fdd;&#x5b58;</button>
-        </form>
-      </div>
-    </div>
+    <div id="editor-screen-mount"></div>
 
     <nav class="bottom-nav">
       <button type="button" class="bottom-nav-btn active" data-go="home">
@@ -756,77 +496,18 @@
       </button>
     </nav>
   </div>
+  </div>
 
-  <!-- Active frontend runtime path: shared libraries -->
-  <script src="lib/rarity.js"></script>
-  <script src="lib/storage.js"></script>
-  <script src="api/client.js"></script>
-  <script src="lib/image.js"></script>
-  <script src="lib/toast.js"></script>
-  <script src="lib/ui-text.js"></script>
-  <script src="lib/attribute.js"></script>
-  <script src="lib/app-mode.js"></script>
-  <script src="lib/app-state.js"></script>
-  <script src="lib/player-state.js"></script>
-  <script src="lib/app-runtime.js"></script>
-  <script src="lib/app-data.js"></script>
-  <script src="lib/app-ui.js"></script>
-  <script src="lib/app-home.js"></script>
-  <script src="lib/app-editor.js"></script>
-  <script src="lib/battle-controller.js"></script>
-  <script src="lib/battle-engine.js"></script>
-  <script src="lib/battle-state.js"></script>
-  <script src="lib/battle-view.js"></script>
-  <script src="lib/content-state.js"></script>
-  <script src="lib/editor-runtime.js"></script>
-  <script src="lib/layout-bridge.js"></script>
-  <script src="lib/layout-schema.js"></script>
-  <script src="lib/layout-runtime.js"></script>
-  <script src="lib/layout-renderer.js"></script>
-  <script src="lib/layout-presets.js"></script>
+  <!-- Runtime: DOM partial loader -->
+  <!-- owner: shell/dom boot only -->
+  <!-- danger: if this moves, partial injection timing changes before script boot -->
+  <script src="bootstrap-dom-loader.js"></script>
 
-  <!-- Active frontend runtime path: screen modules -->
-  <script src="screens/collection-screen.js"></script>
-  <script src="screens/formation-battle-entry.js"></script>
-  <script src="screens/formation-screen.js"></script>
-  <script src="screens/gacha-screen.js"></script>
-  <script src="screens/battle-screen.js"></script>
-  <script src="screens/home-screen.js"></script>
-  <script src="screens/home-layout-overlay.js"></script>
-
-  <!-- Stage 1 home workspace split -->
-  <script src="screens/home-workspace-windows.js"></script>
-  <script src="screens/home-workspace-assets.js"></script>
-  <script src="screens/home-workspace-parts.js"></script>
-  <script src="screens/home-edit-workspace.js"></script>
-  <script src="screens/story-screen.js"></script>
-  <script src="screens/event-screen.js"></script>
-  <script src="screens/home-config.js"></script>
-
-  <!-- Stage 1 system editor split -->
-  <script src="screens/system-editor-preview.js"></script>
-  <script src="screens/system-editor-assets.js"></script>
-  <script src="screens/system-editor.js"></script>
-  <script src="screens/entry-editor.js"></script>
-  <script src="screens/equipment-card-editor.js"></script>
-  <script src="screens/base-char-editor.js"></script>
-  <script src="screens/story-editor.js"></script>
-  <script src="screens/editor-screen.js"></script>
-  <script src="screens/editor-dashboard-screen.js"></script>
-  <script src="screens/editor-project-sections.js"></script>
-  <script src="screens/editor-base-char-host.js"></script>
-  <script src="screens/editor-character-host.js"></script>
-  <script src="screens/editor-story-host.js"></script>
-  <script src="screens/editor-gacha-host.js"></script>
-  <script src="screens/editor-system-host.js"></script>
-  <script src="screens/editor-section-host-registry.js"></script>
-  <script src="screens/editor-legacy-host.js"></script>
-  <script src="screens/editor-share-screen.js"></script>
-  <script src="screens/editor-member-screen.js"></script>
-  <script src="screens/editor-v1-host.js"></script>
-  <script src="screens/editor-screen-v1.js"></script>
-
-  <!-- Active frontend bootstrap entry. app.legacy.js is not loaded at runtime. -->
-  <script src="app.js" data-active-runtime="bootstrap"></script>
+  <!-- Runtime: script manifest + loader -->
+  <!-- owner: boot/runtime work only -->
+  <!-- source of truth for runtime order: bootstrap-script-manifest.js -->
+  <!-- do not reorder or bypass these loaders during incremental refactor -->
+  <script src="bootstrap-script-manifest.js"></script>
+  <script src="bootstrap-script-loader.js"></script>
 </body>
 </html>
