@@ -3,9 +3,19 @@
     return {
       rarityMode: defaultRarityMode,
       gachaCatalogMode: "characters_only",
+      equipmentMode: "disabled",
       orientation: "portrait",
+      fontPreset: "zen-kaku-gothic-new",
       battleMode: "fullAuto",
       battleVisualMode: "cardIllustration",
+      titleScreen: {
+        version: 1,
+        enabled: true,
+        backgroundImage: "",
+        logoImage: "",
+        pressStartText: "Press Start",
+        tapToStartEnabled: true
+      },
       eventConfig: {
         enabled: false,
         title: "",
@@ -55,6 +65,10 @@
       assetFolders: {
         home: []
       },
+      musicAssets: [],
+      homeBgmAssetId: "",
+      battleBgmAssetId: "",
+      titleMasters: [],
       cardFolders: [],
       storyFolders: []
     };
@@ -75,6 +89,10 @@
         projectId: projectId || null,
         userId,
         displayName: "",
+        birthday: "",
+        unlockedTitleIds: [],
+        titles: [],
+        activeTitleId: "",
         lastActiveAt: null,
         createdAt: null,
         updatedAt: null
@@ -86,6 +104,11 @@
       gachaHistory: [],
       storyProgress: [],
       homePreferences: null,
+      audioSettings: {
+        bgmVolume: 100,
+        sfxVolume: 100,
+        voiceVolume: 100
+      },
       loginBonuses: {},
       eventExchangePurchases: {},
       eventItems: {},
@@ -181,9 +204,7 @@
 
   function normalizeAssetFolderRecord(folder, index = 0, fallbackOwnerId = "local-editor") {
     if (!folder || typeof folder !== "object") return null;
-    const kind = folder.kind === "shared"
-      ? "shared"
-      : folder.kind === "team_owned"
+    const kind = folder.kind === "shared" || folder.kind === "team_owned"
         ? "team_owned"
         : "personal";
     const id = String(folder.id || "").trim().slice(0, 80);
@@ -197,10 +218,10 @@
         ? (String(folder.ownerMemberId || fallbackOwnerId || "local-editor").trim().slice(0, 80) || "local-editor")
         : null,
       kind,
-      assetIds: kind === "shared"
+      assetIds: kind === "team_owned" && Array.isArray(folder.sourceRefs) && folder.sourceRefs.length > 0
         ? []
         : Array.from(new Set((Array.isArray(folder.assetIds) ? folder.assetIds : []).map(value => String(value || "").trim()).filter(Boolean))),
-      sourceRefs: kind === "shared" ? normalizeFolderSourceRefs(folder.sourceRefs) : [],
+      sourceRefs: kind === "team_owned" ? normalizeFolderSourceRefs(folder.sourceRefs) : [],
       sortOrder: Math.max(0, Number(folder.sortOrder ?? index) || 0),
       createdAt: String(folder.createdAt || now),
       updatedAt: String(folder.updatedAt || folder.createdAt || now)
@@ -244,7 +265,7 @@
   }
 
   function resolveSharedAssetFolderAssets(folder, allFolders = [], allAssets = [], fallbackOwnerId = "local-editor") {
-    if (!folder || folder.kind !== "shared") return [];
+    if (!folder || folder.kind !== "team_owned" || !Array.isArray(folder.sourceRefs) || folder.sourceRefs.length === 0) return [];
     const assetMap = new Map(
       (Array.isArray(allAssets) ? allAssets : [])
         .map(asset => normalizeLayoutAssetRecord(asset, fallbackOwnerId))
@@ -281,7 +302,7 @@
       ? allFolders.find(item => item.id === folderOrId)
       : folderOrId;
     if (!folder) return [];
-    if (folder.kind === "shared") {
+    if (folder.kind === "team_owned" && Array.isArray(folder.sourceRefs) && folder.sourceRefs.length > 0) {
       return resolveSharedAssetFolderAssets(folder, allFolders, allAssets, ownerMemberId);
     }
     return (folder.assetIds || []).map(assetId => assetMap.get(assetId)).filter(Boolean);

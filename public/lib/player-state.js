@@ -109,6 +109,15 @@
     };
   }
 
+  function normalizeAudioSettings(settings, defaults = {}) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    return {
+      bgmVolume: Math.min(100, Math.max(0, Number(source.bgmVolume ?? defaults.bgmVolume ?? 100) || 0)),
+      sfxVolume: Math.min(100, Math.max(0, Number(source.sfxVolume ?? defaults.sfxVolume ?? 100) || 0)),
+      voiceVolume: Math.min(100, Math.max(0, Number(source.voiceVolume ?? defaults.voiceVolume ?? 100) || 0))
+    };
+  }
+
   function mergePlayerState(remoteState, localState, defaults) {
     const merged = {
       ...(defaults || {}),
@@ -116,9 +125,11 @@
       ...(remoteState || {})
     };
 
-    merged.profile = remoteState?.profile?.id
-      ? remoteState.profile
-      : (localState?.profile || merged.profile);
+    merged.profile = {
+      ...(defaults?.profile || {}),
+      ...(localState?.profile || {}),
+      ...(remoteState?.profile?.id ? remoteState.profile : {})
+    };
     merged.inventory = mergeByKey(remoteState?.inventory, localState?.inventory, "cardId", mergeInventoryItem);
     merged.storyProgress = mergeByKey(remoteState?.storyProgress, localState?.storyProgress, "storyId", mergeStoryProgressItem);
     merged.gachaHistory = mergeByKey(remoteState?.gachaHistory, localState?.gachaHistory, "id");
@@ -129,6 +140,10 @@
       defaults?.currencies || []
     );
     merged.homePreferences = remoteState?.homePreferences || localState?.homePreferences || null;
+    merged.audioSettings = normalizeAudioSettings(
+      localState?.audioSettings || remoteState?.audioSettings || {},
+      defaults?.audioSettings || {}
+    );
     merged.loginBonuses = remoteState?.loginBonuses && typeof remoteState.loginBonuses === "object"
       ? remoteState.loginBonuses
       : (localState?.loginBonuses || {});
@@ -162,6 +177,7 @@
     normalizePlayerCurrencies,
     getRecoveredCurrency,
     normalizeHomePreferences,
+    normalizeAudioSettings,
     mergePlayerState,
     formatCurrencyBalance
   };

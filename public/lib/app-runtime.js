@@ -4,6 +4,7 @@
       getProjects,
       setProjects,
       getCurrentProjectId,
+      getCurrentPlayerId,
       setCurrentProjectId,
       getCurrentMode,
       setCurrentMode,
@@ -44,65 +45,85 @@
       esc
     } = deps;
 
-    function setupProjectControls() {
-      const nameEl = document.getElementById("home-player-name");
-      if (!nameEl || document.getElementById("project-select")) return;
-      const host = nameEl.parentElement;
-      const controls = document.createElement("div");
-      controls.className = "project-controls";
-      controls.innerHTML = `
-        <select id="project-select" aria-label="プロジェクトを選択"></select>
-        <button type="button" class="project-create-btn" id="project-create-btn">+</button>
-      `;
-      host.appendChild(controls);
+    const projectRuntimeApi = window.AppProjectRuntimeLib?.create?.({
+      apiUrl,
+      API,
+      getCurrentPlayerId,
+      getProjects,
+      setProjects,
+      getCurrentProjectId,
+      getCurrentProject,
+      makeProjectRecord,
+      normalizeProjectRecord,
+      postJSON,
+      saveProjectRegistry,
+      resetEditState,
+      syncProjectQuery,
+      renderProjectControls: () => renderProjectControlsImpl(),
+      loadAllData,
+      resetEditorForms,
+      renderAll,
+      esc
+    });
 
-      document.getElementById("project-select")?.addEventListener("change", async event => {
-        const nextProjectId = event.target.value;
-        if (!nextProjectId || nextProjectId === getCurrentProjectId()) return;
-        await switchProject(nextProjectId);
+    const navigationRuntimeApi = window.AppNavigationRuntimeLib?.create?.({
+      getCurrentProjectId,
+      getCurrentMode,
+      setCurrentMode,
+      applyAppMode,
+      getCurrentScreen,
+      setCurrentScreen,
+      getFormationScreen,
+      getGachaScreen,
+      getStoryScreen,
+      getEventScreen,
+      getCollectionScreen,
+      renderHome,
+      renderBattleScreen,
+      renderGachaScreen,
+      renderStoryScreen,
+      renderEventScreen,
+      renderCollectionScreen,
+      renderFormationScreen,
+      startBattleLoop,
+      stopBattleLoop,
+      closeHomeEditMode,
+      showToast
+    });
+
+    function buildProjectsApiUrl() {
+      return projectRuntimeApi?.buildProjectsApiUrl?.() || apiUrl(API.projects, {
+        includeProject: false,
+        query: { user: getCurrentPlayerId?.() }
       });
-
-      document.getElementById("project-create-btn")?.addEventListener("click", handleCreateProject);
     }
 
-    async function initializeProjects() {
-      const localProjects = loadProjectRegistry("socia-projects", []);
-      const localCurrentProjectId = loadProjectRegistry("socia-current-project-id", null);
-      const remoteProjects = await fetchJSON(apiUrl(API.projects, { includeProject: false }))
-        .then(data => data.projects || [])
-        .catch(() => null);
+    function persistProjectSelection() {
+      return projectRuntimeApi?.persistProjectSelection?.();
+    }
 
-      let projects = mergeCollectionState(remoteProjects, localProjects).map(normalizeProjectRecord);
+    async function reloadProjectRuntime() {
+      return projectRuntimeApi?.reloadProjectRuntime?.();
+    }
 
-      if (projects.length === 0) {
-        const defaultProject = makeProjectRecord("マイプロジェクト");
-        projects = [defaultProject];
-        saveProjectRegistry("socia-projects", projects);
-        try {
-          await postJSON(apiUrl(API.projects, { includeProject: false }), defaultProject);
-        } catch (error) {
-          console.error("Failed to create default project:", error);
-        }
-      }
+    function bindProjectControls() {
+      return projectRuntimeApi?.bindProjectControls?.({ switchProject, handleCreateProject });
+    }
 
-      setProjects(projects);
-      setCurrentProjectId(selectInitialProjectId(localCurrentProjectId));
-      saveProjectRegistry("socia-projects", getProjects());
-      saveProjectRegistry("socia-current-project-id", getCurrentProjectId());
-      syncProjectQuery();
-      renderProjectControlsImpl();
+    function upsertProjectInState(projectId, nextProject) {
+      return projectRuntimeApi?.upsertProjectInState?.(projectId, nextProject);
+    }
+
+    async function syncProjectRecordToRemote(project) {
+      return projectRuntimeApi?.syncProjectRecordToRemote?.(project);
+    }
+
+    function setupProjectControls() {
+      return projectRuntimeApi?.setupProjectControls?.({ bindProjectControls });
     }
 
     function renderProjectControlsImpl() {
-      const nameEl = document.getElementById("home-player-name");
-      const select = document.getElementById("project-select");
-      if (nameEl) {
-        nameEl.textContent = getCurrentProject()?.name || "プロジェクト";
-      }
-      if (!select) return;
-      select.innerHTML = getProjects().map(project =>
-        `<option value="${esc(project.id)}"${project.id === getCurrentProjectId() ? " selected" : ""}>${esc(project.name)}</option>`
-      ).join("");
+      return projectRuntimeApi?.renderProjectControlsImpl?.();
     }
 
     function selectInitialProjectId(localCurrentProjectId) {
@@ -112,132 +133,122 @@
       return next || null;
     }
 
+    async function initializeProjects() {
+      const localProjects = loadProjectRegistry("socia-projects", []);
+      const localCurrentProjectId = loadProjectRegistry("socia-current-project-id", null);
+      const remoteProjects = await fetchJSON(buildProjectsApiUrl())
+        .then(data => data.projects || [])
+        .catch(() => null);
+
+      let projects = mergeCollectionState(remoteProjects, localProjects).map(normalizeProjectRecord);
+
+      if (projects.length === 0) {
+        projects = await projectRuntimeApi?.ensureDefaultProject?.({
+          showCreateError: error => {
+            console.error("Failed to create default project:", error);
+          }
+        }) || [];
+      }
+
+      setProjects(projects);
+      setCurrentProjectId(selectInitialProjectId(localCurrentProjectId));
+      persistProjectSelection();
+      syncProjectQuery();
+      renderProjectControlsImpl();
+    }
+
     async function handleCreateProject() {
-      const input = prompt("\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u540d");
+      const input = prompt("プロジェクト名");
       const name = String(input || "").trim();
       if (!name) return;
 
-      const project = makeProjectRecord(name);
-      const projects = [...getProjects(), project];
-      setProjects(projects);
-      saveProjectRegistry("socia-projects", projects);
+      const project = projectRuntimeApi?.createProjectLocally?.(name);
+      if (!project) return;
 
       try {
-        const response = await postJSON(apiUrl(API.projects, { includeProject: false }), project);
-        const savedProject = normalizeProjectRecord(response.project || project);
-        setProjects(getProjects().map(item => item.id === project.id ? savedProject : item));
+        const savedProject = await syncProjectRecordToRemote(project);
+        upsertProjectInState(project.id, savedProject);
         setCurrentProjectId(savedProject.id);
       } catch (error) {
         console.error("Failed to create project:", error);
         setCurrentProjectId(project.id);
-        showToast("\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306f\u30ed\u30fc\u30ab\u30eb\u306b\u306e\u307f\u4f5c\u6210\u3055\u308c\u307e\u3057\u305f");
+        showToast("プロジェクトはローカルにのみ作成されました");
+      }
+
+      persistProjectSelection();
+      await reloadProjectRuntime();
+      showToast("プロジェクトを作成しました");
+    }
+
+    async function renameProject(projectId, nextName) {
+      const id = String(projectId || "").trim();
+      const name = String(nextName || "").trim().slice(0, 80);
+      if (!id || !name) return null;
+
+      const renamedProject = projectRuntimeApi?.renameProjectLocally?.(id, name);
+      if (!renamedProject) return null;
+
+      try {
+        const savedProject = await syncProjectRecordToRemote(renamedProject);
+        upsertProjectInState(id, savedProject);
+      } catch (error) {
+        console.error("Failed to rename project:", error);
+        showToast("プロジェクト名はローカルにのみ保存されました");
       }
 
       saveProjectRegistry("socia-projects", getProjects());
-      saveProjectRegistry("socia-current-project-id", getCurrentProjectId());
-      resetEditState();
-      syncProjectQuery();
       renderProjectControlsImpl();
-      await loadAllData();
-      resetEditorForms();
       renderAll();
-      showToast("\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u4f5c\u6210\u3057\u307e\u3057\u305f");
+      showToast("プロジェクト名を更新しました");
+      return getProjects().find(project => project.id === id) || renamedProject;
     }
 
     async function switchProject(projectId) {
       setCurrentProjectId(projectId);
-      saveProjectRegistry("socia-current-project-id", getCurrentProjectId());
-      resetEditState();
-      syncProjectQuery();
-      renderProjectControlsImpl();
-      await loadAllData();
-      resetEditorForms();
-      renderAll();
-      showToast("\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3092\u5207\u308a\u66ff\u3048\u307e\u3057\u305f");
+      persistProjectSelection();
+      await reloadProjectRuntime();
+      showToast("プロジェクトを切り替えました");
+    }
+
+    function bindGoButton(button, triggerNav) {
+      return navigationRuntimeApi?.bindGoButton?.(button, triggerNav);
+    }
+
+    function setActiveScreenElement(screen) {
+      return navigationRuntimeApi?.setActiveScreenElement?.(screen);
+    }
+
+    function setActiveBottomNav(screen) {
+      return navigationRuntimeApi?.setActiveBottomNav?.(screen);
+    }
+
+    function pauseInactiveScreenAudio(screen) {
+      return navigationRuntimeApi?.pauseInactiveScreenAudio?.(screen);
+    }
+
+    function renderActiveScreen(screen, previousScreen) {
+      return navigationRuntimeApi?.renderActiveScreen?.(screen, previousScreen);
+    }
+
+    function syncBattleLoopForScreen(screen) {
+      return navigationRuntimeApi?.syncBattleLoopForScreen?.(screen);
     }
 
     function setupNavigation() {
-      let lastNavAt = 0;
-      const triggerNav = (screen, event) => {
-        const now = Date.now();
-        if (now - lastNavAt < 200) return;
-        lastNavAt = now;
-        if (event) event.preventDefault();
-        if (screen === "editor") {
-          showToast("\u30a8\u30c7\u30a3\u30bf\u30fc\u306f\u518d\u8a2d\u8a08\u4e2d\u306e\u305f\u3081\u73fe\u5728\u306f\u7121\u52b9\u3067\u3059");
-          return;
-        }
-        navigateTo(screen);
-      };
-
-      document.querySelectorAll("[data-go]").forEach(btn => {
-        btn.addEventListener("click", event => {
-          triggerNav(btn.dataset.go, event);
-        });
-        btn.addEventListener("pointerup", event => {
-          triggerNav(btn.dataset.go, event);
-        });
-      });
-
-      document.addEventListener("click", event => {
-        const button = event.target.closest("[data-go]");
-        if (!button) return;
-        triggerNav(button.dataset.go, event);
-      });
-
-      document.addEventListener("pointerup", event => {
-        const button = event.target.closest("[data-go]");
-        if (!button) return;
-        triggerNav(button.dataset.go, event);
-      });
+      return navigationRuntimeApi?.setupNavigation?.();
     }
 
     function navigateTo(screen) {
-      if (screen === "editor") {
-        showToast("\u30a8\u30c7\u30a3\u30bf\u30fc\u306f\u518d\u8a2d\u8a08\u4e2d\u306e\u305f\u3081\u73fe\u5728\u306f\u7121\u52b9\u3067\u3059");
-        return;
-      }
-      if (screen !== "home") closeHomeEditMode();
-      const previousScreen = getCurrentScreen();
-      setCurrentScreen(screen);
-      if (getCurrentMode() !== "play") {
-        setCurrentMode("play");
-        applyAppMode("play");
-      }
-      document.querySelectorAll(".screen").forEach(screenEl => screenEl.classList.remove("active"));
-      const nextScreen = document.getElementById(`screen-${screen}`);
-      if (!nextScreen) return;
-      nextScreen.classList.add("active");
-
-      document.querySelectorAll(".bottom-nav-btn").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.go === screen);
-      });
-
-      try {
-        if (screen === "home") renderHome(previousScreen === "home" ? "refresh" : "enter");
-        if (screen === "formation" && getFormationScreen()) renderFormationScreen();
-        if (screen === "battle") renderBattleScreen();
-        if (screen === "gacha" && getGachaScreen()) renderGachaScreen();
-        if (screen === "story" && getStoryScreen()) renderStoryScreen();
-        if (screen === "event" && getEventScreen()) renderEventScreen();
-        if (screen === "collection" && getCollectionScreen()) renderCollectionScreen();
-      } catch (error) {
-        console.error("navigateTo render error:", error);
-      }
-
-      if (screen === "battle") startBattleLoop();
-      else stopBattleLoop();
+      return navigationRuntimeApi?.navigateTo?.(screen);
     }
 
     function applyOrientation(systemConfig) {
-      const mode = ["portrait", "landscape", "fullscreen"].includes(systemConfig?.orientation)
+      const mode = ["portrait", "landscape"].includes(systemConfig?.orientation)
         ? systemConfig.orientation
         : "portrait";
       document.body.classList.remove("landscape-mode", "fullscreen-mode", "portrait-mode");
       if (mode === "landscape") {
         document.body.classList.add("landscape-mode");
-      } else if (mode === "fullscreen") {
-        document.body.classList.add("fullscreen-mode");
       } else if (mode === "portrait") {
         document.body.classList.add("portrait-mode");
       }
@@ -252,6 +263,7 @@
       selectInitialProjectId,
       getCurrentProject,
       handleCreateProject,
+      renameProject,
       switchProject,
       setupNavigation,
       navigateTo,
@@ -281,7 +293,7 @@
     if (homeMenuWrap) {
       homeMenuWrap.innerHTML = `
         <button type="button" class="home-menu-btn home-menu-quest" data-go="battle">
-          <span class="home-menu-text">\u2694\uFE0F\u6226\u95D8</span>
+          <span class="home-menu-text">⚔️戦闘</span>
         </button>
       `;
       homeMenuWrap.querySelector(".home-menu-quest")?.addEventListener("click", event => {
@@ -297,7 +309,7 @@
       });
       cleanFormationButton.innerHTML = `
         <span class="bottom-nav-icon">&#x1F464;</span>
-        <span class="bottom-nav-label">\u30ad\u30e3\u30e9\u30fb\u7de8\u6210</span>
+        <span class="bottom-nav-label">キャラ・編成</span>
       `;
       formationButton.replaceWith(cleanFormationButton);
     }
@@ -316,7 +328,7 @@
     if (!battleButton) return;
     battleButton.setAttribute("data-go", "battle");
     battleButton.onclick = () => navigateTo("battle");
-    if (battleLabel) battleLabel.textContent = "\u2694\uFE0F\u6226\u95D8";
+    if (battleLabel) battleLabel.textContent = "⚔️戦闘";
   }
 
   function getCurrentProject(projects, currentProjectId) {
@@ -326,7 +338,9 @@
   function normalizeProjectRecord(project) {
     return {
       id: String(project?.id || crypto.randomUUID()).trim(),
-      name: String(project?.name || "\u7121\u984c\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8").trim().slice(0, 80) || "\u7121\u984c\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8",
+      name: String(project?.name || "無題のプロジェクト").trim().slice(0, 80) || "無題のプロジェクト",
+      ownerUserId: String(project?.ownerUserId || project?.owner_user_id || "").trim(),
+      memberRole: String(project?.memberRole || project?.member_role || "").trim(),
       createdAt: String(project?.createdAt || new Date().toISOString()),
       updatedAt: String(project?.updatedAt || project?.createdAt || new Date().toISOString())
     };
@@ -346,6 +360,7 @@
     if (!editState) return;
     editState.baseCharId = null;
     editState.characterId = null;
+    editState.announcementId = null;
     editState.storyId = null;
     editState.gachaId = null;
   }

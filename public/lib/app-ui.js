@@ -5,6 +5,7 @@
       getFormationScreen,
       getEditorScreen,
       populateFolderSelects,
+      refreshTitleScreen,
       renderHome,
       renderBattleScreen,
       readFileAsDataUrl,
@@ -19,16 +20,16 @@
 
     function getEditorApiMethod(name) {
       const editorScreen = getEditorScreen?.();
-      const legacyMethod = editorScreen?.__legacyApi?.[name];
-      if (typeof legacyMethod === "function") return legacyMethod;
       const method = editorScreen?.[name];
-      return typeof method === "function" ? method.bind(editorScreen) : null;
+      if (typeof method === "function") return method.bind(editorScreen);
+      return null;
     }
 
     function renderAll() {
       getCollectionScreen()?.renderCollectionFilters?.("all");
       getFormationScreen()?.renderFormationScreen?.();
       populateFolderSelects();
+      refreshTitleScreen?.();
       renderHome("refresh");
       renderBattleScreen();
       getEditorApiMethod("renderEditorScreen")?.();

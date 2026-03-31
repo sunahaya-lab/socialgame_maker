@@ -5,6 +5,7 @@
       getCharacters,
       getStories,
       getGachas,
+      getAnnouncements,
       getBaseCharById,
       getEffectiveHomeVoices,
       getEffectiveHomeBirthdays,
@@ -40,6 +41,7 @@
       getCharacterImageForUsage,
       makeFallbackImage,
       buildGachaRateSummary,
+      navigateTo,
       getBattleParty,
       getGachaHeroImages,
       normalizeLayoutAssetRecord,
@@ -94,7 +96,10 @@
           getCharacters,
           getStories,
           getGachas,
+          getAnnouncements,
+          getSystemConfig,
           getCurrentScreen,
+          getPlayerState,
           getHomeDialogueState,
           setHomeDialogueState,
           loadHomeConfig,
@@ -106,6 +111,7 @@
           makeFallbackImage,
           esc: deps.esc,
           buildGachaRateSummary,
+          navigateTo,
           getBaseCharById,
           getEffectiveHomeVoices,
           getEffectiveHomeBirthdays,
@@ -180,6 +186,10 @@
 
     function renderHomeCurrencies() {
       return ensureHomeScreenApi().renderHomeCurrencies();
+    }
+
+    function renderAnnouncements() {
+      return ensureHomeScreenApi().renderAnnouncements?.();
     }
 
     function setupHomeInteractions() {
@@ -289,6 +299,7 @@
       endHomeConfigDrag,
       renderHome,
       renderHomeCurrencies,
+      renderAnnouncements,
       setupHomeInteractions,
       triggerHomeDialogue,
       syncHomeDialogue,

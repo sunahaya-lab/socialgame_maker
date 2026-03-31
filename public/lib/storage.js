@@ -14,7 +14,16 @@
   }
 
   function saveLocal(key, data, scope) {
-    localStorage.setItem(getScopedStorageKey(key, scope), JSON.stringify(data));
+    try {
+      localStorage.setItem(getScopedStorageKey(key, scope), JSON.stringify(data));
+      return true;
+    } catch (error) {
+      console.warn("Failed to save local storage:", {
+        key: getScopedStorageKey(key, scope),
+        error
+      });
+      return false;
+    }
   }
 
   function removeLocal(key, scope) {
