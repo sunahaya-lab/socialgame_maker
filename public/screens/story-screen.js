@@ -23,6 +23,7 @@
       getStories,
       getCharacters,
       getSystemConfig,
+      getPlayerState,
       getCurrentStoryType,
       setStoryReaderState,
       getStoryReaderState,
@@ -37,6 +38,13 @@
       showToast,
       esc
     } = deps;
+
+    function resolveMusicAssetSrc(assetId) {
+      const id = String(assetId || "").trim();
+      if (!id) return "";
+      const musicAssets = Array.isArray(getSystemConfig?.()?.musicAssets) ? getSystemConfig().musicAssets : [];
+      return String(musicAssets.find(item => String(item?.id || "").trim() === id)?.src || "").trim();
+    }
 
     function renderStoryScreen() {
       renderEventPromo();
@@ -234,14 +242,54 @@
       return { locked: false, completed: false, statusLabel: "NEW", statusClass: "is-new", lockReason: "" };
     }
 
+    function getPlayerDisplayName() {
+      return String(getPlayerState?.()?.profile?.displayName || "").trim() || "プレイヤー";
+    }
+
+    function getBgmVolume() {
+      const volume = Number(getPlayerState?.()?.audioSettings?.bgmVolume);
+      if (Number.isFinite(volume)) {
+        return Math.min(100, Math.max(0, volume)) / 100;
+      }
+      return 1;
+    }
+
+    function getVoiceSeVolume() {
+      const volume = Number(getPlayerState?.()?.audioSettings?.voiceVolume);
+      if (Number.isFinite(volume)) {
+        return Math.min(100, Math.max(0, volume)) / 100;
+      }
+      return 1;
+    }
+
+    function playSceneSpeechSound(baseChar, scene) {
+      const soundId = String(baseChar?.speechSoundId || scene?.speechSoundId || "").trim();
+      if (!soundId || !String(scene?.text || "").trim()) return;
+      window.BaseCharEditor?.playCharacterSpeechSound?.(soundId, {
+        volume: getVoiceSeVolume()
+      });
+    }
+
+    function resolveStoryTextTemplate(text) {
+      const playerName = getPlayerDisplayName();
+      return String(text || "").replace(/\{\s*name\s*\}|\{\{\s*playerName\s*\}\}|\{\s*playerName\s*\}|\{\s*player\.name\s*\}/gi, playerName);
+    }
+
+    function isPlayerSceneSpeaker(scene) {
+      return String(scene?.characterId || "").trim() === "__player__";
+    }
+
     function renderStoryScene() {
       const state = getStoryReaderState();
       if (!state) return;
 
       const { story, index } = state;
       const scene = story.scenes[index];
-      const baseChar = scene.characterId ? getBaseCharById(scene.characterId) : null;
-      const charName = baseChar ? baseChar.name : (scene.character || "\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3");
+      const isPlayerSpeaker = isPlayerSceneSpeaker(scene);
+      const baseChar = scene.characterId && !isPlayerSpeaker ? getBaseCharById(scene.characterId) : null;
+      const charName = isPlayerSpeaker
+        ? getPlayerDisplayName()
+        : (baseChar ? baseChar.name : (scene.character || "\u30ca\u30ec\u30fc\u30b7\u30e7\u30f3"));
 
       let portrait = resolveScenePortrait(story, baseChar, scene) || scene.image || findCharacterImageByName(scene.character);
       if (baseChar && scene.expressionName && baseChar.expressions?.length) {
@@ -252,7 +300,8 @@
       const nameEl = document.getElementById("story-reader-name");
       nameEl.textContent = charName;
       nameEl.style.color = baseChar?.color || "var(--accent-light)";
-      document.getElementById("story-reader-text").textContent = scene.text || "";
+      document.getElementById("story-reader-text").textContent = resolveStoryTextTemplate(scene.text || "");
+      playSceneSpeechSound(baseChar, scene);
 
       const charEl = document.getElementById("story-reader-character");
       charEl.innerHTML = "";
@@ -276,17 +325,19 @@
       }
 
       const audio = document.getElementById("story-bgm");
+      audio.volume = getBgmVolume();
       const audioCtrl = document.getElementById("story-audio-ctrl");
-      const sceneBgm = scene.bgm || (index === 0 ? story.bgm : null);
+      const sceneBgm = resolveMusicAssetSrc(scene.bgmAssetId) || scene.bgm || (index === 0 ? (resolveMusicAssetSrc(story.bgmAssetId) || story.bgm) : null);
       if (sceneBgm && audio.dataset.currentSrc !== sceneBgm) {
         audio.src = sceneBgm;
         audio.dataset.currentSrc = sceneBgm;
         audio.play().catch(() => {});
         document.getElementById("bgm-toggle").textContent = "\u23F8";
         audioCtrl.hidden = false;
-      } else if (index === 0 && story.bgm && !audio.src) {
-        audio.src = story.bgm;
-        audio.dataset.currentSrc = story.bgm;
+      } else if (index === 0 && (resolveMusicAssetSrc(story.bgmAssetId) || story.bgm) && !audio.src) {
+        const storyBgm = resolveMusicAssetSrc(story.bgmAssetId) || story.bgm;
+        audio.src = storyBgm;
+        audio.dataset.currentSrc = storyBgm;
         audio.play().catch(() => {});
         document.getElementById("bgm-toggle").textContent = "\u23F8";
         audioCtrl.hidden = false;
