@@ -1,12 +1,20 @@
 import {
   buildContentScope,
   createCorsHeaders,
+  ensureProjectOwnerAccess,
   ensureReadableAccess,
   ensureSharedContentWriteAccess,
   json,
   readJson,
   resolveShareAccess
 } from "./_share-auth.js";
+import { getSessionUser } from "./_auth.js";
+import {
+  buildProjectSlug,
+  mapProjectRow,
+  sanitizeProjectRecord,
+  upsertScopedCollectionItem
+} from "./_project-store.js";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -19,10 +27,12 @@ export async function onRequest(context) {
   const access = await resolveShareAccess(request, env);
   const blockedRead = ensureReadableAccess(access, corsHeaders);
   if (blockedRead) return blockedRead;
-  const { key, scopeKey, projectId } = buildContentScope(access, "projects");
+  const scope = buildContentScope(access, "projects");
 
   if (request.method === "GET") {
-    const result = await listProjects(env, { key, scopeKey });
+    const sessionUser = await getSessionUser(request, env).catch(() => null);
+    const requesterUserId = String(sessionUser?.id || "").trim() || null;
+    const result = await listProjects(env, scope, requesterUserId);
     return json(result, 200, corsHeaders);
   }
 
@@ -30,95 +40,125 @@ export async function onRequest(context) {
     const input = await readJson(request);
     const blockedWrite = await ensureSharedContentWriteAccess(request, env, access, corsHeaders, input);
     if (blockedWrite) return blockedWrite;
-    const project = sanitizeProject(input, projectId);
-    const result = await saveProject(env, { key, scopeKey, project });
+
+    const sessionUser = await getSessionUser(request, env).catch(() => null);
+    const requesterUserId = String(sessionUser?.id || "").trim() || null;
+    const project = sanitizeProjectRecord(input, scope.projectId);
+    const isUpdate = Boolean(project.id && input?.id);
+
+    if (env?.SOCIA_DB && requesterUserId) {
+      if (isUpdate) {
+        const ownerAccess = await ensureProjectOwnerAccess(request, env, project.id, input);
+        if (!ownerAccess.ok) {
+          return json({ error: ownerAccess.error, code: ownerAccess.code }, ownerAccess.status || 403, corsHeaders);
+        }
+      }
+      const d1Project = await saveProjectToD1(env, requesterUserId, project, isUpdate);
+      if (d1Project) {
+        return json({ project: d1Project, storage: "d1" }, 201, corsHeaders);
+      }
+    }
+
+    const result = await saveProjectToKv(env, scope, project);
     return json(result, 201, corsHeaders);
   }
 
   return json({ error: "このメソッドは利用できません。" }, 405, corsHeaders);
 }
 
-function sanitizeProject(input, forcedProjectId = null) {
-  const text = (value, maxLength, fallback = "") =>
-    String(value || fallback).trim().slice(0, maxLength);
-
-  const now = new Date().toISOString();
-  return {
-    id: text(forcedProjectId || input?.id, 80, crypto.randomUUID()),
-    name: text(input?.name, 80, "新しいプロジェクト"),
-    createdAt: text(input?.createdAt, 40, now),
-    updatedAt: now
-  };
-}
-
-async function listProjects(env, scope) {
-  const d1Projects = await listProjectsFromD1(env, scope.scopeKey);
+async function listProjects(env, scope, requesterUserId) {
+  const d1Projects = await listProjectsFromD1(env, requesterUserId, scope.scopeKey);
   if (d1Projects) {
     return { projects: d1Projects, storage: "d1" };
   }
-
   const projects = (await env.SOCIA_DATA.get(scope.key, "json")) || [];
   return { projects: Array.isArray(projects) ? projects : [], storage: "kv" };
 }
 
-async function saveProject(env, scope) {
-  const d1Project = await saveProjectToD1(env, scope.scopeKey, scope.project);
-  if (d1Project) {
-    return { project: d1Project, storage: "d1" };
-  }
-
-  const items = (await env.SOCIA_DATA.get(scope.key, "json")) || [];
-  const list = Array.isArray(items) ? items : [];
-  const index = list.findIndex(item => item.id === scope.project.id);
-  if (index >= 0) list[index] = scope.project;
-  else list.unshift(scope.project);
-  await env.SOCIA_DATA.put(scope.key, JSON.stringify(list));
-  return { project: scope.project, storage: "kv" };
-}
-
-async function listProjectsFromD1(env, scopeKey) {
-  if (!env.SOCIA_DB) return null;
+async function listProjectsFromD1(env, requesterUserId, scopeKey) {
+  if (!env?.SOCIA_DB) return null;
   try {
-    const result = await env.SOCIA_DB.prepare(`
+    if (requesterUserId) {
+      const result = await env.SOCIA_DB.prepare(`
+        SELECT
+          projects.id,
+          projects.name,
+          projects.owner_user_id,
+          CASE
+            WHEN projects.owner_user_id = ? THEN 'owner'
+            ELSE COALESCE(MAX(project_members.role), '')
+          END AS member_role,
+          projects.created_at,
+          projects.updated_at
+        FROM projects
+        LEFT JOIN project_members
+          ON project_members.project_id = projects.id
+        WHERE projects.owner_user_id = ?
+           OR project_members.user_id = ?
+        GROUP BY projects.id, projects.name, projects.owner_user_id, projects.created_at, projects.updated_at
+        ORDER BY projects.updated_at DESC, projects.created_at DESC
+      `).bind(requesterUserId, requesterUserId, requesterUserId).all();
+      return (result.results || []).map(mapProjectRow);
+    }
+
+    const legacy = await env.SOCIA_DB.prepare(`
       SELECT project_id, name, created_at, updated_at
       FROM project_registries
       WHERE scope_key = ?
       ORDER BY updated_at DESC, created_at DESC
     `).bind(scopeKey).all();
-
-    return (result.results || []).map(row => ({
-      id: String(row.project_id || "").trim(),
-      name: String(row.name || "").trim() || "新しいプロジェクト",
-      createdAt: String(row.created_at || ""),
-      updatedAt: String(row.updated_at || row.created_at || "")
-    }));
+    return (legacy.results || []).map(mapProjectRow);
   } catch (error) {
     console.warn("Falling back to KV for project listing:", error);
     return null;
   }
 }
 
-async function saveProjectToD1(env, scopeKey, project) {
-  if (!env.SOCIA_DB) return null;
+async function saveProjectToD1(env, requesterUserId, project, isUpdate) {
+  if (!env?.SOCIA_DB || !requesterUserId) return null;
   try {
-    await env.SOCIA_DB.prepare(`
-      INSERT INTO project_registries (scope_key, project_id, name, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(scope_key, project_id) DO UPDATE SET
-        name = excluded.name,
-        created_at = excluded.created_at,
-        updated_at = excluded.updated_at
-    `).bind(
-      scopeKey,
-      project.id,
-      project.name,
-      project.createdAt,
-      project.updatedAt
-    ).run();
+    const now = new Date().toISOString();
+    if (isUpdate) {
+      await env.SOCIA_DB.prepare(`
+        UPDATE projects
+        SET name = ?, updated_at = ?
+        WHERE id = ?
+      `).bind(project.name, now, project.id).run();
+      return { ...project, ownerUserId: requesterUserId, memberRole: "owner", updatedAt: now };
+    }
 
-    return project;
+    await env.SOCIA_DB.batch([
+      env.SOCIA_DB.prepare(`
+        INSERT INTO projects (id, owner_user_id, name, slug, description, visibility, created_at, updated_at)
+        VALUES (?, ?, ?, ?, '', 'private', ?, ?)
+      `).bind(
+        project.id,
+        requesterUserId,
+        project.name,
+        buildProjectSlug(project.name, project.id),
+        project.createdAt || now,
+        now
+      ),
+      env.SOCIA_DB.prepare(`
+        INSERT INTO project_members (id, project_id, user_id, role, created_at, updated_at)
+        VALUES (?, ?, ?, 'owner', ?, ?)
+      `).bind(
+        crypto.randomUUID(),
+        project.id,
+        requesterUserId,
+        project.createdAt || now,
+        now
+      )
+    ]);
+
+    return { ...project, ownerUserId: requesterUserId, memberRole: "owner", updatedAt: now };
   } catch (error) {
     console.warn("Falling back to KV for project save:", error);
     return null;
   }
+}
+
+async function saveProjectToKv(env, scope, project) {
+  await upsertScopedCollectionItem(env, scope.key, project, "id");
+  return { project, storage: "kv" };
 }

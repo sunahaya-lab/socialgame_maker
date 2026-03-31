@@ -1,6 +1,7 @@
 // Active frontend bootstrap entry loaded by public/index.html.
 // Keep this file focused on startup, wiring, and minimum global hooks.
 window.__SOCIA_ACTIVE_RUNTIME__ = "app.js";
+const ACTIVE_EDITOR_RUNTIME = "v1";
 
 const {
   getDefaultRarityMode,
@@ -32,6 +33,11 @@ const {
 const {
   showToast: toastShowToast
 } = window.ToastLib;
+const {
+  normalizeTitleCollection: titleSystemNormalizeCollection,
+  syncProfileTitles: titleSystemSyncProfileTitles,
+  getActiveTitle: titleSystemGetActiveTitle
+} = window.TitleSystemLib;
 const {
   MODES: APP_MODES,
   normalizeAppMode
@@ -72,13 +78,14 @@ const contentStateFactory = window.ContentStateLib;
 let baseChars = [];
 let characters = [];
 let equipmentCards = [];
+let announcements = [];
 let stories = [];
 let gachas = [];
 let projects = [];
 let systemConfig = appStateGetDefaultSystemConfig(getDefaultRarityMode());
 let playerState = null;
 let currentMode = APP_MODES.play;
-let currentScreen = "home";
+let currentScreen = "title";
 let currentStoryType = "main";
 let activeGacha = null;
 let storyReaderState = null;
@@ -96,25 +103,34 @@ let systemEditor = null;
 let entryEditor = null;
 let equipmentCardEditor = null;
 let baseCharEditor = null;
+let musicEditor = null;
+let announcementEditor = null;
+let titleEditor = null;
 let storyEditor = null;
 let editorScreen = null;
 let partyFormation = appStateGetDefaultPartyFormation();
 let battleState = null;
 let battleLoopTimer = null;
-let battleScreenModuleApi = null;
-let appRuntimeModuleApi = null;
-let appDataModuleApi = null;
-let appUiModuleApi = null;
-let appHomeModuleApi = null;
-let appEditorModuleApi = null;
-let contentStateModuleApi = null;
-let editorRuntimeModuleApi = null;
-let layoutBridgeModuleApi = null;
-let editorFeatureAccessCache = {
-  projectId: "",
-  userId: "",
-  value: null,
-  promise: null
+let appEditorRuntimeFactoryApi = null;
+let appEditorBootstrapFactoryApi = null;
+let appFactoryDepsBuilderApi = null;
+let appApiRuntimeFactoryApi = null;
+let appSingleRuntimeFactoryApi = null;
+let appScreenRuntimeFactoryApi = null;
+let appCoreRuntimeFactoryApi = null;
+let appUiHomeRuntimeFactoryApi = null;
+let appAuthProfileRuntimeFactoryApi = null;
+let appEditorSectionRuntimeFactoryApi = null;
+let appLayoutEditorRuntimeFactoryApi = null;
+let appInitContentRuntimeFactoryApi = null;
+let appBootstrapHelperFactoryApi = null;
+
+const FONT_PRESET_MAP = {
+  "zen-kaku-gothic-new": '"Zen Kaku Gothic New", "Hiragino Sans", sans-serif',
+  "noto-sans-jp": '"Noto Sans JP", "Hiragino Sans", sans-serif',
+  "m-plus-rounded-1c": '"M PLUS Rounded 1c", "Hiragino Sans", sans-serif',
+  "yusei-magic": '"Yusei Magic", "Hiragino Sans", sans-serif',
+  "dotgothic16": '"DotGothic16", monospace'
 };
 
 const searchParams = new URLSearchParams(location.search);
@@ -128,47 +144,327 @@ const editState = {
   baseCharId: null,
   characterId: null,
   equipmentCardId: null,
+  announcementId: null,
   storyId: null,
   gachaId: null
 };
 
-function apiUrl(path, options = {}) {
-  const query = new URLSearchParams();
-  if (roomId) query.set("room", roomId);
-  if (collabToken) query.set("collab", collabToken);
-  if (publicShareToken) query.set("share", publicShareToken);
-  if (options.includeProject !== false && currentProjectId) query.set("project", currentProjectId);
-  Object.entries(options.query || {}).forEach(([key, value]) => {
-    if (value === null || value === undefined || value === "") return;
-    query.set(key, String(value));
-  });
-  const text = query.toString();
-  return text ? `${path}?${text}` : path;
+function getActiveEditorRuntime() {
+  return ACTIVE_EDITOR_RUNTIME;
 }
 
-const API = {
-  projects: "/api/projects",
-  baseChars: "/api/base-chars",
-  characters: "/api/entries",
-  equipmentCards: "/api/equipment-cards",
-  assetsUpload: "/api/assets-upload",
-  assetsContent: "/api/assets-content",
-  stories: "/api/stories",
-  gachas: "/api/gachas",
-  system: "/api/system",
-  playerBootstrap: "/api/player-bootstrap",
-  playerProfile: "/api/player-profile",
-  playerStoryProgress: "/api/player-story-progress",
-  playerGachaPulls: "/api/player-gacha-pulls",
-  playerHomePreferences: "/api/player-home-preferences",
-  playerEventLoginBonusClaim: "/api/player-event-login-bonus-claim",
-  playerEventExchangePurchase: "/api/player-event-exchange-purchase",
-  collabShareResolve: "/api/collab-share-resolve",
-  shareCollabLink: "/api/share-collab-link",
-  sharePublicLink: "/api/share-public-link",
-  publicShareResolve: "/api/public-share-resolve",
-  projectShareSummary: "/api/project-share-summary"
-};
+// SECTION 01: runtime factory dependency bundles
+function buildAppEditorBootstrapFactoryDeps() {
+  return {
+    runtimeName: ACTIVE_EDITOR_RUNTIME,
+    currentProjectId: () => currentProjectId,
+    getProjects: () => projects,
+    getCurrentPlayerId,
+    getBaseChars: () => baseChars,
+    getCharacters: () => characters,
+    getAnnouncements: () => announcements,
+    getStories: () => stories,
+    getGachas: () => gachas,
+    getSystemConfig: () => systemConfig,
+    setSystemConfig: value => { setSystemConfigState(value); },
+    getEditingFeaturedIds: () => ensureAppEditorApi().getEditingFeaturedIds(),
+    getRarityCssClass,
+    getRarityLabel,
+    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
+    buildStorySummary: story => ensureContentStateApi().buildStorySummary(story),
+    buildGachaRateSummary: (rates = {}) => ensureContentStateApi().buildGachaRateSummary(rates),
+    esc: str => ensureAppUiApi().esc(str),
+    beginGachaEdit: id => ensureAppEditorApi().beginGachaEdit(id),
+    navigateTo,
+    setActiveGacha: value => { activeGacha = value; },
+    populateBaseCharSelects: () => ensureAppEditorApi().populateBaseCharSelects(),
+    populateFolderSelects: () => ensureAppEditorApi().populateFolderSelects(),
+    updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
+    handleCreateProject: () => ensureAppRuntimeApi().handleCreateProject(),
+    renameProject: (projectId, nextName) => ensureAppRuntimeApi().renameProject(projectId, nextName),
+    switchProject: projectId => ensureAppRuntimeApi().switchProject(projectId),
+    createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
+    persistSystemConfigState: () => ensureAppEditorApi().persistSystemConfigState(),
+    openShareSettings: () => ensureAppEditorApi().handleShare(),
+    getShareManagementSummary: () => ensureAppEditorApi().getShareManagementSummary(currentProjectId),
+    rotateCollaborativeShare: () => ensureAppEditorApi().rotateCollaborativeShare(currentProjectId),
+    createPublicShare: () => ensureAppEditorApi().createPublicShare(currentProjectId),
+    listProjectMembers: () => ensureAppEditorApi().listProjectMembers(currentProjectId),
+    inviteProjectMember: (targetUserId, role) => ensureAppEditorApi().inviteProjectMember(currentProjectId, targetUserId, role),
+    updateProjectMemberRole: (targetUserId, role) => ensureAppEditorApi().updateProjectMemberRole(currentProjectId, targetUserId, role),
+    setEditMode: () => setAppMode(APP_MODES.edit),
+    openHomeEditMode: () => ensureAppHomeApi().openHomeEditMode(),
+    closeHomeEditMode: () => ensureAppHomeApi().closeHomeEditMode(),
+    getCurrentScreen: () => currentScreen,
+    setPlayMode: () => setAppMode(APP_MODES.play)
+  };
+}
+
+function buildAppApiRuntimeFactoryDeps() {
+  return {
+    getRoomId: () => roomId,
+    getCollabToken: () => collabToken,
+    getPublicShareToken: () => publicShareToken,
+    getCurrentProjectId: () => currentProjectId,
+    getCurrentPlayerId,
+    postJSON: (url, data) => ensureAppDataApi().postJSON(url, data),
+    onFeatureAccessError: error => {
+      console.error("Failed to load editor feature access:", error);
+    }
+  };
+}
+
+function buildAppSingleRuntimeFactoryDeps() {
+  return {
+    getSystemConfig: () => systemConfig,
+    getProjectName: () => window.AppRuntimeLib.getCurrentProject(projects, currentProjectId)?.name || projects[0]?.name || "Socia Maker",
+    navigateToHome: () => navigateTo("home"),
+    saveLocal,
+    postJSON,
+    getSystemApiUrl: query => apiUrl(API.system, { query }),
+    getCurrentPlayerId,
+    showToast: message => ensureAppUiApi().showToast(message)
+  };
+}
+
+function buildAppLegacyBridgeDeps() {
+  return {
+    openEditorSurface: (tabName = null, screen = currentScreen) => ensureEditorRuntimeApi().openEditorSurface(tabName, screen),
+    setEditMode: () => setAppMode(APP_MODES.edit),
+    openEditorScreen: (tabName = null) => ensureEditorRuntimeApi().openEditorScreen(tabName),
+    setPlayMode: () => setAppMode(APP_MODES.play),
+    closeEditorScreen: () => ensureEditorRuntimeApi().closeEditorScreen(),
+    fetchJSON: url => ensureAppDataApi().fetchJSON(url),
+    postJSON: (url, data) => ensureAppDataApi().postJSON(url, data),
+    loadLocal: (key, fallback) => ensureAppDataApi().loadLocal(key, fallback),
+    saveLocal: (key, data) => ensureAppDataApi().saveLocal(key, data),
+    getCurrentPlayerId: () => ensureAppDataApi().getCurrentPlayerId(),
+    getPlayerIdentityScope: () => ensureAppDataApi().getPlayerIdentityScope(),
+    getPlayerApiUrl: path => ensureAppDataApi().getPlayerApiUrl(path),
+    updateLocalProfileMeta: updater => ensureAppAuthProfileRuntimeFactoryApi().ensureProfileRuntimeApi().persistProfileMeta(updater),
+    syncPlayerTitles: (options = {}) => ensureAppAuthProfileRuntimeFactoryApi().ensureProfileRuntimeApi().syncTitles(options),
+    getScopedStorageKey: key => ensureAppDataApi().getScopedStorageKey(key),
+    getPlayerStoryProgress: storyId => ensureAppDataApi().getPlayerStoryProgress(storyId),
+    upsertPlayerStoryProgress: nextItem => ensureAppDataApi().upsertPlayerStoryProgress(nextItem),
+    upsertInventoryRecord: nextItem => ensureAppDataApi().upsertInventoryRecord(nextItem),
+    getOwnedCardCount: cardId => getOwnedCardCountLocal(cardId),
+    getOwnedEquipmentCount: equipmentId => getOwnedEquipmentCountLocal(equipmentId),
+    getCardInstances: (cardId = "") => ensureAppDataApi().getCardInstances(cardId),
+    getEquipmentInstances: (equipmentId = "") => ensureAppDataApi().getEquipmentInstances(equipmentId),
+    getCardInstance: instanceId => ensureAppDataApi().getCardInstance(instanceId),
+    getEquipmentInstance: instanceId => ensureAppDataApi().getEquipmentInstance(instanceId),
+    getCardInstanceGrowth: instanceId => ensureAppDataApi().getCardInstanceGrowth(instanceId),
+    getEquipmentInstanceGrowth: instanceId => ensureAppDataApi().getEquipmentInstanceGrowth(instanceId),
+    getCardGrowth: cardId => ensureAppDataApi().getCardGrowth(cardId),
+    getEquipmentGrowth: equipmentId => ensureAppDataApi().getEquipmentGrowth(equipmentId),
+    getGrowthResources: () => ensureAppDataApi().getGrowthResources(),
+    setCardLockedCopies: (cardId, value) => ensureAppDataApi().setCardLockedCopies(cardId, value),
+    setEquipmentLockedCopies: (equipmentId, value) => ensureAppDataApi().setEquipmentLockedCopies(equipmentId, value),
+    enhanceCard: cardId => ensureAppDataApi().enhanceCard(cardId),
+    enhanceEquipment: equipmentId => ensureAppDataApi().enhanceEquipment(equipmentId),
+    enhanceCardInstance: instanceId => ensureAppDataApi().enhanceCardInstance(instanceId),
+    enhanceEquipmentInstance: instanceId => ensureAppDataApi().enhanceEquipmentInstance(instanceId),
+    evolveCard: cardId => ensureAppDataApi().evolveCard(cardId),
+    evolveEquipment: equipmentId => ensureAppDataApi().evolveEquipment(equipmentId),
+    evolveCardInstance: instanceId => ensureAppDataApi().evolveCardInstance(instanceId),
+    evolveEquipmentInstance: instanceId => ensureAppDataApi().evolveEquipmentInstance(instanceId),
+    limitBreakCard: cardId => ensureAppDataApi().limitBreakCard(cardId),
+    limitBreakEquipment: equipmentId => ensureAppDataApi().limitBreakEquipment(equipmentId),
+    limitBreakCardInstance: (instanceId, materialInstanceId) => ensureAppDataApi().limitBreakCardInstance(instanceId, materialInstanceId),
+    limitBreakEquipmentInstance: (instanceId, materialInstanceId) => ensureAppDataApi().limitBreakEquipmentInstance(instanceId, materialInstanceId),
+    convertCardDuplicates: (cardId, target, amount) => ensureAppDataApi().convertCardDuplicates(cardId, target, amount),
+    convertEquipmentDuplicates: (equipmentId, target, amount) => ensureAppDataApi().convertEquipmentDuplicates(equipmentId, target, amount),
+    convertSelectedCharacterCards: (selectionCounts, options) => ensureAppDataApi().convertSelectedCharacterCards(selectionCounts, options),
+    convertSelectedEquipmentCards: (selectionCounts, options) => ensureAppDataApi().convertSelectedEquipmentCards(selectionCounts, options),
+    convertSelectedCharacterInstances: (instanceIds, options) => ensureAppDataApi().convertSelectedCharacterInstances(instanceIds, options),
+    convertSelectedEquipmentInstances: (instanceIds, options) => ensureAppDataApi().convertSelectedEquipmentInstances(instanceIds, options),
+    convertStaminaToGrowthPoints: (amount, options) => ensureAppDataApi().convertStaminaToGrowthPoints(amount, options)
+  };
+}
+
+function buildAppSharedFacadeDeps() {
+  return {
+    renderHome: reason => ensureAppBootstrapHelperFactoryApi().renderHome(reason),
+    formatCurrencyBalance: (currency, includeMax = false) => ensureAppBootstrapHelperFactoryApi().formatCurrencyBalance(currency, includeMax),
+    renderBattleScreen: () => ensureAppBootstrapHelperFactoryApi().renderBattleScreen(),
+    getBattleParty: () => ensureAppBootstrapHelperFactoryApi().getBattleParty(),
+    startBattleLoop: () => ensureAppBootstrapHelperFactoryApi().startBattleLoop(),
+    stopBattleLoop: () => ensureAppBootstrapHelperFactoryApi().stopBattleLoop(),
+    ensureHomeCurrencyTimer: () => ensureAppBootstrapHelperFactoryApi().ensureHomeCurrencyTimer(),
+    generateCharacterCropAssets: (imageSrc, cropPresets = null) => ensureAppBootstrapHelperFactoryApi().generateCharacterCropAssets(imageSrc, cropPresets),
+    generateCharacterCropImages: (imageSrc, cropPresets = null) => ensureAppBootstrapHelperFactoryApi().generateCharacterCropImages(imageSrc, cropPresets),
+    detectPrimaryFaceBox: image => ensureAppBootstrapHelperFactoryApi().detectPrimaryFaceBox(image),
+    renderCropDataUrl: (image, rect, outputWidth, outputHeight) => ensureAppBootstrapHelperFactoryApi().renderCropDataUrl(image, rect, outputWidth, outputHeight),
+    clamp: (value, min, max) => ensureAppBootstrapHelperFactoryApi().clamp(value, min, max),
+    esc: str => ensureAppBootstrapHelperFactoryApi().esc(str),
+    showToast: message => ensureAppBootstrapHelperFactoryApi().showToast(message)
+  };
+}
+
+function buildAppScreenRuntimeFactoryDeps() {
+  const battleControllerLib = window.BattleControllerLib.create();
+  const battleEngineLib = window.BattleEngineLib.create();
+  const battleStateLib = window.BattleStateLib.create({
+    getCharacters: () => characters
+  });
+  const battleViewLib = window.BattleViewLib.create({
+    getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
+    normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
+    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
+    esc: str => ensureAppUiApi().esc(str)
+  });
+
+  return ensureAppFactoryDepsBuilderApi().buildAppScreenRuntimeDeps({
+    battleControllerLib,
+    battleEngineLib,
+    battleStateLib,
+    battleViewLib
+  });
+}
+
+function buildAppInitContentRuntimeFactoryDeps() {
+  return {
+    contentStateFactory,
+    clamp: (value, min, max) => ensureAppUiApi().clamp(value, min, max),
+    normalizeRates,
+    getRarityModeConfig,
+    getRarityLabel,
+    applyAppMode,
+    currentMode,
+    ensureAuthUi: () => ensureAppAuthApi().ensureUi(),
+    restoreSession: () => ensureAppAuthApi().restoreSession(),
+    ensureEditorFolderControls: () => ensureAppEditorApi().ensureEditorFolderControls(),
+    setupCollectionScreen: () => ensureAppScreenRuntimeFactoryApi().ensureCollectionScreenRuntimeApi().setup(),
+    setupFormationScreen: () => ensureAppScreenRuntimeFactoryApi().ensureFormationScreenRuntimeApi().setup(),
+    setupGachaScreen: () => ensureAppScreenRuntimeFactoryApi().ensureGachaScreenRuntimeApi().setup(),
+    setupStoryScreen: () => ensureAppScreenRuntimeFactoryApi().ensureStoryScreenRuntimeApi().setup(),
+    setupEventScreen: () => ensureAppScreenRuntimeFactoryApi().ensureEventScreenRuntimeApi().setup(),
+    setupSystemEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureSystemEditorRuntimeApi().setup(),
+    setupEntryEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureEntryEditorRuntimeApi().setup(),
+    setupEquipmentCardEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureEquipmentCardEditorRuntimeApi().setup(),
+    setupBaseCharEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureBaseCharEditorRuntimeApi().setup(),
+    setupMusicEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureMusicEditorRuntimeApi().setup(),
+    setupAnnouncementEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureAnnouncementEditorRuntimeApi().setup(),
+    setupTitleEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureTitleEditorRuntimeApi().setup(),
+    setupStoryEditor: () => ensureAppEditorSectionRuntimeFactoryApi().ensureStoryEditorRuntimeApi().setup(),
+    createEditorScreen: deps => ensureAppEditorBootstrapFactoryApi().createActiveEditorScreen(deps),
+    buildEditorScreenDeps: modules => buildActiveEditorScreenDeps(modules),
+    configurePrimaryNavigation: options => ensureAppRuntimeApi().configurePrimaryNavigation(options),
+    openEditorScreen,
+    ensureBattleEntryButton: go => ensureAppRuntimeApi().ensureBattleEntryButton(go),
+    setupNavigation: () => ensureAppRuntimeApi().setupNavigation(),
+    setupEditorOverlay: () => ensureEditorRuntimeApi().setupEditorOverlay(),
+    bindEditorOverlayTabs: () => ensureEditorRuntimeApi().bindEditorOverlayTabs(),
+    disableLegacyEditorUi: () => ensureEditorRuntimeApi().disableLegacyEditorUi(),
+    setupEditorForms: () => ensureAppEditorApi().setupForms(),
+    setupEditorPreviews: () => ensureAppEditorApi().setupPreviews(),
+    setupHomeConfig: () => ensureAppHomeApi().setupHomeConfig(),
+    setupHomeInteractions: () => ensureAppHomeApi().setupHomeInteractions(),
+    setupBattleControls: () => ensureBattleScreenApi().setupBattleControls(),
+    initializeProjects: () => ensureAppRuntimeApi().initializeProjects(),
+    loadAllData: () => ensureAppDataApi().loadAllData(),
+    syncPlayerTitles: options => syncPlayerTitles(options),
+    applyOrientation: () => ensureAppRuntimeApi().applyOrientation(systemConfig),
+    renderAll: () => ensureAppUiApi().renderAll(),
+    setupTitleScreen: () => ensureTitleScreenApi().setup(),
+    syncPlayerProfile: () => ensureAppAuthApi().syncPlayerProfile(),
+    getInitialScreen: () => ensureTitleScreenApi().getInitialScreen(),
+    navigateTo,
+    promptForProfileSetup: () => ensureAppAuthApi().promptForProfileSetup()
+  };
+}
+
+// SECTION 02: runtime factory ensure helpers
+function ensureAppEditorBootstrapFactoryApi() {
+  if (!appEditorBootstrapFactoryApi) {
+    appEditorBootstrapFactoryApi = window.AppEditorBootstrapFactoryLib.create(buildAppEditorBootstrapFactoryDeps());
+  }
+  return appEditorBootstrapFactoryApi;
+}
+
+function ensureAppApiRuntimeFactoryApi() {
+  if (!appApiRuntimeFactoryApi) {
+    appApiRuntimeFactoryApi = window.AppApiRuntimeFactoryLib.create(buildAppApiRuntimeFactoryDeps());
+  }
+  return appApiRuntimeFactoryApi;
+}
+
+function ensureAppSingleRuntimeFactoryApi() {
+  if (!appSingleRuntimeFactoryApi) {
+    appSingleRuntimeFactoryApi = window.AppSingleRuntimeFactoryLib.create(buildAppSingleRuntimeFactoryDeps());
+  }
+  return appSingleRuntimeFactoryApi;
+}
+
+const {
+  openEditorSurface,
+  openEditorScreen,
+  closeEditorScreen,
+  fetchJSON,
+  postJSON,
+  loadLocal,
+  saveLocal,
+  getCurrentPlayerId,
+  getPlayerIdentityScope,
+  getPlayerApiUrl,
+  updateLocalProfileMeta,
+  syncPlayerTitles,
+  getScopedStorageKey,
+  getPlayerStoryProgress,
+  upsertPlayerStoryProgress,
+  upsertInventoryRecord,
+  getOwnedCardCount,
+  getOwnedEquipmentCount,
+  getCardInstances,
+  getEquipmentInstances,
+  getCardInstance,
+  getEquipmentInstance,
+  getCardInstanceGrowth,
+  getEquipmentInstanceGrowth,
+  getCardGrowth,
+  getEquipmentGrowth,
+  getGrowthResources,
+  setCardLockedCopies,
+  setEquipmentLockedCopies,
+  enhanceCard,
+  enhanceEquipment,
+  enhanceCardInstance,
+  enhanceEquipmentInstance,
+  evolveCard,
+  evolveEquipment,
+  evolveCardInstance,
+  evolveEquipmentInstance,
+  limitBreakCard,
+  limitBreakEquipment,
+  limitBreakCardInstance,
+  limitBreakEquipmentInstance,
+  convertCardDuplicates,
+  convertEquipmentDuplicates,
+  convertSelectedCharacterCards,
+  convertSelectedEquipmentCards,
+  convertSelectedCharacterInstances,
+  convertSelectedEquipmentInstances,
+  convertStaminaToGrowthPoints
+} = window.AppLegacyBridgeFactoryLib.create(buildAppLegacyBridgeDeps());
+
+const API = ensureAppApiRuntimeFactoryApi().API;
+const apiUrl = (...args) => ensureAppApiRuntimeFactoryApi().apiUrl(...args);
+const {
+  renderHome,
+  formatCurrencyBalance,
+  renderBattleScreen,
+  getBattleParty,
+  startBattleLoop,
+  stopBattleLoop,
+  ensureHomeCurrencyTimer,
+  generateCharacterCropAssets,
+  generateCharacterCropImages,
+  detectPrimaryFaceBox,
+  renderCropDataUrl,
+  clamp,
+  esc,
+  showToast
+} = window.AppSharedFacadeFactoryLib.create(buildAppSharedFacadeDeps());
 
 const getDefaultSystemConfig = () => appStateGetDefaultSystemConfig(getDefaultRarityMode());
 const getDefaultPlayerState = (projectId = currentProjectId, userId = null) => appStateGetDefaultPlayerState(projectId, userId);
@@ -177,7 +473,44 @@ const getDefaultHomeConfig = () => appStateGetDefaultHomeConfig();
 const getHomeLayoutPreset = (config = systemConfig) => appStateGetHomeLayoutPreset(config);
 const getHomeCharacterBaseOffset = (layoutPreset, config, index) => appStateGetHomeCharacterBaseOffset(layoutPreset, config, index);
 const getDefaultPartyFormation = () => appStateGetDefaultPartyFormation();
-const getCurrentLayoutOwnerId = () => String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim();
+const getAuthenticatedUser = () => ensureAppAuthApi().getCurrentUser?.() || null;
+const getAuthenticatedUserId = () => String(getAuthenticatedUser()?.id || "").trim();
+const getOwnedCardCountLocal = cardId => {
+  const key = String(cardId || "").trim();
+  if (!key) return 0;
+  const item = (Array.isArray(playerState?.inventory) ? playerState.inventory : [])
+    .find(entry => String(entry?.cardId || "").trim() === key);
+  return Math.max(0, Number(item?.quantity || 0));
+};
+const getOwnedEquipmentCountLocal = equipmentId => {
+  const key = String(equipmentId || "").trim();
+  if (!key) return 0;
+  const item = (Array.isArray(playerState?.equipmentInventory) ? playerState.equipmentInventory : [])
+    .find(entry => String(entry?.equipmentId || "").trim() === key);
+  return Math.max(0, Number(item?.quantity || 0));
+};
+const getCurrentProjectRecord = () => window.AppRuntimeLib.getCurrentProject(projects, currentProjectId);
+const isCurrentProjectOwner = () => {
+  const currentProject = getCurrentProjectRecord();
+  if (!currentProject) return false;
+  const authenticatedUserId = getAuthenticatedUserId();
+  const profileUserId = getPlayerProfileUserId();
+  const effectiveUserId = authenticatedUserId || profileUserId;
+  if (!effectiveUserId) return false;
+  const ownerUserId = String(currentProject.ownerUserId || currentProject.owner_user_id || "").trim();
+  const memberRole = String(currentProject.memberRole || currentProject.member_role || "").trim();
+  if (!ownerUserId && !memberRole) return true;
+  return ownerUserId === effectiveUserId || memberRole === "owner";
+};
+const canOpenEditorSurface = () => isCurrentProjectOwner();
+const getEditorAccessDeniedMessage = () => {
+  if (!getAuthenticatedUserId()) {
+    return "編集画面を開くにはログインが必要です";
+  }
+  return "このプロジェクトを編集できるのは所有者のみです";
+};
+const getPlayerProfileUserId = () => String(playerState?.profile?.userId || "").trim();
+const getCurrentLayoutOwnerId = () => getPlayerProfileUserId() || getCurrentPlayerId() || "local-editor";
 const normalizeLayoutAssetRecord = (asset, fallbackOwnerId = getCurrentLayoutOwnerId()) => appStateNormalizeLayoutAssetRecord(asset, fallbackOwnerId);
 const getHomeAssetFolders = (config = systemConfig) => appStateGetHomeAssetFolders(config, getCurrentLayoutOwnerId());
 const resolveSharedAssetFolderAssets = (folder, allFolders = getHomeAssetFolders(), allAssets = (systemConfig?.layoutAssets?.home || [])) => appStateResolveSharedAssetFolderAssets(folder, allFolders, allAssets, getCurrentLayoutOwnerId());
@@ -208,6 +541,17 @@ function applyAppMode(nextMode) {
 function setAppMode(nextMode) {
   currentMode = applyAppMode(nextMode);
   return currentMode;
+}
+
+function applyGameFontPreset(config = systemConfig) {
+  const preset = String(config?.fontPreset || "").trim();
+  const family = FONT_PRESET_MAP[preset] || FONT_PRESET_MAP["zen-kaku-gothic-new"];
+  document.documentElement.style.setProperty("--app-font-family", family);
+}
+
+function setSystemConfigState(value) {
+  systemConfig = value;
+  applyGameFontPreset(systemConfig);
 }
 
 const baseCharVoiceLineDefs = [
@@ -261,649 +605,69 @@ const baseCharHomeVoiceDefs = [
   ["newYear", "お正月"],
   ["homeEnter", "ホーム遷移"]
 ];
+// ---------------------------------------------------------------------------
+// Bootstrap / init
+// ---------------------------------------------------------------------------
 void init();
 
 async function init() {
-  applyAppMode(currentMode);
-  ensureAppEditorApi().ensureEditorFolderControls();
-  collectionScreen = window.CollectionScreen.setupCollectionScreen({
-    getCharacters: () => characters,
-    getStories: () => stories,
-    getSystemConfig: () => systemConfig,
-    getOwnedCount: getOwnedCardCount,
-    getCharacterImageForUsage: (char, usage = "default") => ensureContentStateApi().getCharacterImageForUsage(char, usage),
-    baseCharVoiceLineDefs,
-    getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
-    getEffectiveVoiceLines: (card, baseChar) => ensureAppUiApi().getEffectiveVoiceLines(card, baseChar),
-    openStoryReader: story => storyScreen.openStoryReader(story),
-    getRarityModeConfig,
-    normalizeRarityValue,
-    getRarityLabel,
-    getRarityCssClass,
-    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  formationScreen = window.FormationScreen.setupFormationScreen({
-    getCharacters: () => characters,
-    getEquipmentCards: () => equipmentCards,
-    getOwnedCount: getOwnedCardCount,
-    getOwnedEquipmentCount,
-    getCardInstances,
-    getEquipmentInstances,
-    getCardInstance,
-    getEquipmentInstance,
-    getCardInstanceGrowth,
-    getEquipmentInstanceGrowth,
-    getPartyFormation: () => partyFormation,
-    setPartyFormation: next => {
-      partyFormation = normalizePartyFormation(next);
-      saveLocal("socia-party-formation", partyFormation);
-    },
-    getSystemConfig: () => systemConfig,
-    getCharacterImageForUsage: (char, usage = "default") => ensureContentStateApi().getCharacterImageForUsage(char, usage),
-    getRarityLabel,
-    getRarityCssClass,
-    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-    showCardDetail: char => collectionScreen.showCardDetail(char),
-    getCardGrowth,
-    getEquipmentGrowth,
-    getGrowthResources,
-    setCardLockedCopies,
-    setEquipmentLockedCopies,
-    enhanceCard,
-    enhanceCardInstance,
-    enhanceEquipment,
-    enhanceEquipmentInstance,
-    evolveCard,
-    evolveCardInstance,
-    evolveEquipment,
-    evolveEquipmentInstance,
-    limitBreakCard,
-    limitBreakCardInstance,
-    limitBreakEquipment,
-    limitBreakEquipmentInstance,
-    convertCardDuplicates,
-    convertEquipmentDuplicates,
-    convertSelectedCharacterCards,
-    convertSelectedEquipmentCards,
-    convertSelectedCharacterInstances,
-    convertSelectedEquipmentInstances,
-    convertStaminaToGrowthPoints,
-    getPlayerCurrencyAmount: key => ensureAppDataApi().getPlayerCurrencyAmount(key),
-    getDefaultBattleState: () => getDefaultBattleState(),
-    setBattleState: value => { battleState = value; },
-    navigateTo,
-    showToast: message => ensureAppUiApi().showToast(message),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  gachaScreen = window.GachaScreen.setupGachaScreen({
-    getCharacters: () => characters,
-    getGachas: () => gachas,
-    getPlayerState: () => playerState,
-    getSystemConfig: () => systemConfig,
-    getActiveGacha: () => activeGacha,
-    setActiveGacha: value => { activeGacha = value; },
-    buildGachaRateSummary: (rates = {}) => ensureContentStateApi().buildGachaRateSummary(rates),
-    normalizeRates,
-    getDefaultRates,
-    getRarityModeConfig,
-    getRarityRank,
-    getRarityLabel,
-    getRarityCssClass,
-    normalizeRarityValue,
-    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-    showCardDetail: char => collectionScreen.showCardDetail(char),
-    getPlayerCurrencyAmount: key => ensureAppDataApi().getPlayerCurrencyAmount(key),
-    recordGachaPulls: (gachaId, resultsOrCount = []) => ensureAppDataApi().recordGachaPulls(gachaId, resultsOrCount),
-    refreshPlayerState: () => ensureAppDataApi().loadPlayerState(),
-    showToast: message => ensureAppUiApi().showToast(message),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  storyScreen = window.StoryScreen.setupStoryScreen({
-    getStories: () => stories,
-    getCharacters: () => characters,
-    getSystemConfig: () => systemConfig,
-    getCurrentStoryType: () => currentStoryType,
-    setCurrentStoryType: value => { currentStoryType = value; },
-    getStoryReaderState: () => storyReaderState,
-    setStoryReaderState: value => { storyReaderState = value; },
-    getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
-    findCharacterImageByName: name => ensureContentStateApi().findCharacterImageByName(characters, name),
-    resolveScenePortrait: (story, baseChar, scene) => ensureContentStateApi().resolveScenePortrait(story, baseChar, scene),
-    getOwnedCount: getOwnedCardCount,
-    getStoryProgress: getPlayerStoryProgress,
-    saveStoryProgress: (storyId, values = {}) => ensureAppDataApi().saveStoryProgress(storyId, values),
-    showCardDetail: char => collectionScreen?.showCardDetail?.(char),
-    showToast: message => ensureAppUiApi().showToast(message),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  eventScreen = window.EventScreen.setupEventScreen({
-    getSystemConfig: () => systemConfig,
-    getCharacters: () => characters,
-    getStories: () => stories,
-    getOwnedCount: cardId => ensureAppDataApi().getOwnedCardCount(cardId),
-    showCardDetail: char => collectionScreen?.showCardDetail?.(char),
-    getGrowthResources: () => ensureAppDataApi().getGrowthResources(),
-    getPlayerCurrencyAmount: key => ensureAppDataApi().getPlayerCurrencyAmount(key),
-    getEventItemCounts: () => ensureAppDataApi().getEventItemCounts(),
-    setCurrentStoryType: value => { currentStoryType = value; },
-    renderStoryScreen: () => storyScreen?.renderStoryScreen?.(),
-    openStoryReader: story => storyScreen?.openStoryReader?.(story),
-    getEventExchangeStatus: config => ensureAppDataApi().getEventExchangeStatus(config),
-    purchaseEventExchangeItem: (config, itemId) => ensureAppDataApi().purchaseEventExchangeItem(config, itemId),
-    getEventLoginBonusStatus: config => ensureAppDataApi().getEventLoginBonusStatus(config),
-    claimEventLoginBonus: config => ensureAppDataApi().claimEventLoginBonus(config),
-    navigateTo,
-    showToast: message => ensureAppUiApi().showToast(message)
-  });
-  systemEditor = window.SystemEditor.setupSystemEditor({
-    getSystemConfig: () => systemConfig,
-    setSystemConfig: value => { systemConfig = value; },
-    getEditState: () => editState,
-      getEditStateObject: () => editState,
-    getGachas: () => gachas,
-    getStories: () => stories,
-    getCurrentScreen: () => currentScreen,
-    readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-    saveConfig: async value => {
-      saveLocal("socia-system", value);
-      try {
-        await postJSON(apiUrl(API.system), value);
-      } catch (error) {
-        console.error("Failed to save system config:", error);
-        const code = String(error?.data?.code || "");
-        const requiredPack = String(error?.data?.requiredPack || "").trim();
-        if (code === "billing_feature_required" && (requiredPack === "battle" || requiredPack === "event")) {
-          const label = requiredPack === "battle" ? "Battle Pack" : "Event Pack";
-          ensureAppUiApi().showToast(`\u3053\u306e\u8a2d\u5b9a\u3092\u5171\u6709\u4fdd\u5b58\u3059\u308b\u306b\u306f ${label} \u304c\u5fc5\u8981\u3067\u3059\u3002\u30ed\u30fc\u30ab\u30eb\u306b\u306f\u4fdd\u6301\u3055\u308c\u3066\u3044\u307e\u3059\u3002`);
-          return;
-        }
-        if (code === "billing_feature_required" && requiredPack === "battle") {
-          ensureAppUiApi().showToast("このシステム設定を保存するには Battle Pack が必要です。");
-          return;
-        }
-        if (code === "billing_feature_required" && requiredPack === "event") {
-          ensureAppUiApi().showToast("このイベント設定を保存するには Event Pack が必要です。");
-          return;
-        }
-        ensureAppUiApi().showToast("\u30b7\u30b9\u30c6\u30e0\u8a2d\u5b9a\u306e\u4fdd\u5b58\u306b\u5931\u6557\u3057\u307e\u3057\u305f");
-      }
-    },
-    renderAll: () => ensureAppUiApi().renderAll(),
-    applyOrientation: () => ensureAppRuntimeApi().applyOrientation(systemConfig),
-    refreshCollection: () => collectionScreen.renderCollectionScreen(),
-    refreshGacha: () => gachaScreen.renderGachaScreen(),
-    openFolderManager: kind => getEditorLegacyMethod("openFolderManager")?.(kind),
-    getFeatureAccess: options => getEditorFeatureAccess(options),
-    rarityApi: {
-      getRarityModeConfig: (mode = systemConfig?.rarityMode) => rarityLibGetModeConfig(mode),
-      getRarityCssClass,
-      getRarityLabel: (value, mode = systemConfig?.rarityMode) => rarityLibGetLabel(value, mode),
-      normalizeRarityValue,
-      getDefaultRates: (mode = systemConfig?.rarityMode) => rarityLibGetDefaultRates(mode),
-      normalizeRates: (rates = {}, mode = systemConfig?.rarityMode) => rarityLibNormalizeRates(rates, mode),
-      esc: str => ensureAppUiApi().esc(str)
-    },
-    showToast: message => ensureAppUiApi().showToast(message)
-  });
-  entryEditor = window.EntryEditor.setupEntryEditor({
-    getCharacters: () => characters,
-    setCharacters: value => { characters = value; },
-    getBaseChars: () => baseChars,
-    getCardFolders: () => systemConfig.cardFolders || [],
-    getEditState: () => editState,
-    getApi: () => ({ characters: apiUrl(API.characters) }),
-    getSystemApi: () => ({
-      renderCharacterRarityOptions: value => systemEditor.renderCharacterRarityOptions(value),
-      getRarityFallback: () => getRarityModeConfig().fallback
-    }),
-    readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-    generateCharacterCropAssets: (imageSrc, cropPresets = null) => ensureContentStateApi().generateCharacterCropAssets(imageSrc, cropPresets),
-    normalizeCharacterCropImages: cropImages => ensureContentStateApi().normalizeCharacterCropImages(cropImages),
-    normalizeCharacterCropPresets: cropPresets => ensureContentStateApi().normalizeCharacterCropPresets(cropPresets),
-    normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
-    normalizeCharacterBattleKit: battleKit => ensureContentStateApi().normalizeCharacterBattleKit(battleKit),
-    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-    normalizeRarityValue,
-    saveLocal,
-    postJSON,
-    showToast: message => ensureAppUiApi().showToast(message),
-    getFeatureAccess: options => getEditorFeatureAccess(options),
-    upsertItem: (collection, nextItem) => ensureAppUiApi().upsertItem(collection, nextItem),
-    updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
-    renderHome,
-    renderEditorCharacterList: () => ensureAppUiApi().renderEditorCharacterList(),
-    renderGachaPoolChars: selectedIds => ensureAppUiApi().renderGachaPoolChars(selectedIds),
-    getEditingFeaturedIds: () => ensureAppEditorApi().getEditingFeaturedIds(),
-    createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
-    uploadStaticImageAsset: (file, options = {}) => imageUploadStaticImageAsset(file, {
-      uploadUrl: apiUrl(API.assetsUpload, {
-        query: { user: getCurrentPlayerId() }
-      }),
-      projectId: currentProjectId,
-      userId: getCurrentPlayerId(),
-      ...options
-    }),
-    renderVoiceLineFields: (containerId, prefix, defs, values = {}) => ensureAppUiApi().renderVoiceLineFields(containerId, prefix, defs, values),
-    collectVoiceLineFields: (containerId, prefix, defs) => ensureAppUiApi().collectVoiceLineFields(containerId, prefix, defs),
-    baseCharVoiceLineDefs,
-    baseCharHomeVoiceDefs,
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  equipmentCardEditor = window.EquipmentCardEditor.setupEquipmentCardEditor({
-    getEquipmentCards: () => equipmentCards,
-    setEquipmentCards: value => { equipmentCards = value; },
-    getEditState: () => editState,
-    getApi: () => ({ equipmentCards: apiUrl(API.equipmentCards) }),
-    getSystemApi: () => ({
-      getRarityModeConfig: () => getRarityModeConfig(),
-      getRarityFallback: () => getRarityModeConfig().fallback,
-      getRarityLabel: value => getRarityLabel(value)
-    }),
-    readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-    saveLocal,
-    postJSON,
-    showToast: message => ensureAppUiApi().showToast(message),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  baseCharEditor = window.BaseCharEditor.setupBaseCharEditor({
-    getBaseChars: () => baseChars,
-    setBaseChars: value => { baseChars = value; },
-    getEditState: () => editState,
-    getApi: () => ({ baseChars: apiUrl(API.baseChars) }),
-    readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-    uploadStaticImageAsset: (file, options = {}) => imageUploadStaticImageAsset(file, {
-      uploadUrl: apiUrl(API.assetsUpload, {
-        query: { user: getCurrentPlayerId() }
-      }),
-      projectId: currentProjectId,
-      userId: getCurrentPlayerId(),
-      ...options
-    }),
-    makeBaseCharFallback: (name, color) => ensureAppUiApi().makeBaseCharFallback(name, color),
-    normalizeBirthday: value => ensureContentStateApi().normalizeBirthday(value),
-    saveLocal,
-    postJSON,
-    showToast: message => ensureAppUiApi().showToast(message),
-    upsertItem: (collection, nextItem) => ensureAppUiApi().upsertItem(collection, nextItem),
-    updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
-    renderBaseCharList: () => ensureAppUiApi().renderBaseCharList(),
-    populateBaseCharSelects: () => ensureAppEditorApi().populateBaseCharSelects(),
-    renderVoiceLineFields: (containerId, prefix, defs, values = {}) => ensureAppUiApi().renderVoiceLineFields(containerId, prefix, defs, values),
-    collectVoiceLineFields: (containerId, prefix, defs) => ensureAppUiApi().collectVoiceLineFields(containerId, prefix, defs),
-    baseCharVoiceLineDefs,
-    baseCharHomeVoiceDefs,
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  storyEditor = window.StoryEditor.setupStoryEditor({
-    getStories: () => stories,
-    setStories: value => { stories = value; },
-    getBaseChars: () => baseChars,
-    getCharacters: () => characters,
-    getStoryFolders: () => systemConfig.storyFolders || [],
-    getEditState: () => editState,
-    getApi: () => ({ stories: apiUrl(API.stories) }),
-    readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-    saveLocal,
-    postJSON,
-    showToast: message => ensureAppUiApi().showToast(message),
-    getFeatureAccess: options => getEditorFeatureAccess(options),
-    upsertItem: (collection, nextItem) => ensureAppUiApi().upsertItem(collection, nextItem),
-    updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
-    renderHome,
-    renderEditorStoryList: () => ensureAppUiApi().renderEditorStoryList(),
-    createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
-    getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
-    esc: str => ensureAppUiApi().esc(str)
-  });
-  editorScreen = window.EditorScreen.setupEditorScreen({
-    getCurrentProjectId: () => currentProjectId,
-    getCurrentProjectName: () => projects.find(project => project.id === currentProjectId)?.name || "無題のプロジェクト",
-    getCurrentPlayerId,
-    getBaseChars: () => baseChars,
-    getCharacters: () => characters,
-    getStories: () => stories,
-    getGachas: () => gachas,
-    getSystemConfig: () => systemConfig,
-    setSystemConfig: value => { systemConfig = value; },
-    getCardFolders: () => systemConfig.cardFolders || [],
-    getStoryFolders: () => systemConfig.storyFolders || [],
-    getEditingFeaturedIds: () => ensureAppEditorApi().getEditingFeaturedIds(),
-    getRarityCssClass,
-    getRarityLabel,
-    makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-    buildStorySummary: story => ensureContentStateApi().buildStorySummary(story),
-    buildGachaRateSummary: (rates = {}) => ensureContentStateApi().buildGachaRateSummary(rates),
-    esc: str => ensureAppUiApi().esc(str),
-    baseCharEditor,
-    entryEditor,
-    storyEditor,
-    storyScreen,
-    systemEditor,
-    beginGachaEdit: id => ensureAppEditorApi().beginGachaEdit(id),
-    navigateTo,
-    setActiveGacha: value => { activeGacha = value; },
-    collectionScreen,
-    populateBaseCharSelects: () => ensureAppEditorApi().populateBaseCharSelects(),
-    populateFolderSelects: () => ensureAppEditorApi().populateFolderSelects(),
-    updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
-    createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
-    persistSystemConfigState: () => ensureAppEditorApi().persistSystemConfigState(),
-    openShareSettings: () => ensureAppEditorApi().handleShare(),
-    getShareManagementSummary: () => ensureAppEditorApi().getShareManagementSummary(currentProjectId),
-    rotateCollaborativeShare: () => ensureAppEditorApi().rotateCollaborativeShare(currentProjectId),
-    createPublicShare: () => ensureAppEditorApi().createPublicShare(currentProjectId)
-  });
-  ensureAppRuntimeApi().setupProjectControls();
-  ensureAppRuntimeApi().configurePrimaryNavigation({
-    openEditorScreen,
-    navigateTo
-  });
-  ensureAppRuntimeApi().ensureBattleEntryButton(navigateTo);
-  ensureAppRuntimeApi().setupNavigation();
-  ensureEditorRuntimeApi().setupEditorOverlay();
-  ensureEditorRuntimeApi().bindEditorOverlayTabs();
-  ensureEditorRuntimeApi().disableLegacyEditorUi();
-  ensureAppEditorApi().setupForms();
-  ensureAppEditorApi().setupPreviews();
-  ensureAppHomeApi().setupHomeConfig();
-  ensureAppHomeApi().setupHomeInteractions();
-  ensureBattleScreenApi().setupBattleControls();
-
-  await ensureAppRuntimeApi().initializeProjects();
-  await ensureAppDataApi().loadAllData();
-  ensureAppRuntimeApi().applyOrientation(systemConfig);
-  ensureAppUiApi().renderAll();
+  const modules = await ensureAppInitRuntimeApi().init();
+  collectionScreen = modules?.collectionScreen || null;
+  formationScreen = modules?.formationScreen || null;
+  gachaScreen = modules?.gachaScreen || null;
+  storyScreen = modules?.storyScreen || null;
+  eventScreen = modules?.eventScreen || null;
+  systemEditor = modules?.systemEditor || null;
+  entryEditor = modules?.entryEditor || null;
+  equipmentCardEditor = modules?.equipmentCardEditor || null;
+  baseCharEditor = modules?.baseCharEditor || null;
+  musicEditor = modules?.musicEditor || null;
+  announcementEditor = modules?.announcementEditor || null;
+  titleEditor = modules?.titleEditor || null;
+  storyEditor = modules?.storyEditor || null;
+  editorScreen = modules?.editorScreen || null;
 }
 
+// ---------------------------------------------------------------------------
+// Navigation / mode bridges
+// ---------------------------------------------------------------------------
 function navigateTo(screen) {
   return ensureAppRuntimeApi().navigateTo(screen);
 }
 
+// ---------------------------------------------------------------------------
+// Editor bootstrap wiring
+// ---------------------------------------------------------------------------
+function buildActiveEditorScreenDeps(modules = {}) {
+  return ensureAppEditorBootstrapFactoryApi().buildActiveEditorScreenDeps(modules);
+}
+
 function openHomeEditMode() {
-  setAppMode(APP_MODES.edit);
-  return ensureAppHomeApi().openHomeEditMode();
+  return ensureAppEditorBootstrapFactoryApi().openHomeEditMode();
 }
 
 function closeHomeEditMode() {
-  const result = ensureAppHomeApi().closeHomeEditMode();
-  if (currentScreen === "home") setAppMode(APP_MODES.play);
-  return result;
+  return ensureAppEditorBootstrapFactoryApi().closeHomeEditMode();
 }
 
+// ---------------------------------------------------------------------------
+// Legacy global bridges
+// ---------------------------------------------------------------------------
 // Legacy overlay/editor modules still consume these runtime hooks directly.
 window.navigateTo = navigateTo;
 window.openEditorScreen = openEditorScreen;
 window.closeEditorScreen = closeEditorScreen;
-
-function openEditorSurface(tabName = null, screen = currentScreen) {
-  return ensureEditorRuntimeApi().openEditorSurface(tabName, screen);
-}
-
-function openEditorScreen(tabName = null) {
-  setAppMode(APP_MODES.edit);
-  return ensureEditorRuntimeApi().openEditorScreen(tabName);
-}
-
-function closeEditorScreen() {
-  setAppMode(APP_MODES.play);
-  return ensureEditorRuntimeApi().closeEditorScreen();
-}
-
-async function fetchJSON(url) {
-  return ensureAppDataApi().fetchJSON(url);
-}
-
-async function postJSON(url, data) {
-  return ensureAppDataApi().postJSON(url, data);
-}
+window.__SOCIA_ACTIVE_EDITOR_RUNTIME__ = getActiveEditorRuntime();
 
 async function getEditorFeatureAccess(options = {}) {
-  const projectId = String(currentProjectId || "").trim();
-  const userId = String(getCurrentPlayerId() || "").trim();
-  if (!projectId || !userId) {
-    return { battle: false, storyFx: false, event: false };
-  }
-
-  const force = options === true || options?.force === true;
-  if (
-    !force &&
-    editorFeatureAccessCache.value &&
-    editorFeatureAccessCache.projectId === projectId &&
-    editorFeatureAccessCache.userId === userId
-  ) {
-    return editorFeatureAccessCache.value;
-  }
-
-  if (
-    !force &&
-    editorFeatureAccessCache.promise &&
-    editorFeatureAccessCache.projectId === projectId &&
-    editorFeatureAccessCache.userId === userId
-  ) {
-    return editorFeatureAccessCache.promise;
-  }
-
-  const request = postJSON(
-    apiUrl(API.projectShareSummary, {
-      includeProject: false,
-      query: { project: projectId, user: userId }
-    }),
-    { projectId, userId }
-  ).then(response => {
-    const entitlements = response?.featureAccess || {};
-    const value = {
-      battle: Boolean(entitlements.battle),
-      storyFx: Boolean(entitlements.storyFx),
-      event: Boolean(entitlements.event)
-    };
-    editorFeatureAccessCache = {
-      projectId,
-      userId,
-      value,
-      promise: null
-    };
-    return value;
-  }).catch(error => {
-    console.error("Failed to load editor feature access:", error);
-    const value = { battle: false, storyFx: false, event: false };
-    editorFeatureAccessCache = {
-      projectId,
-      userId,
-      value,
-      promise: null
-    };
-    return value;
-  });
-
-  editorFeatureAccessCache = {
-    projectId,
-    userId,
-    value: null,
-    promise: request
-  };
-  return request;
+  return ensureAppApiRuntimeFactoryApi().getEditorFeatureAccess(options);
 }
 
-function loadLocal(key, fallback) {
-  return ensureAppDataApi().loadLocal(key, fallback);
-}
-
-function saveLocal(key, data) {
-  return ensureAppDataApi().saveLocal(key, data);
-}
-
-function getCurrentPlayerId() {
-  return ensureAppDataApi().getCurrentPlayerId();
-}
-
-function getPlayerIdentityScope() {
-  return ensureAppDataApi().getPlayerIdentityScope();
-}
-
-function getPlayerApiUrl(path) {
-  return ensureAppDataApi().getPlayerApiUrl(path);
-}
-
-function getScopedStorageKey(key) {
-  return ensureAppDataApi().getScopedStorageKey(key);
-}
-
-function getPlayerStoryProgress(storyId) {
-  return ensureAppDataApi().getPlayerStoryProgress(storyId);
-}
-
-function upsertPlayerStoryProgress(nextItem) {
-  return ensureAppDataApi().upsertPlayerStoryProgress(nextItem);
-}
-
-
-function upsertInventoryRecord(nextItem) {
-  return ensureAppDataApi().upsertInventoryRecord(nextItem);
-}
-
-function getOwnedCardCount(cardId) {
-  return ensureAppDataApi().getOwnedCardCount(cardId);
-}
-
-function getOwnedEquipmentCount(equipmentId) {
-  return ensureAppDataApi().getOwnedEquipmentCount(equipmentId);
-}
-
-function getCardInstances(cardId = "") {
-  return ensureAppDataApi().getCardInstances(cardId);
-}
-
-function getEquipmentInstances(equipmentId = "") {
-  return ensureAppDataApi().getEquipmentInstances(equipmentId);
-}
-
-function getCardInstance(instanceId) {
-  return ensureAppDataApi().getCardInstance(instanceId);
-}
-
-function getEquipmentInstance(instanceId) {
-  return ensureAppDataApi().getEquipmentInstance(instanceId);
-}
-
-function getCardInstanceGrowth(instanceId) {
-  return ensureAppDataApi().getCardInstanceGrowth(instanceId);
-}
-
-function getEquipmentInstanceGrowth(instanceId) {
-  return ensureAppDataApi().getEquipmentInstanceGrowth(instanceId);
-}
-
-function getCardGrowth(cardId) {
-  return ensureAppDataApi().getCardGrowth(cardId);
-}
-
-function getEquipmentGrowth(equipmentId) {
-  return ensureAppDataApi().getEquipmentGrowth(equipmentId);
-}
-
-function getGrowthResources() {
-  return ensureAppDataApi().getGrowthResources();
-}
-
-function setCardLockedCopies(cardId, value) {
-  return ensureAppDataApi().setCardLockedCopies(cardId, value);
-}
-
-function setEquipmentLockedCopies(equipmentId, value) {
-  return ensureAppDataApi().setEquipmentLockedCopies(equipmentId, value);
-}
-
-function enhanceCard(cardId) {
-  return ensureAppDataApi().enhanceCard(cardId);
-}
-
-function enhanceEquipment(equipmentId) {
-  return ensureAppDataApi().enhanceEquipment(equipmentId);
-}
-
-function enhanceCardInstance(instanceId) {
-  return ensureAppDataApi().enhanceCardInstance(instanceId);
-}
-
-function enhanceEquipmentInstance(instanceId) {
-  return ensureAppDataApi().enhanceEquipmentInstance(instanceId);
-}
-
-function evolveCard(cardId) {
-  return ensureAppDataApi().evolveCard(cardId);
-}
-
-function evolveEquipment(equipmentId) {
-  return ensureAppDataApi().evolveEquipment(equipmentId);
-}
-
-function evolveCardInstance(instanceId) {
-  return ensureAppDataApi().evolveCardInstance(instanceId);
-}
-
-function evolveEquipmentInstance(instanceId) {
-  return ensureAppDataApi().evolveEquipmentInstance(instanceId);
-}
-
-function limitBreakCard(cardId) {
-  return ensureAppDataApi().limitBreakCard(cardId);
-}
-
-function limitBreakEquipment(equipmentId) {
-  return ensureAppDataApi().limitBreakEquipment(equipmentId);
-}
-
-function limitBreakCardInstance(instanceId, materialInstanceId) {
-  return ensureAppDataApi().limitBreakCardInstance(instanceId, materialInstanceId);
-}
-
-function limitBreakEquipmentInstance(instanceId, materialInstanceId) {
-  return ensureAppDataApi().limitBreakEquipmentInstance(instanceId, materialInstanceId);
-}
-
-function convertCardDuplicates(cardId, target, amount) {
-  return ensureAppDataApi().convertCardDuplicates(cardId, target, amount);
-}
-
-function convertEquipmentDuplicates(equipmentId, target, amount) {
-  return ensureAppDataApi().convertEquipmentDuplicates(equipmentId, target, amount);
-}
-
-function convertSelectedCharacterCards(selectionCounts, options) {
-  return ensureAppDataApi().convertSelectedCharacterCards(selectionCounts, options);
-}
-
-function convertSelectedEquipmentCards(selectionCounts, options) {
-  return ensureAppDataApi().convertSelectedEquipmentCards(selectionCounts, options);
-}
-
-function convertSelectedCharacterInstances(instanceIds, options) {
-  return ensureAppDataApi().convertSelectedCharacterInstances(instanceIds, options);
-}
-
-function convertSelectedEquipmentInstances(instanceIds, options) {
-  return ensureAppDataApi().convertSelectedEquipmentInstances(instanceIds, options);
-}
-
-function convertStaminaToGrowthPoints(amount, options) {
-  return ensureAppDataApi().convertStaminaToGrowthPoints(amount, options);
-}
-
-function normalizePartyFormation(formation) {
-  return playerStateNormalizePartyFormation(formation);
-}
-
-function mergePlayerState(remoteState, localState) {
-  return playerStateMergePlayerState(
-    remoteState,
-    localState,
-    getDefaultPlayerState(currentProjectId, getCurrentPlayerId())
-  );
-}
-
-function normalizePlayerCurrencies(currencies) {
-  return playerStateNormalizePlayerCurrencies(currencies, appStateGetDefaultCurrencies());
+// ---------------------------------------------------------------------------
+// Shared runtime facades
+// ---------------------------------------------------------------------------
+function ensureAppInitRuntimeApi() {
+  return ensureAppInitContentRuntimeFactoryApi().ensureAppInitRuntimeApi();
 }
 
 function getEffectivePlayerCurrency(key, nowMs = Date.now()) {
@@ -914,77 +678,104 @@ function syncRecoveredCurrenciesInMemory(nowMs = Date.now()) {
   return ensureAppDataApi().syncRecoveredCurrenciesInMemory(nowMs);
 }
 
-function getRecoveredCurrency(currency, nowMs = Date.now()) {
-  return playerStateGetRecoveredCurrency(currency, nowMs);
-}
-
-function normalizeHomePreferences(config) {
-  return playerStateNormalizeHomePreferences(config, appStateGetDefaultHomeConfig(), clamp);
-}
-
-function isBaseCharBirthdayToday(baseChar, now = new Date()) {
-  const birthday = String(baseChar?.birthday || "").trim();
-  const match = birthday.match(/^(\d{1,2})\/(\d{1,2})$/);
-  if (!match) return false;
-  return Number(match[1]) === (now.getMonth() + 1) && Number(match[2]) === now.getDate();
-}
-
-function isHomeEventActive(now = new Date()) {
-  const month = now.getMonth() + 1;
-  return Array.isArray(stories) && stories.some(story => {
-    if (story?.type !== "event") return false;
-    const text = `${story?.title || ""} ${story?.description || ""}`;
-    if (/birthday|anniversary|event|limited/i.test(text)) return true;
-    const monthMatch = text.match(/\b(1[0-2]|0?[1-9])月\b/);
-    return monthMatch ? Number(monthMatch[1]) === month : false;
-  });
-}
-
+// ---------------------------------------------------------------------------
+// Runtime factories / ensure*Api
+// ---------------------------------------------------------------------------
 function ensureBattleScreenApi() {
-  if (!battleScreenModuleApi) {
-    const battleControllerLib = window.BattleControllerLib.create();
-    const battleEngineLib = window.BattleEngineLib.create();
-    const battleStateLib = window.BattleStateLib.create({
-      getCharacters: () => characters
-    });
-    const battleViewLib = window.BattleViewLib.create({
-      getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
-      normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
-      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-      esc: str => ensureAppUiApi().esc(str)
-    });
-    battleScreenModuleApi = window.BattleScreenModule.create({
-      getCharacters: () => characters,
-      getPartyFormation: () => partyFormation,
-      getCurrentScreen: () => currentScreen,
-      getSystemConfig: () => systemConfig,
-      getBattleState: () => battleState,
-      setBattleState: value => { battleState = value; },
-      getBattleLoopTimer: () => battleLoopTimer,
-      setBattleLoopTimer: value => { battleLoopTimer = value; },
-      getDefaultBattleState: () => appStateGetDefaultBattleState(),
-      normalizePartyFormation,
-      battleControllerLib,
-      battleEngineLib,
-      battleStateLib,
-      battleViewLib,
-      getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
-      normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
-      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-      esc: str => ensureAppUiApi().esc(str),
-      renderBattleScreenExternal: () => renderBattleScreen()
-    });
+  return ensureAppScreenRuntimeFactoryApi().ensureBattleScreenApi();
+}
+
+function ensureAppScreenRuntimeFactoryApi() {
+  if (!appScreenRuntimeFactoryApi) {
+    appScreenRuntimeFactoryApi = window.AppScreenRuntimeFactoryLib.create(
+      buildAppScreenRuntimeFactoryDeps()
+    );
   }
-  return battleScreenModuleApi;
+  return appScreenRuntimeFactoryApi;
 }
 
 function ensureAppRuntimeApi() {
-  if (!appRuntimeModuleApi) {
-    appRuntimeModuleApi = window.AppRuntimeLib.create({
+  return ensureAppCoreRuntimeFactoryApi().ensureAppRuntimeApi();
+}
+
+function getEditorLegacyMethod(name) {
+  const direct = editorScreen?.[name];
+  if (typeof direct === "function") {
+    return direct.bind(editorScreen);
+  }
+  return null;
+}
+
+function ensureAppDataApi() {
+  return ensureAppCoreRuntimeFactoryApi().ensureAppDataApi();
+}
+
+// SECTION 03: thin runtime-factory cluster
+// These wrappers intentionally stay in app.js because they are orchestration entrypoints,
+// but their dependency bundles now live in named builder helpers above.
+function ensureAppUiHomeRuntimeFactoryApi() {
+  if (!appUiHomeRuntimeFactoryApi) {
+    appUiHomeRuntimeFactoryApi = window.AppUiHomeRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppUiHomeRuntimeDeps()
+    );
+  }
+  return appUiHomeRuntimeFactoryApi;
+}
+
+function ensureAppEditorRuntimeFactoryApi() {
+  if (!appEditorRuntimeFactoryApi) {
+    appEditorRuntimeFactoryApi = window.AppEditorRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppEditorRuntimeDeps()
+    );
+  }
+  return appEditorRuntimeFactoryApi;
+}
+
+function ensureAppAuthProfileRuntimeFactoryApi() {
+  if (!appAuthProfileRuntimeFactoryApi) {
+    appAuthProfileRuntimeFactoryApi = window.AppAuthProfileRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppAuthProfileRuntimeDeps()
+    );
+  }
+  return appAuthProfileRuntimeFactoryApi;
+}
+
+function ensureAppEditorSectionRuntimeFactoryApi() {
+  if (!appEditorSectionRuntimeFactoryApi) {
+    appEditorSectionRuntimeFactoryApi = window.AppEditorSectionRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppEditorSectionRuntimeDeps()
+    );
+  }
+  return appEditorSectionRuntimeFactoryApi;
+}
+
+function ensureAppLayoutEditorRuntimeFactoryApi() {
+  if (!appLayoutEditorRuntimeFactoryApi) {
+    appLayoutEditorRuntimeFactoryApi = window.AppLayoutEditorRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppLayoutEditorRuntimeDeps()
+    );
+  }
+  return appLayoutEditorRuntimeFactoryApi;
+}
+
+function ensureAppInitContentRuntimeFactoryApi() {
+  if (!appInitContentRuntimeFactoryApi) {
+    appInitContentRuntimeFactoryApi = window.AppInitContentRuntimeFactoryLib.create(
+      buildAppInitContentRuntimeFactoryDeps()
+    );
+  }
+  return appInitContentRuntimeFactoryApi;
+}
+
+function buildAppFactoryDepsBuilderDeps() {
+  return {
+      searchParams,
+      roomId,
+      getAuthenticatedUserId,
+      getCurrentProjectId: () => currentProjectId,
       getProjects: () => projects,
       setProjects: value => { projects = value; },
-      getCurrentProjectId: () => currentProjectId,
-      setCurrentProjectId: value => { currentProjectId = value; },
+      getCurrentPlayerId,
       getCurrentMode: () => currentMode,
       setCurrentMode: value => { currentMode = normalizeAppMode(value); },
       applyAppMode,
@@ -995,56 +786,6 @@ function ensureAppRuntimeApi() {
       getStoryScreen: () => storyScreen,
       getEventScreen: () => eventScreen,
       getCollectionScreen: () => collectionScreen,
-      apiUrl,
-      API,
-      fetchJSON,
-      postJSON,
-      mergeCollectionState: (remoteItems, localItems) => ensureAppDataApi().mergeCollectionState(remoteItems, localItems),
-      loadProjectRegistry: (key, fallback) => ensureAppDataApi().loadProjectRegistry(key, fallback),
-      saveProjectRegistry: (key, data) => ensureAppDataApi().saveProjectRegistry(key, data),
-      normalizeProjectRecord: project => window.AppRuntimeLib.normalizeProjectRecord(project),
-      makeProjectRecord: name => window.AppRuntimeLib.makeProjectRecord(name),
-      getCurrentProject: () => window.AppRuntimeLib.getCurrentProject(projects, currentProjectId),
-      resetEditState: () => window.AppRuntimeLib.resetEditState(editState),
-      syncProjectQuery: () => window.AppRuntimeLib.syncProjectQuery(currentProjectId),
-      loadAllData: () => ensureAppDataApi().loadAllData(),
-      resetEditorForms: () => ensureAppEditorApi().resetEditorForms(),
-      renderAll: () => ensureAppUiApi().renderAll(),
-      renderHome,
-      renderBattleScreen,
-      renderGachaScreen: () => gachaScreen?.renderGachaScreen?.(),
-      renderStoryScreen: () => storyScreen?.renderStoryScreen?.(),
-      renderEventScreen: () => eventScreen?.renderEventScreen?.(),
-      renderCollectionScreen: () => collectionScreen?.renderCollectionScreen?.(),
-      renderFormationScreen: () => formationScreen?.renderFormationScreen?.(),
-      startBattleLoop,
-      stopBattleLoop,
-      closeHomeEditMode,
-      showToast: message => toastShowToast(message),
-      esc: value => escapeHtml(value)
-    });
-  }
-  return appRuntimeModuleApi;
-}
-
-function getEditorLegacyMethod(name) {
-  const legacyApi = editorScreen?.__legacyApi;
-  if (legacyApi && typeof legacyApi[name] === "function") {
-    return legacyApi[name];
-  }
-  const direct = editorScreen?.[name];
-  if (typeof direct === "function") {
-    return direct.bind(editorScreen);
-  }
-  return null;
-}
-
-function ensureAppDataApi() {
-  if (!appDataModuleApi) {
-    appDataModuleApi = window.AppDataLib.create({
-      searchParams,
-      roomId,
-      getCurrentProjectId: () => currentProjectId,
       getPlayerState: () => playerState,
       setPlayerState: value => { playerState = value; },
       getBaseChars: () => baseChars,
@@ -1053,23 +794,33 @@ function ensureAppDataApi() {
       setCharacters: value => { characters = value; },
       getEquipmentCards: () => equipmentCards,
       setEquipmentCards: value => { equipmentCards = value; },
+      getAnnouncements: () => announcements,
+      setAnnouncements: value => { announcements = value; },
       getStories: () => stories,
       setStories: value => { stories = value; },
       getGachas: () => gachas,
       setGachas: value => { gachas = value; },
       getSystemConfig: () => systemConfig,
-      setSystemConfig: value => { systemConfig = value; },
+      setSystemConfig: value => { setSystemConfigState(value); },
       getPartyFormation: () => partyFormation,
       setPartyFormation: value => { partyFormation = value; },
+      getBattleState: () => battleState,
       setBattleState: value => { battleState = value; },
+      setCurrentProjectId: value => { currentProjectId = value; },
       apiUrl,
       API,
       apiGet,
       apiPost,
+      fetchJSON,
+      postJSON,
+      createProfileActions: deps => window.ProfileActionsLib?.create?.(deps) || null,
+      createAuthSessionRuntime: deps => window.AuthSessionRuntimeLib?.create?.(deps) || null,
+      createAuthPanelUi: () => window.AuthPanelUiLib?.create?.() || null,
       storageLoadLocal,
       storageSaveLocal,
       storageGetScopedStorageKey,
-      getDefaultSystemConfig: () => appStateGetDefaultSystemConfig(getDefaultRarityMode()),
+      getDefaultRarityMode,
+      getDefaultSystemConfig: mode => appStateGetDefaultSystemConfig(mode),
       getDefaultPlayerState: (projectId = currentProjectId, userId = null) => appStateGetDefaultPlayerState(projectId, userId),
       getDefaultPartyFormation: () => appStateGetDefaultPartyFormation(),
       getDefaultBattleState: () => appStateGetDefaultBattleState(),
@@ -1079,245 +830,306 @@ function ensureAppDataApi() {
       normalizeLayoutAssetRecord: (asset, fallbackOwnerId = getCurrentLayoutOwnerId()) => appStateNormalizeLayoutAssetRecord(asset, fallbackOwnerId),
       normalizeAssetFoldersConfig: config => appStateNormalizeAssetFoldersConfig(config, getCurrentLayoutOwnerId()),
       createDefaultHomeAssetFolder: (ownerMemberId = getCurrentLayoutOwnerId()) => appStateCreateDefaultHomeAssetFolder(ownerMemberId),
-      normalizePartyFormation,
-      mergePlayerState,
-      normalizePlayerCurrencies,
-      getRecoveredCurrency,
-      getCurrentScreen: () => currentScreen,
-      renderHomeCurrencies: () => ensureAppHomeApi().renderHomeCurrencies()
-    });
-  }
-  return appDataModuleApi;
-}
-
-function ensureAppUiApi() {
-  if (!appUiModuleApi) {
-    appUiModuleApi = window.AppUiLib.create({
-      getCollectionScreen: () => collectionScreen,
-      getFormationScreen: () => formationScreen,
+      normalizeProjectRecord: project => window.AppRuntimeLib.normalizeProjectRecord(project),
+      makeProjectRecord: name => window.AppRuntimeLib.makeProjectRecord(name),
+      getCurrentProject: () => window.AppRuntimeLib.getCurrentProject(projects, currentProjectId),
+      resetEditState: () => window.AppRuntimeLib.resetEditState(editState),
+      syncProjectQuery: () => window.AppRuntimeLib.syncProjectQuery(currentProjectId),
+      normalizePartyFormation: formation => ensureAppBootstrapHelperFactoryApi().normalizePartyFormation(formation),
+      mergePlayerState: (remoteState, localState) => ensureAppBootstrapHelperFactoryApi().mergePlayerState(remoteState, localState),
+      normalizePlayerCurrencies: currencies => ensureAppBootstrapHelperFactoryApi().normalizePlayerCurrencies(currencies),
+      getRecoveredCurrency: (currency, nowMs = Date.now()) => ensureAppBootstrapHelperFactoryApi().getRecoveredCurrency(currency, nowMs),
+      mergeCollectionState: (remoteItems, localItems) => ensureAppDataApi().mergeCollectionState(remoteItems, localItems),
+      loadProjectRegistry: (key, fallback) => ensureAppDataApi().loadProjectRegistry(key, fallback),
+      saveProjectRegistry: (key, data) => ensureAppDataApi().saveProjectRegistry(key, data),
+      loadAllData: () => ensureAppDataApi().loadAllData(),
+      resetEditorForms: () => ensureAppEditorApi().resetEditorForms(),
+      renderAll: () => ensureAppUiApi().renderAll(),
+      renderHome: reason => ensureAppBootstrapHelperFactoryApi().renderHome(reason),
+      renderBattleScreen: () => ensureAppBootstrapHelperFactoryApi().renderBattleScreen(),
+      startBattleLoop: () => ensureAppBootstrapHelperFactoryApi().startBattleLoop(),
+      stopBattleLoop: () => ensureAppBootstrapHelperFactoryApi().stopBattleLoop(),
+      closeHomeEditMode,
+      showToast: message => toastShowToast(message),
+      esc: value => escapeHtml(value),
+      renderHomeCurrencies: () => ensureAppHomeApi().renderHomeCurrencies(),
+      getCurrentLayoutOwnerId,
+      getCharactersForScreen: () => characters,
+      getEquipmentCardsForScreen: () => equipmentCards,
+      getGachasForScreen: () => gachas,
+      getStoriesForScreen: () => stories,
+      getPlayerStateForScreen: () => playerState,
+      getPartyFormationForScreen: () => partyFormation,
+      setPartyFormationForScreen: next => {
+        partyFormation = ensureAppBootstrapHelperFactoryApi().normalizePartyFormation(next);
+        saveLocal("socia-party-formation", partyFormation);
+        syncPlayerTitles({ showToast: true, render: false });
+      },
+      getCurrentStoryType: () => currentStoryType,
+      setCurrentStoryType: value => { currentStoryType = value; },
+      getStoryReaderState: () => storyReaderState,
+      setStoryReaderState: value => { storyReaderState = value; },
+      getActiveGacha: () => activeGacha,
+      setActiveGacha: value => { activeGacha = value; },
+      getBattleStateForScreen: () => battleState,
+      setBattleStateForScreen: value => { battleState = value; },
+      getBattleLoopTimer: () => battleLoopTimer,
+      setBattleLoopTimer: value => { battleLoopTimer = value; },
+      getPlayerCurrencyAmount: key => ensureAppDataApi().getPlayerCurrencyAmount(key),
+      getOwnedCount: getOwnedCardCount,
+      getOwnedEquipmentCount,
+      getCardInstances,
+      getEquipmentInstances,
+      getCardInstance,
+      getEquipmentInstance,
+      getCardInstanceGrowth,
+      getEquipmentInstanceGrowth,
+      getCardGrowth,
+      getEquipmentGrowth,
+      getGrowthResources,
+      setCardLockedCopies,
+      setEquipmentLockedCopies,
+      enhanceCard,
+      enhanceCardInstance,
+      enhanceEquipment,
+      enhanceEquipmentInstance,
+      evolveCard,
+      evolveCardInstance,
+      evolveEquipment,
+      evolveEquipmentInstance,
+      limitBreakCard,
+      limitBreakCardInstance,
+      limitBreakEquipment,
+      limitBreakEquipmentInstance,
+      convertCardDuplicates,
+      convertEquipmentDuplicates,
+      convertSelectedCharacterCards,
+      convertSelectedEquipmentCards,
+      convertSelectedCharacterInstances,
+      convertSelectedEquipmentInstances,
+      convertStaminaToGrowthPoints,
+      getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
+      findCharacterImageByName: name => ensureContentStateApi().findCharacterImageByName(characters, name),
+      resolveScenePortrait: (story, baseChar, scene) => ensureContentStateApi().resolveScenePortrait(story, baseChar, scene),
+      getStoryProgress: getPlayerStoryProgress,
+      saveStoryProgress: (storyId, values = {}) => ensureAppDataApi().saveStoryProgress(storyId, values),
+      getCharacterBattleVisual: (char, state = "idle", config = systemConfig) => ensureContentStateApi().getCharacterBattleVisual(char, state, config),
+      getEditState: () => editState,
+      normalizeCharacterCropImages: cropImages => ensureContentStateApi().normalizeCharacterCropImages(cropImages),
+      normalizeCharacterCropPresets: cropPresets => ensureContentStateApi().normalizeCharacterCropPresets(cropPresets),
+      normalizeCharacterSdImages: sdImages => ensureContentStateApi().normalizeCharacterSdImages(sdImages),
+      normalizeCharacterBattleKit: battleKit => ensureContentStateApi().normalizeCharacterBattleKit(battleKit),
+      getCharacterImageForUsage: (char, usage = "default") => ensureContentStateApi().getCharacterImageForUsage(char, usage),
+      getEffectiveVoiceLines: (card, baseChar) => ensureAppUiApi().getEffectiveVoiceLines(card, baseChar),
+      showCardDetail: char => collectionScreen?.showCardDetail?.(char),
+      openStoryReader: story => storyScreen?.openStoryReader?.(story),
+      renderStoryScreen: () => storyScreen?.renderStoryScreen?.(),
+      getEventItemCounts: () => ensureAppDataApi().getEventItemCounts(),
+      getEventExchangeStatus: config => ensureAppDataApi().getEventExchangeStatus(config),
+      purchaseEventExchangeItem: (config, itemId) => ensureAppDataApi().purchaseEventExchangeItem(config, itemId),
+      getEventLoginBonusStatus: config => ensureAppDataApi().getEventLoginBonusStatus(config),
+      claimEventLoginBonus: config => ensureAppDataApi().claimEventLoginBonus(config),
+      recordGachaPulls: (gachaId, resultsOrCount = []) => ensureAppDataApi().recordGachaPulls(gachaId, resultsOrCount),
+      refreshPlayerState: () => ensureAppDataApi().loadPlayerState(),
+      buildGachaRateSummary: (rates = {}) => ensureContentStateApi().buildGachaRateSummary(rates),
+      getDefaultRates,
+      normalizeRates,
+      getRarityModeConfig,
+      getRarityRank,
+      getRarityLabel,
+      getRarityCssClass,
+      normalizeRarityValue,
+      rarityApi: {
+        getDefaultRates,
+        normalizeRates,
+        getRarityModeConfig,
+        getRarityRank,
+        getRarityLabel,
+        getRarityCssClass,
+        normalizeRarityValue,
+        esc: value => ensureAppUiApi().esc(value)
+      },
+      navigateTo,
+      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
+      showToastForScreen: message => ensureAppUiApi().showToast(message),
+      escForScreen: str => ensureAppUiApi().esc(str),
+      baseCharVoiceLineDefs,
+      getBaseCharEditor: () => baseCharEditor,
+      getEntryEditor: () => entryEditor,
+      getStoryEditor: () => storyEditor,
+      getSystemEditor: () => systemEditor,
       getEditorScreen: () => editorScreen,
       populateFolderSelects: () => ensureAppEditorApi().populateFolderSelects(),
-      renderHome,
-      renderBattleScreen,
+      refreshTitleScreen: () => ensureTitleScreenApi().setup(),
+      renderHomeFacade: reason => ensureAppBootstrapHelperFactoryApi().renderHome(reason),
+      renderBattleScreenFacade: () => ensureAppBootstrapHelperFactoryApi().renderBattleScreen(),
       readFileAsDataUrl: imageReadFileAsDataUrl,
       makeBaseCharFallback: imageMakeBaseCharFallback,
-      makeFallbackImage: imageMakeFallbackImage,
-      esc: escapeHtml,
-      showToast: toastShowToast,
-      getSystemConfig: () => systemConfig,
-      baseCharVoiceLineDefs,
-      baseCharHomeVoiceDefs
-    });
-  }
-  return appUiModuleApi;
-}
-
-function ensureAppHomeApi() {
-  if (!appHomeModuleApi) {
-    appHomeModuleApi = window.AppHomeLib.create({
-      getCurrentScreen: () => currentScreen,
-      getCharacters: () => characters,
-      getStories: () => stories,
-      getGachas: () => gachas,
-      getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
+      normalizeBirthday: value => ensureContentStateApi().normalizeBirthday(value),
+      makeFallbackImageUi: imageMakeFallbackImage,
+      renderBaseCharList: () => ensureAppUiApi().renderBaseCharList(),
+      renderVoiceLineFields: (containerId, prefix, defs, values = {}) => ensureAppUiApi().renderVoiceLineFields(containerId, prefix, defs, values),
+      collectVoiceLineFields: (containerId, prefix, defs) => ensureAppUiApi().collectVoiceLineFields(containerId, prefix, defs),
+      upsertItem: (collection, nextItem) => ensureAppUiApi().upsertItem(collection, nextItem),
+      escUi: escapeHtml,
+      showToastUi: toastShowToast,
+      baseCharHomeVoiceDefs,
+      getCurrentScreenForHome: () => currentScreen,
+      getCharactersForHome: () => characters,
+      getStoriesForHome: () => stories,
+      getGachasForHome: () => gachas,
+      getAnnouncementsForHome: () => announcements,
+      getBaseCharsApiUrl: () => apiUrl(API.baseChars),
+      getCharactersApiUrl: () => apiUrl(API.characters),
+      getStoriesApiUrl: () => apiUrl(API.stories),
+      getAnnouncementsApiUrl: () => apiUrl(API.announcements),
+      getEquipmentCardsApiUrl: () => apiUrl(API.equipmentCards),
+      generateCharacterCropAssets: (imageSrc, cropPresets = null) => ensureContentStateApi().generateCharacterCropAssets(imageSrc, cropPresets),
+      renderEditorCharacterList: () => ensureAppUiApi().renderEditorCharacterList(),
+      renderGachaPoolChars: selectedIds => ensureAppUiApi().renderGachaPoolChars(selectedIds),
+      getEditingFeaturedIds: () => ensureAppEditorApi().getEditingFeaturedIds(),
+      populateBaseCharSelects: () => ensureAppEditorApi().populateBaseCharSelects(),
       getEffectiveHomeVoices: (card, baseChar) => ensureAppUiApi().getEffectiveHomeVoices(card, baseChar),
       getEffectiveHomeBirthdays: (card, baseChar) => ensureAppUiApi().getEffectiveHomeBirthdays(card, baseChar),
       getEffectiveHomeOpinions: (card, baseChar) => ensureAppUiApi().getEffectiveHomeOpinions(card, baseChar),
       getEffectiveHomeConversations: (card, baseChar) => ensureAppUiApi().getEffectiveHomeConversations(card, baseChar),
-      isBaseCharBirthdayToday,
-      isHomeEventActive,
-      getSystemConfig: () => systemConfig,
-      setSystemConfig: value => { systemConfig = value; },
-      getPlayerState: () => playerState,
-      setPlayerState: value => { playerState = value; },
-      getCurrentProjectId: () => currentProjectId,
+      isBaseCharBirthdayToday: (baseChar, now = new Date()) => ensureAppBootstrapHelperFactoryApi().isBaseCharBirthdayToday(baseChar, now),
+      isHomeEventActive: (now = new Date()) => ensureAppBootstrapHelperFactoryApi().isHomeEventActive(now),
       getHomeConfigDraft: () => homeConfigDraft,
       setHomeConfigDraft: value => { homeConfigDraft = value; },
       getActiveHomeConfigTarget: () => activeHomeConfigTarget,
       setActiveHomeConfigTarget: value => { activeHomeConfigTarget = value; },
       getHomeConfigDrag: () => homeConfigDrag,
       setHomeConfigDrag: value => { homeConfigDrag = value; },
-      getBattleState: () => battleState,
       getHomeDialogueState: () => homeDialogueState,
       setHomeDialogueState: value => { homeDialogueState = value; },
-      getActiveGacha: () => activeGacha,
       getDefaultHomeConfig: () => appStateGetDefaultHomeConfig(),
-      normalizeHomePreferences,
+      normalizeHomePreferences: config => ensureAppBootstrapHelperFactoryApi().normalizeHomePreferences(config),
       loadLocal,
       saveLocal,
-      postJSON,
       getPlayerApiUrl,
-      API,
       getHomeLayoutPreset: (config = systemConfig) => appStateGetHomeLayoutPreset(config),
       getHomeCharacterBaseOffset: (layoutPreset, config, index) => appStateGetHomeCharacterBaseOffset(layoutPreset, config, index),
       syncRecoveredCurrenciesInMemory,
-      formatCurrencyBalance,
-      getCharacterImageForUsage: (char, usage = "default") => ensureContentStateApi().getCharacterImageForUsage(char, usage),
-      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
-      buildGachaRateSummary: (rates = {}) => ensureContentStateApi().buildGachaRateSummary(rates),
-      getBattleParty,
+      formatCurrencyBalance: (currency, includeMax = false) => ensureAppBootstrapHelperFactoryApi().formatCurrencyBalance(currency, includeMax),
+      makeFallbackImageForHome: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity),
+      getBattleParty: () => ensureAppBootstrapHelperFactoryApi().getBattleParty(),
       getGachaHeroImages: gacha => ensureLayoutBridgeApi().getGachaHeroImages(gacha),
-      normalizeLayoutAssetRecord: (asset, fallbackOwnerId = getCurrentLayoutOwnerId()) => appStateNormalizeLayoutAssetRecord(asset, fallbackOwnerId),
-      getCurrentLayoutOwnerId: () => String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim(),
       getHomeAssetFolders: (config = systemConfig) => appStateGetHomeAssetFolders(config, getCurrentLayoutOwnerId()),
       resolveHomeAssetFolderAssets: (folderOrId, config = systemConfig) => appStateResolveHomeAssetFolderAssets(folderOrId, config, getCurrentLayoutOwnerId()),
       upsertHomeLayoutAssetInConfig: (config, assetInput = {}) => appStateUpsertHomeLayoutAssetInConfig(config, assetInput, { ownerMemberId: getCurrentLayoutOwnerId(), defaultSystemConfig: () => appStateGetDefaultSystemConfig(getDefaultRarityMode()) }),
+      saveConfig: value => ensureSystemSaveRuntimeApi().saveSharedConfig(value),
+      updateEditorSubmitLabels: () => ensureAppEditorApi().updateEditorSubmitLabels(),
+      renderEditorStoryList: () => ensureAppUiApi().renderEditorStoryList(),
+      createContentFolder: kind => ensureAppEditorApi().createContentFolder(kind),
       persistSystemConfigState: () => ensureAppEditorApi().persistSystemConfigState(),
-      renderHome,
-      showToast: message => ensureAppUiApi().showToast(message),
-      esc: str => ensureAppUiApi().esc(str),
+      syncProfileUi: () => {
+        ensureAppAuthApi().renderAuthState?.();
+        ensureAppAuthApi().syncPlayerProfile?.();
+      },
+      showToastForProfile: message => ensureAppUiApi().showToast(message),
+      canOpenEditorSurface,
+      getEditorAccessDeniedMessage,
+      getEntrySystemApi: () => ({
+        renderCharacterRarityOptions: value => systemEditor.renderCharacterRarityOptions(value),
+        getRarityFallback: () => getRarityModeConfig().fallback
+      }),
+      getEquipmentSystemApi: () => ({
+        getRarityModeConfig: () => getRarityModeConfig(),
+        getRarityFallback: () => getRarityModeConfig().fallback,
+        getRarityLabel: value => getRarityLabel(value)
+      }),
+      showToastForHome: message => ensureAppUiApi().showToast(message),
+      escForHome: str => ensureAppUiApi().esc(str),
       clamp: (value, min, max) => ensureAppUiApi().clamp(value, min, max)
-    });
+  };
+}
+
+function buildAppBootstrapHelperFactoryDeps() {
+  return {
+    playerStateNormalizePartyFormation,
+    playerStateMergePlayerState,
+    getDefaultPlayerState: () => getDefaultPlayerState(currentProjectId, getCurrentPlayerId()),
+    playerStateNormalizePlayerCurrencies,
+    getDefaultCurrencies: () => appStateGetDefaultCurrencies(),
+    playerStateGetRecoveredCurrency,
+    playerStateNormalizeHomePreferences,
+    getDefaultHomeConfig: () => appStateGetDefaultHomeConfig(),
+    getStories: () => stories,
+    renderHome: reason => ensureAppHomeApi().renderHome(reason),
+    playerStateFormatCurrencyBalance,
+    renderBattleScreen: () => ensureAppScreenRuntimeFactoryApi().renderBattleScreen(),
+    getBattleParty: () => ensureAppScreenRuntimeFactoryApi().getBattleParty(),
+    startBattleLoop: () => ensureAppScreenRuntimeFactoryApi().startBattleLoop(),
+    stopBattleLoop: () => ensureAppScreenRuntimeFactoryApi().stopBattleLoop(),
+    ensureHomeCurrencyTimer: () => ensureAppDataApi().ensureHomeCurrencyTimer(),
+    generateCharacterCropAssets: (imageSrc, cropPresets = null) => ensureContentStateApi().generateCharacterCropAssets(imageSrc, cropPresets),
+    generateCharacterCropImages: (imageSrc, cropPresets = null) => ensureContentStateApi().generateCharacterCropImages(imageSrc, cropPresets),
+    detectPrimaryFaceBox: image => ensureContentStateApi().detectPrimaryFaceBox ? ensureContentStateApi().detectPrimaryFaceBox(image) : null,
+    renderCropDataUrl: (image, rect, outputWidth, outputHeight) => ensureContentStateApi().renderCropDataUrl ? ensureContentStateApi().renderCropDataUrl(image, rect, outputWidth, outputHeight) : Promise.reject(new Error("Crop render helper unavailable.")),
+    clamp: (value, min, max) => ensureAppUiApi().clamp(value, min, max),
+    esc: str => ensureAppUiApi().esc(str),
+    showToast: message => ensureAppUiApi().showToast(message)
+  };
+}
+
+function ensureAppFactoryDepsBuilderApi() {
+  if (!appFactoryDepsBuilderApi) {
+    appFactoryDepsBuilderApi = window.AppFactoryDepsBuilderLib.create(
+      buildAppFactoryDepsBuilderDeps()
+    );
   }
-  return appHomeModuleApi;
+  return appFactoryDepsBuilderApi;
+}
+
+function ensureAppBootstrapHelperFactoryApi() {
+  if (!appBootstrapHelperFactoryApi) {
+    appBootstrapHelperFactoryApi = window.AppBootstrapHelperFactoryLib.create(
+      buildAppBootstrapHelperFactoryDeps()
+    );
+  }
+  return appBootstrapHelperFactoryApi;
+}
+
+function ensureAppCoreRuntimeFactoryApi() {
+  if (!appCoreRuntimeFactoryApi) {
+    appCoreRuntimeFactoryApi = window.AppCoreRuntimeFactoryLib.create(
+      ensureAppFactoryDepsBuilderApi().buildAppCoreRuntimeDeps()
+    );
+  }
+  return appCoreRuntimeFactoryApi;
+}
+
+// SECTION 04: public ensure* bridge aliases
+const ensureTitleScreenApi = () => ensureAppSingleRuntimeFactoryApi().ensureTitleScreenApi();
+
+function ensureAppAuthApi() {
+  return ensureAppAuthProfileRuntimeFactoryApi().ensureAppAuthApi();
+}
+
+const ensureSystemSaveRuntimeApi = () => ensureAppSingleRuntimeFactoryApi().ensureSystemSaveRuntimeApi();
+
+function ensureAppUiApi() {
+  return ensureAppUiHomeRuntimeFactoryApi().ensureAppUiApi();
+}
+
+function ensureAppHomeApi() {
+  return ensureAppUiHomeRuntimeFactoryApi().ensureAppHomeApi();
 }
 
 function ensureAppEditorApi() {
-  if (!appEditorModuleApi) {
-    appEditorModuleApi = window.AppEditorLib.create({
-      getRoomId: () => roomId,
-      getCurrentPlayerId,
-      getCurrentProjectId: () => currentProjectId,
-      getEditState: () => editState,
-      getGachas: () => gachas,
-      setGachas: value => { gachas = value; },
-      getStories: () => stories,
-      getCharacters: () => characters,
-      getBaseChars: () => baseChars,
-      getSystemConfig: () => systemConfig,
-      setSystemConfig: value => { systemConfig = value; },
-      getBaseCharEditor: () => baseCharEditor,
-      getEntryEditor: () => entryEditor,
-      getStoryEditor: () => storyEditor,
-      getSystemEditor: () => systemEditor,
-      getEditorScreen: () => editorScreen,
-      readFileAsDataUrl: file => ensureAppUiApi().readFileAsDataUrl(file),
-      getDefaultRates,
-      getRarityModeConfig: (mode = systemConfig?.rarityMode) => rarityLibGetModeConfig(mode),
-      getRarityLabel,
-      getBaseCharById: id => ensureContentStateApi().getBaseCharById(baseChars, id),
-      apiUrl,
-      API,
-      postJSON,
-      saveLocal,
-      renderHome,
-      renderEditorScreen: () => getEditorLegacyMethod("renderEditorScreen")?.(),
-      renderGachaPoolChars: selectedIds => ensureAppUiApi().renderGachaPoolChars(selectedIds),
-      showToast: message => ensureAppUiApi().showToast(message),
-      esc: str => ensureAppUiApi().esc(str),
-      getDefaultSystemConfig
-    });
-  }
-  return appEditorModuleApi;
+  return ensureAppEditorRuntimeFactoryApi().ensureAppEditorApi();
 }
 
 function ensureContentStateApi() {
-  if (!contentStateModuleApi) {
-    contentStateModuleApi = contentStateFactory.create({
-      clamp: (value, min, max) => ensureAppUiApi().clamp(value, min, max),
-      normalizeRates,
-      getRarityModeConfig,
-      getRarityLabel
-    });
-  }
-  return contentStateModuleApi;
+  return ensureAppInitContentRuntimeFactoryApi().ensureContentStateApi();
 }
 
 function ensureEditorRuntimeApi() {
-  if (!editorRuntimeModuleApi) {
-    editorRuntimeModuleApi = window.EditorRuntimeLib.create({
-      getCurrentScreen: () => currentScreen,
-      setCurrentScreen: value => { currentScreen = value; },
-      getEditorScreen: () => editorScreen,
-      closeHomeEditMode,
-      renderHome,
-      showToast: message => ensureAppUiApi().showToast(message)
-    });
-  }
-  return editorRuntimeModuleApi;
+  return ensureAppLayoutEditorRuntimeFactoryApi().ensureEditorRuntimeApi();
 }
 
 function ensureLayoutBridgeApi() {
-  if (!layoutBridgeModuleApi) {
-    layoutBridgeModuleApi = window.LayoutBridgeLib.create({
-      getCharacters: () => characters,
-      getCurrentLayoutOwnerId,
-      getHomeAssetFolders: (config = systemConfig) => appStateGetHomeAssetFolders(config, String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim()),
-      resolveHomeAssetFolderAssets,
-      resolveSharedAssetFolderAssets: (folder, allFolders = appStateGetHomeAssetFolders(systemConfig, String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim()), allAssets = (systemConfig?.layoutAssets?.home || [])) => appStateResolveSharedAssetFolderAssets(folder, allFolders, allAssets, String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim()),
-      upsertHomeLayoutAssetInConfig: (config, assetInput = {}) => appStateUpsertHomeLayoutAssetInConfig(config, assetInput, { ownerMemberId: String(playerState?.profile?.userId || getCurrentPlayerId() || "local-editor").trim(), defaultSystemConfig: () => appStateGetDefaultSystemConfig(getDefaultRarityMode()) }),
-      getHomeLayoutPreset,
-      buildLayoutRuntimeState: () => ensureAppHomeApi().buildLayoutRuntimeState(),
-      buildLayoutAssetMap: () => ensureAppHomeApi().buildLayoutAssetMap(),
-      navigateTo,
-      openEditorSurface,
-      openHomeConfigPanel: () => window.openHomeConfigPanel?.(),
-      getCharacterImageForUsage: (char, usage = "default") => ensureContentStateApi().getCharacterImageForUsage(char, usage),
-      makeFallbackImage: (name, rarity) => ensureAppUiApi().makeFallbackImage(name, rarity)
-    });
-  }
-  return layoutBridgeModuleApi;
-}
-
-function renderHome(reason = "refresh") {
-  return ensureAppHomeApi().renderHome(reason);
-}
-
-function formatCurrencyBalance(currency, includeMax = false) {
-  return playerStateFormatCurrencyBalance(currency, includeMax);
-}
-
-function renderBattleScreen() {
-  return ensureBattleScreenApi().renderBattleScreen();
-}
-
-function getBattleParty() {
-  return ensureBattleScreenApi().getBattleParty();
-}
-
-function startBattleLoop() {
-  return ensureBattleScreenApi().startBattleLoop();
-}
-
-function stopBattleLoop() {
-  return ensureBattleScreenApi().stopBattleLoop();
-}
-
-function ensureHomeCurrencyTimer() {
-  return ensureAppDataApi().ensureHomeCurrencyTimer();
-}
-
-async function generateCharacterCropAssets(imageSrc, cropPresets = null) {
-  return ensureContentStateApi().generateCharacterCropAssets(imageSrc, cropPresets);
-}
-
-async function generateCharacterCropImages(imageSrc, cropPresets = null) {
-  return ensureContentStateApi().generateCharacterCropImages(imageSrc, cropPresets);
-}
-
-async function detectPrimaryFaceBox(image) {
-  return ensureContentStateApi().detectPrimaryFaceBox ? ensureContentStateApi().detectPrimaryFaceBox(image) : null;
-}
-
-async function renderCropDataUrl(image, rect, outputWidth, outputHeight) {
-  return ensureContentStateApi().renderCropDataUrl ? ensureContentStateApi().renderCropDataUrl(image, rect, outputWidth, outputHeight) : Promise.reject(new Error("Crop render helper unavailable."));
-}
-
-function clamp(value, min, max) {
-  return ensureAppUiApi().clamp(value, min, max);
-}
-
-function esc(str) {
-  return ensureAppUiApi().esc(str);
-}
-
-function showToast(message) {
-  return ensureAppUiApi().showToast(message);
+  return ensureAppLayoutEditorRuntimeFactoryApi().ensureLayoutBridgeApi();
 }
 window.SociaLayoutBridge = ensureLayoutBridgeApi();
-
-
-
-
-
-

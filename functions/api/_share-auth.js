@@ -4,6 +4,7 @@ import {
   readJson
 } from "./_http.js";
 export { json, readJson } from "./_http.js";
+import { getSessionUser } from "./_auth.js";
 import {
   getEffectiveProjectLicenseState,
   isProjectPublicShareAllowed
@@ -93,21 +94,38 @@ export function getRequesterUserId(request, body = null) {
   return queryUserId || bodyUserId || null;
 }
 
+export async function getRequesterUserIdWithSession(request, env, body = null) {
+  const sessionUser = await getSessionUser(request, env).catch(() => null);
+  const sessionUserId = String(sessionUser?.id || "").trim();
+  if (sessionUserId) return sessionUserId;
+  return getRequesterUserId(request, body);
+}
+
+async function getAuthenticatedRequesterUserId(request, env) {
+  const sessionUser = await getSessionUser(request, env).catch(() => null);
+  return String(sessionUser?.id || "").trim();
+}
+
 export async function ensureProjectOwnerAccess(request, env, projectId, body = null) {
-  const userId = getRequesterUserId(request, body);
+  void body;
+  const userId = await getAuthenticatedRequesterUserId(request, env);
   if (!projectId || !userId) {
     return {
       ok: false,
-      status: 403,
-      code: "owner_required",
-      error: "\u3053\u306e\u64cd\u4f5c\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u6240\u6709\u8005\u3060\u3051\u304c\u5b9f\u884c\u3067\u304d\u307e\u3059\u3002"
+      status: userId ? 403 : 401,
+      code: userId ? "owner_required" : "auth_required",
+      error: userId
+        ? "\u3053\u306e\u64cd\u4f5c\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u6240\u6709\u8005\u3060\u3051\u304c\u5b9f\u884c\u3067\u304d\u307e\u3059\u3002"
+        : "\u3053\u306e\u64cd\u4f5c\u306b\u306f\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002"
     };
   }
 
   if (!env?.SOCIA_DB) {
     return {
-      ok: true,
-      userId
+      ok: false,
+      status: 503,
+      code: "owner_check_unavailable",
+      error: "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u6a29\u9650\u306e\u78ba\u8a8d\u306b\u5fc5\u8981\u306aDB\u304c\u5229\u7528\u3067\u304d\u307e\u305b\u3093\u3002"
     };
   }
 
@@ -120,13 +138,11 @@ export async function ensureProjectOwnerAccess(request, env, projectId, body = n
     `).bind(projectId).first();
 
     if (!row?.owner_user_id) {
-      const legacyAccess = await ensureLegacyProjectRegistryAccess(env, projectId, userId);
-      if (legacyAccess.ok) return legacyAccess;
       return {
         ok: false,
         status: 403,
-        code: "owner_required",
-        error: "\u3053\u306e\u64cd\u4f5c\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u6240\u6709\u8005\u3060\u3051\u304c\u5b9f\u884c\u3067\u304d\u307e\u3059\u3002"
+        code: "owner_unresolved",
+        error: "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u6240\u6709\u8005\u3092\u78ba\u8a8d\u3067\u304d\u306a\u3044\u305f\u3081\u3001\u3053\u306e\u64cd\u4f5c\u306f\u62d2\u5426\u3055\u308c\u307e\u3057\u305f\u3002"
       };
     }
 
@@ -144,10 +160,6 @@ export async function ensureProjectOwnerAccess(request, env, projectId, body = n
       userId
     };
   } catch (error) {
-    if (isMissingTableError(error)) {
-      const legacyAccess = await ensureLegacyProjectRegistryAccess(env, projectId, userId);
-      if (legacyAccess.ok) return legacyAccess;
-    }
     console.warn("Failed to verify project owner access:", error);
     return {
       ok: false,
@@ -162,21 +174,24 @@ export async function ensureProjectMemberAccess(request, env, projectId, body = 
   const ownerAccess = await ensureProjectOwnerAccess(request, env, projectId, body);
   if (ownerAccess.ok) return ownerAccess;
 
-  const userId = getRequesterUserId(request, body);
+  const userId = await getAuthenticatedRequesterUserId(request, env);
   if (!projectId || !userId) {
     return {
       ok: false,
-      status: 403,
-      code: "member_required",
-      error: "\u3053\u306e\u64cd\u4f5c\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30e1\u30f3\u30d0\u30fc\u3060\u3051\u304c\u5b9f\u884c\u3067\u304d\u307e\u3059\u3002"
+      status: userId ? 403 : 401,
+      code: userId ? "member_required" : "auth_required",
+      error: userId
+        ? "\u3053\u306e\u64cd\u4f5c\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u30e1\u30f3\u30d0\u30fc\u3060\u3051\u304c\u5b9f\u884c\u3067\u304d\u307e\u3059\u3002"
+        : "\u3053\u306e\u64cd\u4f5c\u306b\u306f\u30ed\u30b0\u30a4\u30f3\u304c\u5fc5\u8981\u3067\u3059\u3002"
     };
   }
 
   if (!env?.SOCIA_DB) {
     return {
-      ok: true,
-      userId,
-      role: "viewer"
+      ok: false,
+      status: 503,
+      code: "member_check_unavailable",
+      error: "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u6a29\u9650\u306e\u78ba\u8a8d\u306b\u5fc5\u8981\u306aDB\u304c\u5229\u7528\u3067\u304d\u307e\u305b\u3093\u3002"
     };
   }
 
@@ -201,14 +216,6 @@ export async function ensureProjectMemberAccess(request, env, projectId, body = 
       role: String(row.role || "viewer")
     };
   } catch (error) {
-    if (isMissingTableError(error)) {
-      return {
-        ok: true,
-        userId,
-        role: "viewer",
-        fallback: "project_members_missing"
-      };
-    }
     console.warn("Failed to verify project member access:", error);
     return {
       ok: false,
@@ -363,35 +370,6 @@ async function resolvePublicShareToken(env, token) {
   } catch (error) {
     console.warn("Failed to resolve public share token:", error);
     return null;
-  }
-}
-
-async function ensureLegacyProjectRegistryAccess(env, projectId, userId) {
-  if (!env?.SOCIA_DB || !projectId || !userId) {
-    return { ok: false };
-  }
-
-  try {
-    const row = await env.SOCIA_DB.prepare(`
-      SELECT project_id
-      FROM project_registries
-      WHERE project_id = ?
-      LIMIT 1
-    `).bind(projectId).first();
-    if (!row?.project_id) {
-      return { ok: false };
-    }
-    return {
-      ok: true,
-      userId,
-      role: "owner",
-      fallback: "legacy_project_registry"
-    };
-  } catch (error) {
-    if (!isMissingTableError(error)) {
-      console.warn("Failed to verify legacy project registry access:", error);
-    }
-    return { ok: false };
   }
 }
 
