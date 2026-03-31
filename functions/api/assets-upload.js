@@ -1,6 +1,7 @@
 import {
   buildAssetContentUrl,
   buildAssetR2Key,
+  getAudioUploadLimitBytes,
   getAssetBucket,
   getStaticUploadLimitBytes,
   getStaticMaxEdge,
@@ -67,46 +68,55 @@ export async function onRequest(context) {
 
   const file = formData.get("file");
   if (!(file instanceof File)) {
-    return errorJson("画像ファイルが必要です。", 400, corsHeaders, { code: "file_required" });
-  }
-
-  if (!isSupportedStoredStaticMime(file.type)) {
-    return errorJson("静止画アップロードは WebP 正規化済みファイルが必要です。", 400, corsHeaders, {
-      code: "webp_required"
-    });
-  }
-
-  if (Number(file.size || 0) <= 0) {
-    return errorJson("空の画像はアップロードできません。", 400, corsHeaders, {
-      code: "empty_file"
-    });
-  }
-
-  if (Number(file.size || 0) > getStaticUploadLimitBytes()) {
-    return errorJson("ファイルサイズが大きすぎます。", 413, corsHeaders, {
-      code: "file_too_large",
-      maxBytes: getStaticUploadLimitBytes()
-    });
+    return errorJson("アセットファイルが必要です。", 400, corsHeaders, { code: "file_required" });
   }
 
   const usageType = sanitizeUsageType(formData.get("usageType"));
   const kind = sanitizeAssetKind(formData.get("kind"));
-  const width = Math.max(1, Number(formData.get("width")) || 0);
-  const height = Math.max(1, Number(formData.get("height")) || 0);
+  const isAudioUpload = usageType === "audio";
+  const maxBytes = isAudioUpload ? getAudioUploadLimitBytes() : getStaticUploadLimitBytes();
+  const normalizedMimeType = String(file.type || "").trim().toLowerCase();
+
+  if (!isSupportedStoredStaticMime(normalizedMimeType, usageType)) {
+    return errorJson(
+      isAudioUpload
+        ? "音声ファイルのみアップロードできます。"
+        : "静止画アップロードは WebP 正規化済みファイルが必要です。",
+      400,
+      corsHeaders,
+      { code: isAudioUpload ? "audio_required" : "webp_required" }
+    );
+  }
+
+  if (Number(file.size || 0) <= 0) {
+    return errorJson("空のファイルはアップロードできません。", 400, corsHeaders, {
+      code: "empty_file"
+    });
+  }
+
+  if (Number(file.size || 0) > maxBytes) {
+    return errorJson("ファイルサイズが大きすぎます。", 413, corsHeaders, {
+      code: "file_too_large",
+      maxBytes
+    });
+  }
+
+  const width = Math.max(0, Number(formData.get("width")) || 0);
+  const height = Math.max(0, Number(formData.get("height")) || 0);
   const sourceWidth = Math.max(0, Number(formData.get("sourceWidth")) || 0);
   const sourceHeight = Math.max(0, Number(formData.get("sourceHeight")) || 0);
   const sourceMimeType = String(formData.get("sourceMimeType") || "").trim().slice(0, 120);
   const sourceByteSize = Math.max(0, Number(formData.get("sourceByteSize")) || 0);
   const originalFilename = String(formData.get("originalFilename") || file.name || "").trim().slice(0, 255);
 
-  if (!width || !height) {
+  if (!isAudioUpload && (!width || !height)) {
     return errorJson("画像サイズ情報が不足しています。", 400, corsHeaders, {
       code: "image_dimensions_required"
     });
   }
 
-  const maxEdge = getStaticMaxEdge(usageType);
-  if (Math.max(width, height) > maxEdge) {
+  const maxEdge = isAudioUpload ? 0 : getStaticMaxEdge(usageType);
+  if (!isAudioUpload && Math.max(width, height) > maxEdge) {
     return errorJson("アップロード画像が許可サイズを超えています。", 400, corsHeaders, {
       code: "image_too_large_after_normalization",
       maxEdge
@@ -115,12 +125,17 @@ export async function onRequest(context) {
 
   const assetId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const r2Key = buildAssetR2Key(projectId, ownerUserId, assetId, "webp");
+  const extension = isAudioUpload
+    ? ((normalizedMimeType.split("/")[1] || "bin").split(";")[0] || "bin")
+    : "webp";
+  const storedMimeType = isAudioUpload ? (normalizedMimeType || "audio/mpeg") : "image/webp";
+  const storedFormat = isAudioUpload ? extension : "webp";
+  const r2Key = buildAssetR2Key(projectId, ownerUserId, assetId, extension);
 
   try {
     await bucket.put(r2Key, await file.arrayBuffer(), {
       httpMetadata: {
-        contentType: "image/webp"
+        contentType: storedMimeType
       }
     });
 
@@ -131,12 +146,12 @@ export async function onRequest(context) {
       kind,
       usageType,
       r2Key,
-      mimeType: "image/webp",
-      storedFormat: "webp",
+      mimeType: storedMimeType,
+      storedFormat,
       byteSize: Number(file.size || 0),
       quotaBytes: Number(file.size || 0),
-      width,
-      height,
+      width: isAudioUpload ? 0 : width,
+      height: isAudioUpload ? 0 : height,
       originalFilename,
       sourceMimeType: sourceMimeType || file.type || "",
       sourceByteSize,
@@ -155,12 +170,12 @@ export async function onRequest(context) {
         owner_user_id: ownerUserId,
         kind,
         usage_type: usageType,
-        mime_type: "image/webp",
-        stored_format: "webp",
+        mime_type: storedMimeType,
+        stored_format: storedFormat,
         byte_size: Number(file.size || 0),
         quota_bytes: Number(file.size || 0),
-        width,
-        height,
+        width: isAudioUpload ? 0 : width,
+        height: isAudioUpload ? 0 : height,
         original_filename: originalFilename,
         source_mime_type: sourceMimeType || file.type || "",
         source_byte_size: sourceByteSize,
@@ -173,14 +188,14 @@ export async function onRequest(context) {
       }),
       limits: {
         maxEdge,
-        maxBytes: getStaticUploadLimitBytes()
+        maxBytes
       },
       url: buildAssetContentUrl(assetId),
       storage: "r2"
     }, 201, corsHeaders);
   } catch (error) {
     console.error("Asset upload failed:", error);
-    return errorJson("画像の保存に失敗しました。", 500, corsHeaders, {
+    return errorJson("アセットの保存に失敗しました。", 500, corsHeaders, {
       code: "asset_upload_failed"
     });
   }

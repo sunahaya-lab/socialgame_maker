@@ -1,4 +1,11 @@
-import { createCorsHeaders, ensurePlayerProfile, getPlayerScope, json, readJson } from "./_player-state";
+import {
+  createCorsHeaders,
+  ensurePlayerProfile,
+  getPlayerScope,
+  json,
+  normalizePlayerDisplayName,
+  readJson
+} from "./_player-state";
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -20,6 +27,12 @@ export async function onRequest(context) {
   }
 
   try {
+    if (request.method === "POST" && (body.displayName !== undefined || body.birthday !== undefined)) {
+      const displayName = normalizePlayerDisplayName(body.displayName);
+      if (!displayName) {
+        return json({ error: "ゲーム内ユーザー名を入力してください" }, 400, corsHeaders);
+      }
+    }
     const profile = await ensurePlayerProfile(env, scope);
     return json({ profile, storage: "d1" }, 200, corsHeaders);
   } catch (error) {

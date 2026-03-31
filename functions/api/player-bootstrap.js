@@ -29,11 +29,7 @@ async function loadPlayerBootstrap(env, scope) {
     return makeEmptyBootstrap(scope);
   }
 
-  const profile = await env.SOCIA_DB.prepare(`
-    SELECT id, project_id, user_id, display_name, last_active_at, created_at, updated_at
-    FROM player_profiles
-    WHERE project_id = ? AND user_id = ?
-  `).bind(scope.projectId, scope.userId).first();
+  const profile = await getPlayerProfileRow(env, scope.projectId, scope.userId);
 
   if (!profile) {
     return makeEmptyBootstrap(scope);
@@ -85,6 +81,7 @@ function makeEmptyBootstrap(scope) {
       projectId: scope.projectId,
       userId: scope.userId,
       displayName: "",
+      birthday: "",
       lastActiveAt: null,
       createdAt: null,
       updatedAt: null
@@ -106,10 +103,29 @@ function mapProfile(row) {
     projectId: row.project_id,
     userId: row.user_id,
     displayName: row.display_name || "",
+    birthday: row.birthday || "",
     lastActiveAt: row.last_active_at || null,
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null
   };
+}
+
+async function getPlayerProfileRow(env, projectId, userId) {
+  try {
+    return await env.SOCIA_DB.prepare(`
+      SELECT id, project_id, user_id, display_name, birthday, last_active_at, created_at, updated_at
+      FROM player_profiles
+      WHERE project_id = ? AND user_id = ?
+    `).bind(projectId, userId).first();
+  } catch (error) {
+    if (!/birthday/i.test(String(error?.message || ""))) throw error;
+    const row = await env.SOCIA_DB.prepare(`
+      SELECT id, project_id, user_id, display_name, last_active_at, created_at, updated_at
+      FROM player_profiles
+      WHERE project_id = ? AND user_id = ?
+    `).bind(projectId, userId).first();
+    return row ? { ...row, birthday: "" } : null;
+  }
 }
 
 function mapInventory(row) {

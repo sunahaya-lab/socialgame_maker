@@ -7,8 +7,11 @@ export {
 export function getPlayerScope(url, body = {}) {
   const projectId = url.searchParams.get("project") || body.projectId || null;
   const userId = url.searchParams.get("user") || body.userId || null;
-  const displayName = String(body.displayName || "").trim().slice(0, 80);
-  return { projectId, userId, displayName };
+  const hasDisplayName = Object.prototype.hasOwnProperty.call(body, "displayName");
+  const hasBirthday = Object.prototype.hasOwnProperty.call(body, "birthday");
+  const displayName = hasDisplayName ? normalizePlayerDisplayName(body.displayName) : "";
+  const birthday = hasBirthday ? normalizePlayerBirthday(body.birthday) : "";
+  return { projectId, userId, displayName, birthday, hasDisplayName, hasBirthday };
 }
 
 export async function ensurePlayerProfile(env, scope) {
@@ -16,20 +19,17 @@ export async function ensurePlayerProfile(env, scope) {
     throw new Error("D1 \u30d0\u30a4\u30f3\u30c7\u30a3\u30f3\u30b0 SOCIA_DB \u304c\u5fc5\u8981\u3067\u3059");
   }
 
-  const existing = await env.SOCIA_DB.prepare(`
-    SELECT id, project_id, user_id, display_name, last_active_at, created_at, updated_at
-    FROM player_profiles
-    WHERE project_id = ? AND user_id = ?
-  `).bind(scope.projectId, scope.userId).first();
+  const existing = await getPlayerProfileRow(env, scope.projectId, scope.userId);
 
   const now = new Date().toISOString();
   if (existing) {
-    const nextDisplayName = scope.displayName || existing.display_name || "";
-    await env.SOCIA_DB.prepare(`
-      UPDATE player_profiles
-      SET display_name = ?, last_active_at = ?, updated_at = ?
-      WHERE id = ?
-    `).bind(nextDisplayName, now, now, existing.id).run();
+    const nextDisplayName = scope.hasDisplayName
+      ? scope.displayName
+      : (existing.display_name || "");
+    const nextBirthday = scope.hasBirthday
+      ? scope.birthday
+      : (existing.birthday || "");
+    await updatePlayerProfileRow(env, existing.id, nextDisplayName, nextBirthday, now);
     await ensureDefaultCurrencyBalances(env, existing.id);
 
     return {
@@ -37,6 +37,7 @@ export async function ensurePlayerProfile(env, scope) {
       projectId: existing.project_id,
       userId: existing.user_id,
       displayName: nextDisplayName,
+      birthday: nextBirthday,
       lastActiveAt: now,
       createdAt: existing.created_at || now,
       updatedAt: now
@@ -46,20 +47,14 @@ export async function ensurePlayerProfile(env, scope) {
   await assertParentRowsExist(env, scope.projectId, scope.userId);
 
   const id = crypto.randomUUID();
-  await env.SOCIA_DB.prepare(`
-    INSERT INTO player_profiles (
-      id, project_id, user_id, display_name, last_active_at, created_at, updated_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).bind(
+  await insertPlayerProfileRow(env, {
     id,
-    scope.projectId,
-    scope.userId,
-    scope.displayName || "",
-    now,
-    now,
+    projectId: scope.projectId,
+    userId: scope.userId,
+    displayName: scope.displayName || "",
+    birthday: scope.birthday || "",
     now
-  ).run();
+  });
   await ensureDefaultCurrencyBalances(env, id);
 
   return {
@@ -67,10 +62,105 @@ export async function ensurePlayerProfile(env, scope) {
     projectId: scope.projectId,
     userId: scope.userId,
     displayName: scope.displayName || "",
+    birthday: scope.birthday || "",
     lastActiveAt: now,
     createdAt: now,
     updatedAt: now
   };
+}
+
+async function getPlayerProfileRow(env, projectId, userId) {
+  try {
+    return await env.SOCIA_DB.prepare(`
+      SELECT id, project_id, user_id, display_name, birthday, last_active_at, created_at, updated_at
+      FROM player_profiles
+      WHERE project_id = ? AND user_id = ?
+    `).bind(projectId, userId).first();
+  } catch (error) {
+    if (!isBirthdayColumnUnavailable(error)) throw error;
+    const row = await env.SOCIA_DB.prepare(`
+      SELECT id, project_id, user_id, display_name, last_active_at, created_at, updated_at
+      FROM player_profiles
+      WHERE project_id = ? AND user_id = ?
+    `).bind(projectId, userId).first();
+    return row ? { ...row, birthday: "" } : null;
+  }
+}
+
+async function updatePlayerProfileRow(env, id, displayName, birthday, now) {
+  try {
+    await env.SOCIA_DB.prepare(`
+      UPDATE player_profiles
+      SET display_name = ?, birthday = ?, last_active_at = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(displayName, birthday, now, now, id).run();
+  } catch (error) {
+    if (!isBirthdayColumnUnavailable(error)) throw error;
+    await env.SOCIA_DB.prepare(`
+      UPDATE player_profiles
+      SET display_name = ?, last_active_at = ?, updated_at = ?
+      WHERE id = ?
+    `).bind(displayName, now, now, id).run();
+  }
+}
+
+async function insertPlayerProfileRow(env, input) {
+  try {
+    await env.SOCIA_DB.prepare(`
+      INSERT INTO player_profiles (
+        id, project_id, user_id, display_name, birthday, last_active_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      input.id,
+      input.projectId,
+      input.userId,
+      input.displayName,
+      input.birthday,
+      input.now,
+      input.now,
+      input.now
+    ).run();
+  } catch (error) {
+    if (!isBirthdayColumnUnavailable(error)) throw error;
+    await env.SOCIA_DB.prepare(`
+      INSERT INTO player_profiles (
+        id, project_id, user_id, display_name, last_active_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      input.id,
+      input.projectId,
+      input.userId,
+      input.displayName,
+      input.now,
+      input.now,
+      input.now
+    ).run();
+  }
+}
+
+function isBirthdayColumnUnavailable(error) {
+  return /birthday/i.test(String(error?.message || ""));
+}
+
+export function normalizePlayerDisplayName(value) {
+  return String(value || "").trim().slice(0, 40);
+}
+
+export function normalizePlayerBirthday(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  if (!match) {
+    throw new Error("誕生日は MM-DD 形式で入力してください");
+  }
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    throw new Error("誕生日は MM-DD 形式で入力してください");
+  }
+  return `${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export function getDefaultCurrencyDefinitions() {

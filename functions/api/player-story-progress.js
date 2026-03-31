@@ -37,19 +37,11 @@ export async function onRequest(context) {
       return json({ error: "storyId \u304c\u5fc5\u8981\u3067\u3059" }, 400, corsHeaders);
     }
 
-    const projectScope = `project:${scope.projectId}`;
-    const [story, bridgeStory] = await Promise.all([
-      env.SOCIA_DB.prepare(`SELECT id FROM stories WHERE id = ?`).bind(storyId).first(),
-      env.SOCIA_DB.prepare(`
-        SELECT story_id AS id
-        FROM story_registries
-        WHERE scope_key = ? AND story_id = ?
-      `).bind(projectScope, storyId).first()
-    ]);
-    if (!story && !bridgeStory) {
-      return json({ error: "\u6307\u5b9a\u3055\u308c\u305f\u30b9\u30c8\u30fc\u30ea\u30fc\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093" }, 400, corsHeaders);
-    }
+    // Shared story visibility is driven by the current runtime dataset.
+    // Progress persistence should not hard-fail when the canonical D1 mirror
+    // has not been backfilled yet, otherwise NEW/CLEAR state gets stuck.
     await ensureCanonicalStory(env, scope.projectId, storyId);
+    await ensureStoryProgressTarget(env, scope.projectId, storyId);
 
     const status = ["locked", "unlocked", "in_progress", "completed"].includes(body.status)
       ? body.status
@@ -123,4 +115,25 @@ function mapStoryProgress(row) {
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null
   };
+}
+
+async function ensureStoryProgressTarget(env, projectId, storyId) {
+  const existing = await env.SOCIA_DB.prepare(`SELECT id FROM stories WHERE id = ?`).bind(storyId).first();
+  if (existing?.id) return existing.id;
+
+  const now = new Date().toISOString();
+  await env.SOCIA_DB.prepare(`
+    INSERT OR IGNORE INTO stories (
+      id, project_id, type, title, metadata_json, created_at, updated_at
+    )
+    VALUES (?, ?, 'main', ?, '{}', ?, ?)
+  `).bind(
+    storyId,
+    projectId,
+    storyId,
+    now,
+    now
+  ).run();
+
+  return storyId;
 }

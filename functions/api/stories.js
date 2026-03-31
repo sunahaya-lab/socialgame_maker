@@ -83,7 +83,7 @@ function usesStoryFxFeature(input) {
     : false;
 
   const sceneLevelBgm = Array.isArray(input?.scenes)
-    ? input.scenes.some(scene => String(scene?.bgm || "").trim())
+    ? input.scenes.some(scene => String(scene?.bgm || "").trim() || String(scene?.bgmAssetId || "").trim())
     : false;
 
   return variantAssignments || sceneLevelBgm;
@@ -101,6 +101,7 @@ function sanitizeStory(input) {
       text: text(scene?.text, 500, ""),
       image: sanitizeImageSource(scene?.image),
       bgm: sanitizeMediaSource(scene?.bgm),
+      bgmAssetId: scene?.bgmAssetId ? text(scene.bgmAssetId, 120) : null,
       background: sanitizeImageSource(scene?.background)
     }))
     : [];
@@ -112,6 +113,7 @@ function sanitizeStory(input) {
     entryId: input?.entryId ? text(input.entryId, 80) : null,
     folderId: input?.folderId ? text(input.folderId, 80) : null,
     bgm: sanitizeMediaSource(input?.bgm),
+    bgmAssetId: input?.bgmAssetId ? text(input.bgmAssetId, 120) : null,
     sortOrder: Math.max(0, Number(input?.sortOrder) || 0),
     variantAssignments: Array.isArray(input?.variantAssignments)
       ? input.variantAssignments

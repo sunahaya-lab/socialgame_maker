@@ -1,4 +1,5 @@
 const STATIC_UPLOAD_LIMIT_BYTES = 15 * 1024 * 1024;
+const AUDIO_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 const STATIC_MAX_EDGE_BY_USAGE = {
   portrait: 1800,
   expression: 1800,
@@ -14,7 +15,8 @@ const ALLOWED_USAGE_TYPES = new Set([
   "card",
   "banner",
   "background",
-  "generic"
+  "generic",
+  "audio"
 ]);
 
 const ALLOWED_ASSET_KINDS = new Set([
@@ -24,7 +26,8 @@ const ALLOWED_ASSET_KINDS = new Set([
   "card-image",
   "story-background",
   "gacha-banner",
-  "generic-image"
+  "generic-image",
+  "bgm-audio"
 ]);
 
 export function getAssetBucket(env) {
@@ -49,8 +52,17 @@ export function getStaticUploadLimitBytes() {
   return STATIC_UPLOAD_LIMIT_BYTES;
 }
 
-export function isSupportedStoredStaticMime(mimeType) {
-  return String(mimeType || "").trim().toLowerCase() === "image/webp";
+export function getAudioUploadLimitBytes() {
+  return AUDIO_UPLOAD_LIMIT_BYTES;
+}
+
+export function isSupportedStoredStaticMime(mimeType, usageType = "generic") {
+  const normalizedMime = String(mimeType || "").trim().toLowerCase();
+  const normalizedUsageType = sanitizeUsageType(usageType);
+  if (normalizedUsageType === "audio") {
+    return normalizedMime.startsWith("audio/");
+  }
+  return normalizedMime === "image/webp";
 }
 
 export function buildAssetR2Key(projectId, ownerUserId, assetId, extension = "webp") {
