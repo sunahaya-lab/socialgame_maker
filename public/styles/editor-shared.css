@@ -1,10 +1,35 @@
-﻿.rarity-tier-5 .gacha-result-rarity, .collection-card-rarity.rarity-tier-5 { color: var(--ur); }
-.rarity-tier-4 .gacha-result-rarity, .collection-card-rarity.rarity-tier-4 { color: var(--ssr); }
-.rarity-tier-3 .gacha-result-rarity, .collection-card-rarity.rarity-tier-3 { color: var(--sr); }
-.rarity-tier-2 .gacha-result-rarity, .collection-card-rarity.rarity-tier-2 { color: var(--r); }
-.rarity-tier-1 .gacha-result-rarity, .collection-card-rarity.rarity-tier-1 { color: var(--n); }
+/* Reference split file only.
+ * Runtime source of truth remains ../styles.css.
+ * Synced from SECTION 05C: editor utilities / toast anchor.
+ */
 
-/* Toast notification */
+/* rarity helpers */
+.rarity-tier-5 .gacha-result-rarity,
+.collection-card-rarity.rarity-tier-5 {
+  color: var(--ur);
+}
+
+.rarity-tier-4 .gacha-result-rarity,
+.collection-card-rarity.rarity-tier-4 {
+  color: var(--ssr);
+}
+
+.rarity-tier-3 .gacha-result-rarity,
+.collection-card-rarity.rarity-tier-3 {
+  color: var(--sr);
+}
+
+.rarity-tier-2 .gacha-result-rarity,
+.collection-card-rarity.rarity-tier-2 {
+  color: var(--r);
+}
+
+.rarity-tier-1 .gacha-result-rarity,
+.collection-card-rarity.rarity-tier-1 {
+  color: var(--n);
+}
+
+/* toast notification */
 .toast {
   position: fixed;
   bottom: calc(var(--nav-height) + 16px);
@@ -20,12 +45,22 @@
   animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
   pointer-events: none;
 }
+
 @keyframes toastIn {
-  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-  to { opacity: 1; transform: translateX(-50%) translateY(0); }
-}
-@keyframes toastOut {
-  to { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
-/* ===== Landscape/Fullscreen shared styles (class-based) ===== */
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+}

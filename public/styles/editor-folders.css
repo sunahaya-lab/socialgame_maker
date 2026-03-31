@@ -1,164 +1,140 @@
-﻿  display: none;
+/* Reference split file only.
+ * Runtime source of truth remains ../styles.css.
+ * Synced from SECTION 05A folder-manager rules.
+ * Story drag/reorder and scene tools intentionally stay out of this file.
+ */
+
+.editor-folder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
 }
+
 .editor-folder-create-btn {
   width: auto;
   min-width: 112px;
 }
-.editor-list-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 10px;
-}
-.editor-record-folder-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.06);
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-.editor-floating-window[hidden] {
-  display: none;
-}
-.editor-floating-window {
-  position: absolute;
-  top: 88px;
-  right: -48px;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 140px);
-  overflow: auto;
-  z-index: 40;
-  padding: 18px;
-  border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background:
-    linear-gradient(180deg, rgba(18,23,38,0.96), rgba(11,14,26,0.96)),
-    rgba(11,14,26,0.96);
-  box-shadow: 0 26px 60px rgba(0,0,0,0.38);
-}
-.editor-floating-window-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  cursor: grab;
-}
-.editor-floating-window.is-dragging .editor-floating-window-head {
-  cursor: grabbing;
-}
-.editor-floating-window-head h4 {
-  margin-bottom: 4px;
-}
-.editor-floating-window-close {
-  border: 0;
-  border-radius: 999px;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.08);
-  color: #fff;
-}
+
 .editor-folder-manager-toolbar {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
 }
+
 .editor-folder-manager-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
+
 .editor-folder-manager-tab {
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 999px;
   padding: 8px 12px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   color: #fff;
 }
+
 .editor-folder-manager-tab.is-active {
-  background: rgba(255,255,255,0.14);
-  border-color: rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
 }
+
 .editor-folder-manager-grid,
 .editor-folder-item-grid {
   display: grid;
   gap: 12px;
 }
+
 .editor-folder-manager-grid {
   margin-bottom: 18px;
 }
+
 .editor-folder-card {
   display: grid;
   gap: 10px;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .editor-folder-card-top {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
 }
+
 .editor-folder-card-top label {
   display: grid;
   gap: 4px;
   flex: 1;
 }
+
 .editor-folder-count {
   min-width: 36px;
   text-align: center;
   padding: 6px 8px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.07);
+  background: rgba(255, 255, 255, 0.07);
 }
+
 .editor-folder-thumb-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
+
 .editor-folder-thumb,
 .editor-folder-item-thumb {
   border-radius: 12px;
-  background-color: rgba(255,255,255,0.05);
+  background-color: rgba(255, 255, 255, 0.05);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
 }
+
 .editor-folder-thumb {
   aspect-ratio: 1;
 }
+
 .editor-folder-item-card {
   display: grid;
   grid-template-columns: 90px 1fr;
   gap: 12px;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .editor-folder-item-thumb {
   aspect-ratio: 1;
 }
+
 .editor-folder-item-body {
   display: grid;
   gap: 8px;
 }
+
 .editor-folder-item-body p {
   color: var(--muted);
 }
+
 .editor-folder-group {
   border: 1px solid var(--panel-border);
   border-radius: 14px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
+
 .editor-folder-group + .editor-folder-group {
   margin-top: 10px;
 }
+
 .editor-folder-group summary {
   display: flex;
   justify-content: space-between;
@@ -167,15 +143,17 @@
   cursor: pointer;
   padding: 12px 14px;
   font-weight: 700;
-  background: rgba(255,255,255,0.03);
+  background: rgba(255, 255, 255, 0.03);
   position: relative;
   padding-right: 40px;
 }
+
 .editor-folder-group summary::-webkit-details-marker {
   display: none;
 }
+
 .editor-folder-group summary::after {
-  content: "笆ｾ";
+  content: "+";
   position: absolute;
   right: 14px;
   top: 50%;
@@ -183,24 +161,29 @@
   color: var(--muted);
   transition: transform 0.2s ease;
 }
-.editor-folder-group:not([open]) summary::after {
-  transform: translateY(-50%) rotate(-90deg);
+
+.editor-folder-group[open] summary::after {
+  content: "-";
 }
+
 .editor-folder-group summary span {
   color: var(--muted);
   font-size: 0.8rem;
 }
+
 .editor-list-hint {
   margin-bottom: 10px;
   color: var(--muted);
   font-size: 0.76rem;
   line-height: 1.5;
 }
+
 .editor-folder-group-body {
   display: grid;
   gap: 10px;
   padding: 12px;
 }
+
 .editor-inline-select {
   display: grid;
   gap: 6px;
@@ -208,21 +191,13 @@
   color: var(--muted);
   font-size: 0.72rem;
 }
+
 .editor-inline-select select {
   width: 100%;
   padding: 8px 10px;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   font: inherit;
 }
-.editor-story-record {
-  cursor: grab;
-}
-.editor-story-record.is-dragging {
-  opacity: 0.55;
-  transform: scale(0.98);
-}
-
-/* Scene Editor */

@@ -1,77 +1,89 @@
-﻿/* ===== Gacha Screen ===== */
-.gacha-banner-list {
-  padding: 0 16px;
-  display: grid;
-  gap: 12px;
-}
-.gacha-banner-card {
-  position: relative;
-  padding: 18px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, rgba(108,92,231,0.2), rgba(255,212,71,0.1));
-  border: 1px solid var(--panel-border);
-  cursor: pointer;
-  transition: transform 0.15s;
-  overflow: hidden;
-}
-.gacha-banner-card:active { transform: scale(0.98); }
-.gacha-banner-card.is-active {
-  border-color: rgba(162,155,254,0.62);
-  box-shadow: 0 0 0 1px rgba(162,155,254,0.28), 0 14px 28px rgba(18,12,46,0.28);
-  background: linear-gradient(135deg, rgba(108,92,231,0.34), rgba(255,212,71,0.16));
-}
-.gacha-banner-card h4 { font-size: 1.1rem; margin-bottom: 4px; }
-.gacha-banner-card p { font-size: 0.8rem; color: var(--muted); }
-.gacha-banner-card .gacha-banner-tag {
-  position: absolute;
-  top: 12px; right: 12px;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: var(--gold-dim);
-  color: var(--gold);
-  font-size: 0.7rem;
-  font-weight: 700;
+/* base.css
+ * Runtime source of truth remains ../styles.css.
+ * This file is a reference-only split synced from styles.css SECTION 01 base/app-frame rules.
+ * Scope:
+ * - reset
+ * - body
+ * - app shell
+ * - screen system
+ * - bottom navigation
+ * - screen header
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--app-font-family);
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.gacha-active-area {
-  padding: 16px;
-}
-.gacha-subtools {
-  margin-top: 12px;
-}
-.gacha-banner-display {
+.app-shell {
+  width: 100%;
+  max-width: var(--app-portrait-width);
+  margin: 0 auto;
+  min-height: 100vh;
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 8px);
   position: relative;
-  padding: 20px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #1a1040, #2d1b69);
-  border: 1px solid rgba(108,92,231,0.3);
-  text-align: center;
-  margin-bottom: 14px;
-  overflow: hidden;
 }
-.gacha-hero-stage {
-  position: relative;
-  min-height: 360px;
-  margin: -20px -20px 16px;
-  border-radius: 16px 16px 28px 28px;
-  overflow: hidden;
-  background: radial-gradient(circle at top, rgba(255,255,255,0.18), transparent 52%), linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.22));
+
+.screen {
+  display: none;
+  animation: fadeIn 0.25s ease;
 }
-.gacha-hero-backdrop {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 20% 18%, rgba(255,205,120,0.36), transparent 28%),
-    radial-gradient(circle at 82% 24%, rgba(129,236,236,0.26), transparent 30%),
-    radial-gradient(circle at 50% 75%, rgba(255,255,255,0.08), transparent 34%);
-  filter: saturate(1.15);
+.screen.active { display: block; }
+
+body.title-screen-active .bottom-nav {
+  display: none;
 }
-.gacha-hero-images {
-  position: relative;
-  z-index: 1;
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: var(--app-portrait-width);
+  z-index: 40;
+  height: var(--nav-height);
   display: flex;
-  align-items: flex-end;
+  background: rgba(10, 10, 18, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--panel-border);
+  padding-bottom: var(--safe-bottom);
+  z-index: 100;
+}
+
+.bottom-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 10px;
-  height: 100%;
-  padding: 36px 12px 0;
+  gap: 2px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.bottom-nav-btn.active { color: var(--accent-light); }
+.bottom-nav-icon { font-size: 1.4rem; }
+.bottom-nav-label { font-size: 0.65rem; letter-spacing: 0.04em; }
+
+.screen-header {
+  padding: 20px 16px 12px;
+}
+.screen-header h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+}

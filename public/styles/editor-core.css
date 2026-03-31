@@ -1,1 +1,305 @@
-﻿/* editor core migrated to split files */
+/* Reference split file only.
+ * Runtime source of truth remains ../styles.css.
+ * Synced from SECTION 05A: editor lists / records / shell-only editor UI.
+ * Form fields and crop/SD/battle editors intentionally stay out of this file.
+ */
+
+.editor-desc {
+  padding: 0 0 12px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.base-char-list-section {
+  margin-top: 20px;
+}
+
+.base-char-list-section h4,
+.editor-list-section h4 {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+}
+
+.editor-list-section {
+  margin-top: 24px;
+}
+
+.base-char-list {
+  display: grid;
+  gap: 8px;
+}
+
+.base-char-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+}
+
+.base-char-portrait {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent-light);
+  flex-shrink: 0;
+}
+
+.base-char-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.base-char-info-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.base-char-info-desc {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.base-char-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.base-char-delete {
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 107, 107, 0.12);
+  color: var(--ur);
+  font-size: 0.72rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.editor-panel {
+  display: none;
+  padding: 0 16px 20px;
+}
+
+.editor-panel.active {
+  display: block;
+}
+
+.editor-pack-note {
+  margin: 8px 0 0;
+  color: #9a3412;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.editor-record-list {
+  display: grid;
+  gap: 10px;
+}
+
+.editor-record-list-cards {
+  grid-template-columns: 1fr;
+}
+
+.editor-record-empty {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.editor-record-item,
+.editor-record-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.editor-record-item {
+  padding: 14px;
+}
+
+.editor-record-card {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.editor-record-card img {
+  width: 72px;
+  height: 96px;
+  object-fit: cover;
+  display: block;
+}
+
+.editor-record-card-body {
+  padding: 12px 12px 12px 0;
+}
+
+.editor-record-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.editor-record-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(162, 155, 254, 0.18);
+  color: var(--accent-light);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.editor-record-badge.rarity-tier-5 {
+  background: rgba(255, 107, 107, 0.14);
+  color: var(--ur);
+}
+
+.editor-record-badge.rarity-tier-4 {
+  background: rgba(255, 212, 71, 0.14);
+  color: var(--ssr);
+}
+
+.editor-record-badge.rarity-tier-3 {
+  background: rgba(162, 155, 254, 0.18);
+  color: var(--sr);
+}
+
+.editor-record-badge.rarity-tier-2 {
+  background: rgba(116, 185, 255, 0.16);
+  color: var(--r);
+}
+
+.editor-record-badge.rarity-tier-1 {
+  background: rgba(178, 190, 195, 0.16);
+  color: var(--n);
+}
+
+.editor-record-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.editor-record-attribute {
+  justify-self: end;
+}
+
+.editor-record-item h5,
+.editor-record-card h5 {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.editor-record-item p,
+.editor-record-card p {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.editor-record-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.editor-inline-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+#editor-story-list {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.editor-list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.editor-record-folder-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.editor-floating-window[hidden] {
+  display: none;
+}
+
+.editor-floating-window {
+  position: absolute;
+  top: 88px;
+  right: -48px;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+  z-index: 40;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(18, 23, 38, 0.96), rgba(11, 14, 26, 0.96)),
+    rgba(11, 14, 26, 0.96);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.38);
+}
+
+.editor-floating-window-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  cursor: grab;
+}
+
+.editor-floating-window.is-dragging .editor-floating-window-head {
+  cursor: grabbing;
+}
+
+.editor-floating-window-head h4 {
+  margin-bottom: 4px;
+}
+
+.editor-floating-window-close {
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}

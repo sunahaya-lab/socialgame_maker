@@ -1,0 +1,115 @@
+/* home-edit-folders.css
+ * Runtime source of truth remains ../styles.css.
+ * This file is a reference-only split synced from styles.css SECTION 07B.
+ * Scope:
+ * - home edit folder manager
+ * - edit panels inside floating home-edit windows
+ * Intentionally excluded:
+ * - overlay/window shell blocks from SECTION 07A
+ * - responsive/orientation overrides outside the bounded home-edit section
+ */
+
+/* ==========================================================================
+   SECTION 07B: HOME EDIT WORKSPACE / FOLDER MANAGER + EDIT PANELS
+   ========================================================================== */
+
+.home-edit-window-body {
+  max-height: calc(var(--app-shell-height, 853px) - 120px);
+  overflow: auto;
+}
+.home-edit-folder-window-body {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+.home-edit-folder-section {
+  display: grid;
+  gap: 10px;
+}
+.home-edit-folder-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-edit-folder-list {
+  display: grid;
+  gap: 10px;
+}
+.home-edit-folder-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+.home-edit-folder-card.active {
+  border-color: rgba(162,155,254,0.5);
+  box-shadow: 0 0 0 1px rgba(162,155,254,0.18) inset;
+}
+.home-edit-folder-main {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.home-edit-folder-main-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.home-edit-folder-main-top strong {
+  font-size: 0.9rem;
+}
+.home-edit-folder-main-top span {
+  font-size: 0.72rem;
+  color: rgba(255,255,255,0.62);
+}
+.home-edit-folder-thumb-strip {
+  display: flex;
+  gap: 8px;
+}
+.home-edit-folder-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05) center/cover no-repeat;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.home-edit-folder-thumb.is-empty {
+  background-image: none;
+}
+.home-edit-folder-actions {
+  display: flex;
+  align-items: flex-start;
+}
+.home-edit-icon-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.home-edit-icon-btn.danger {
+  color: #ff9b9b;
+}
+.home-edit-window-panel {
+  margin: 0;
+  padding: 16px;
+  max-width: none;
+}
+.home-edit-window-panel .editor-desc {
+  margin-top: 0;
+}
+.home-edit-window-panel .base-char-list-section {
+  margin-top: 18px;
+}

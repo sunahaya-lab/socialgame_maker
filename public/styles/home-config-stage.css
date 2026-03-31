@@ -1,0 +1,63 @@
+/* Reference split file only.
+ * Runtime source of truth remains ../styles.css.
+ * Synced from SECTION 02D-c: draggable character layer.
+ */
+
+.home-config-stage-char {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  width: 42%;
+  max-width: 160px;
+  z-index: 2;
+  transform-origin: bottom center;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: box-shadow 0.15s, filter 0.15s;
+}
+
+.home-config-stage-char.is-active {
+  filter: drop-shadow(0 0 0.6rem rgba(255, 255, 255, 0.25));
+}
+
+.home-config-stage-char.is-front {
+  z-index: 3;
+}
+
+.home-config-stage-char.is-back {
+  z-index: 1;
+}
+
+.home-config-stage-char.is-dragging {
+  cursor: grabbing;
+  z-index: 4;
+}
+
+.home-config-stage-char.is-hidden {
+  display: none;
+}
+
+.home-config-stage-char img {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.45));
+}
+
+.home-config-stage-char::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 50%;
+  bottom: -24px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+}

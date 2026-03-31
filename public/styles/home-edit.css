@@ -1,0 +1,131 @@
+/* home-edit.css
+ * Runtime source of truth remains ../styles.css.
+ * This file is a reference-only split synced from styles.css SECTION 07A.
+ * Scope:
+ * - home edit overlay
+ * - floating edit windows
+ * - direct home editing support UI
+ * Intentionally excluded:
+ * - folder manager/detail panel blocks from SECTION 07B
+ * - responsive/orientation overrides outside the bounded home-edit section
+ */
+
+/* ==========================================================================
+   SECTION 07A: HOME EDIT WORKSPACE / OVERLAY + FLOATING WINDOWS
+   ========================================================================== */
+
+.home-edit-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: visible;
+}
+.home-edit-overlay.active {
+  pointer-events: auto;
+}
+.home-edit-window {
+  position: absolute;
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(var(--app-shell-height, 853px) - 32px);
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(10, 14, 28, 0.92);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.38);
+  backdrop-filter: blur(14px);
+  overflow: hidden;
+}
+.home-edit-window[hidden],
+.home-edit-window.is-hidden-window {
+  display: none;
+}
+.home-edit-window-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: move;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.home-edit-window-head strong,
+.home-edit-window-head h4 {
+  display: block;
+  margin: 0;
+  font-size: 0.96rem;
+}
+.home-edit-window-head p {
+  margin: 4px 0 0;
+  color: rgba(255,255,255,0.68);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+.home-edit-close,
+.home-edit-window-hide {
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.home-edit-close {
+  width: 36px;
+  height: 36px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.home-edit-window-hide {
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+.home-edit-menu-window {
+  width: min(320px, calc(100vw - 24px));
+}
+.home-edit-menu-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+.home-edit-menu-btn {
+  min-height: 48px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.home-edit-menu-btn.active,
+.home-edit-menu-btn.is-active {
+  background: linear-gradient(135deg, rgba(108,92,231,0.38), rgba(52,152,219,0.26));
+  border-color: rgba(162,155,254,0.45);
+}
+.home-edit-builder {
+  width: min(430px, calc(100vw - 24px));
+}
+.home-edit-base-char-window {
+  width: min(480px, calc(100vw - 24px));
+  max-height: calc(var(--app-shell-height, 853px) - 32px);
+}
+.home-edit-folder-window {
+  width: min(420px, calc(100vw - 24px));
+  max-height: calc(var(--app-shell-height, 853px) - 32px);
+}
+body.home-edit-mode .home-side-left,
+body.home-edit-mode .home-side-right {
+  z-index: 40;
+}
+@media (max-width: 900px) {
+  .home-edit-menu-window,
+  .home-edit-builder,
+  .home-edit-base-char-window {
+    width: calc(100vw - 20px);
+  }
+  .home-edit-menu-body {
+    grid-template-columns: 1fr;
+  }
+}

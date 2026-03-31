@@ -1,0 +1,20 @@
+/* Reference split file only.
+ * Runtime source of truth remains ../styles.css.
+ * Synced from SECTION 07A-a: overlay shell / pointer-events / z-order.
+ */
+
+.home-edit-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.home-edit-overlay.active {
+  pointer-events: none;
+}
+
+.home-edit-window {
+  pointer-events: auto;
+}
