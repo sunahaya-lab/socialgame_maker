@@ -4,25 +4,8 @@
 
   function setupEditorScreenV1(deps) {
     const api = legacyEditorScreen.setupEditorScreen(deps);
-    const legacyApi = {
-      renderEditorScreen: api?.renderEditorScreen?.bind(api),
-      ensureEditorWindows: api?.ensureEditorWindows?.bind(api),
-      closeAllEditorWindows: api?.closeAllEditorWindows?.bind(api),
-      activateEditorTab: api?.activateEditorTab?.bind(api),
-      ensureFolderManagerWindow: api?.ensureFolderManagerWindow?.bind(api),
-      openFolderManager: api?.openFolderManager?.bind(api),
-      closeFolderManager: api?.closeFolderManager?.bind(api),
-      renderFolderManager: api?.renderFolderManager?.bind(api),
-      renderBaseCharList: api?.renderBaseCharList?.bind(api),
-      renderEditorCharacterList: api?.renderEditorCharacterList?.bind(api),
-      renderEditorStoryList: api?.renderEditorStoryList?.bind(api),
-      renderEditorGachaList: api?.renderEditorGachaList?.bind(api),
-      renderGachaPoolChars: api?.renderGachaPoolChars?.bind(api)
-    };
-    api.__legacyApi = legacyApi;
     const host = window.EditorV1Host?.create?.({
       api,
-      legacyApi,
       ...deps
     });
 
@@ -56,8 +39,8 @@
     return api;
   }
 
-  window.EditorScreen = {
-    ...legacyEditorScreen,
-    setupEditorScreen: setupEditorScreenV1
+  window.EditorScreenV1 = {
+    setupEditorScreen: setupEditorScreenV1,
+    base: legacyEditorScreen
   };
 })();

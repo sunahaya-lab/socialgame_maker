@@ -1,0 +1,110 @@
+(function () {
+  function createEditorScreenDepsFactory() {
+    function build(deps) {
+      const {
+        currentProjectId,
+        projects,
+        getCurrentPlayerId,
+        getBaseChars,
+        getCharacters,
+        getAnnouncements,
+        getStories,
+        getGachas,
+        getSystemConfig,
+        setSystemConfig,
+        getEditingFeaturedIds,
+        getRarityCssClass,
+        getRarityLabel,
+        makeFallbackImage,
+        buildStorySummary,
+        buildGachaRateSummary,
+        esc,
+        baseCharEditor,
+        entryEditor,
+        announcementEditor,
+        titleEditor,
+        storyEditor,
+        musicEditor,
+        storyScreen,
+        systemEditor,
+        beginGachaEdit,
+        navigateTo,
+        setActiveGacha,
+        collectionScreen,
+        populateBaseCharSelects,
+        populateFolderSelects,
+        updateEditorSubmitLabels,
+        handleCreateProject,
+        renameProject,
+        switchProject,
+        createContentFolder,
+        persistSystemConfigState,
+        openShareSettings,
+        getShareManagementSummary,
+        rotateCollaborativeShare,
+        createPublicShare,
+        listProjectMembers,
+        inviteProjectMember,
+        updateProjectMemberRole
+      } = deps;
+
+      return {
+        getCurrentProjectId: () => currentProjectId,
+        getProjects: () => projects,
+        getCurrentProjectName: () => projects.find(project => project.id === currentProjectId)?.name || "無題のプロジェクト",
+        getCurrentPlayerId,
+        getBaseChars,
+        getCharacters,
+        getAnnouncements,
+        getStories,
+        getGachas,
+        getSystemConfig,
+        setSystemConfig,
+        getCardFolders: () => getSystemConfig()?.cardFolders || [],
+        getStoryFolders: () => getSystemConfig()?.storyFolders || [],
+        getEditingFeaturedIds,
+        getRarityCssClass,
+        getRarityLabel,
+        makeFallbackImage,
+        buildStorySummary,
+        buildGachaRateSummary,
+        esc,
+        baseCharEditor,
+        entryEditor,
+        announcementEditor,
+        titleEditor,
+        storyEditor,
+        musicEditor,
+        storyScreen,
+        systemEditor,
+        beginGachaEdit,
+        navigateTo,
+        setActiveGacha,
+        collectionScreen,
+        populateBaseCharSelects,
+        populateFolderSelects,
+        updateEditorSubmitLabels,
+        handleCreateProject,
+        renameProject,
+        switchProject,
+        createContentFolder,
+        persistSystemConfigState,
+        openShareSettings,
+        getShareManagementSummary,
+        rotateCollaborativeShare,
+        createPublicShare,
+        listProjectMembers,
+        inviteProjectMember,
+        updateProjectMemberRole
+      };
+    }
+
+    return {
+      build
+    };
+  }
+
+  window.SociaEditorScreenDeps = {
+    create: createEditorScreenDepsFactory
+  };
+})();

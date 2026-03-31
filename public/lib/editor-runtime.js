@@ -6,15 +6,16 @@
       getEditorScreen,
       closeHomeEditMode,
       renderHome,
-      showToast
+      showToast,
+      canOpenEditorSurface,
+      getEditorAccessDeniedMessage
     } = deps;
 
     function getEditorApiMethod(name) {
       const editorScreen = getEditorScreen?.();
-      const legacyMethod = editorScreen?.__legacyApi?.[name];
-      if (typeof legacyMethod === "function") return legacyMethod;
       const method = editorScreen?.[name];
-      return typeof method === "function" ? method.bind(editorScreen) : null;
+      if (typeof method === "function") return method.bind(editorScreen);
+      return null;
     }
 
     function setBottomNavActive(screen) {
@@ -78,6 +79,10 @@
     }
 
     function openEditorSurface(tabName = null, screen = getCurrentScreen()) {
+      if (typeof canOpenEditorSurface === "function" && !canOpenEditorSurface()) {
+        showToast(getEditorAccessDeniedMessage?.() || "このプロジェクトを編集できるのは所有者のみです");
+        return null;
+      }
       if (screen === "home") {
         closeHomeEditMode?.();
       }
@@ -85,6 +90,10 @@
     }
 
     function openEditorScreen(tabName = null) {
+      if (typeof canOpenEditorSurface === "function" && !canOpenEditorSurface()) {
+        showToast(getEditorAccessDeniedMessage?.() || "このプロジェクトを編集できるのは所有者のみです");
+        return null;
+      }
       const overlay = showEditorScreen();
       if (!overlay) {
         showToast("編集画面を開けませんでした");
@@ -99,6 +108,10 @@
     function closeEditorScreen() {
       const overlay = document.getElementById("screen-editor");
       if (!overlay) return null;
+      const activeElement = document.activeElement;
+      if (activeElement instanceof HTMLElement && overlay.contains(activeElement)) {
+        activeElement.blur();
+      }
       overlay.classList.remove("active");
       overlay.setAttribute("aria-hidden", "true");
       overlay.hidden = true;
@@ -111,6 +124,7 @@
       }
       setCurrentScreen?.("home");
       setBottomNavActive("home");
+      document.querySelector('.bottom-nav-btn[data-go="home"]')?.focus?.();
       renderHome?.("refresh");
       return overlay;
     }
