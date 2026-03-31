@@ -1,5 +1,7 @@
 # Socia Maker V2 Architecture Draft
 
+> Priority Band: Context / Secondary
+
 ## Goal
 
 Socia Maker v2 is a Cloudflare-native authoring tool for building pseudo social-game projects.

@@ -1,5 +1,7 @@
 # Socia Maker V2 D1 Schema Draft
 
+> Priority Band: Context / Secondary
+
 ## Purpose
 
 This document defines the first practical D1 schema for Socia Maker v2.

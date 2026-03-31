@@ -1,5 +1,7 @@
 # Text Repair Workflow
 
+> Priority Band: Context / Secondary
+
 通常運用では、文字化け修復スクリプトを前提にしません。
 
 ## 通常運用
