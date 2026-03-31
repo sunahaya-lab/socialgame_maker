@@ -1,0 +1,582 @@
+    <div class="screen" id="screen-editor">
+      <div class="editor-panel" id="editor-base-char">
+        <p class="editor-desc">&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x30d7;&#x30ed;&#x30d5;&#x30a3;&#x30fc;&#x30eb;&#x3084;&#x30dc;&#x30a4;&#x30b9;&#x3092;&#x767b;&#x9332;&#x3057;&#x307e;&#x3059;</p>
+
+        <form id="base-char-form" class="editor-form">
+          <label>
+            &#x540d;&#x524d;
+            <input name="name" type="text" maxlength="30" placeholder="&#x30ad;&#x30e3;&#x30e9;&#x540d;" required>
+          </label>
+          <label>
+            &#x8aac;&#x660e;
+            <input name="description" type="text" maxlength="80" placeholder="&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x7d39;&#x4ecb;&#x6587;">
+          </label>
+          <label>
+            &#x8a95;&#x751f;&#x65e5;
+            <input name="birthday" type="text" maxlength="5" placeholder="08-15">
+          </label>
+          <label>
+            &#x30a4;&#x30e1;&#x30fc;&#x30b8;&#x30ab;&#x30e9;&#x30fc;
+            <input name="color" type="color" value="#a29bfe">
+          </label>
+          <label class="upload-field">
+            &#x901a;&#x5e38;&#x7acb;&#x3061;&#x7d75;
+            <input name="portrait" type="file" accept="image/*">
+          </label>
+          <div class="editor-preview" id="base-char-preview" hidden>
+            <img id="base-char-preview-img" alt="&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;">
+          </div>
+          <div class="expressions-editor">
+            <h4>&#x8868;&#x60c5;&#x5dee;&#x5206;</h4>
+            <div id="expression-list" class="expression-list"></div>
+            <button type="button" class="btn-secondary" id="add-expression-btn">+ &#x8868;&#x60c5;&#x5dee;&#x5206;&#x3092;&#x8ffd;&#x52a0;</button>
+          </div>
+          <div class="variants-editor">
+            <h4>&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x5dee;&#x5206;&#x7acb;&#x3061;&#x7d75;</h4>
+            <div id="variant-list" class="expression-list"></div>
+            <button type="button" class="btn-secondary" id="add-variant-btn">+ &#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x5dee;&#x5206;&#x3092;&#x8ffd;&#x52a0;</button>
+          </div>
+          <details class="editor-collapsible">
+            <summary>&#x30bb;&#x30ea;&#x30d5;&#x8a2d;&#x5b9a;</summary>
+            <div class="voice-lines-editor">
+              <label>
+                &#x4F1A;&#x8A71;&#x52B9;&#x679C;&#x97F3;
+                <select name="speechSoundId" id="base-char-speech-sound"></select>
+              </label>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30ad;&#x30e3;&#x30e9;&#x30dc;&#x30a4;&#x30b9;</h4>
+              <div id="voice-line-fields" class="voice-line-fields"></div>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30db;&#x30fc;&#x30e0;&#x30dc;&#x30a4;&#x30b9;</h4>
+              <div id="home-voice-line-fields" class="voice-line-fields"></div>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x3007;&#x3007;&#x306b;&#x3064;&#x3044;&#x3066;</h4>
+              <div id="home-opinion-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-home-opinion-btn">+ &#x9805;&#x76ee;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x304b;&#x3051;&#x3042;&#x3044;</h4>
+              <div id="home-conversation-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-home-conversation-btn">+ &#x304b;&#x3051;&#x3042;&#x3044;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;</h4>
+              <div id="home-birthday-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-home-birthday-btn">+ &#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+          </details>
+          <button type="submit" class="btn-primary">&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x3092;&#x4fdd;&#x5b58;</button>
+        </form>
+
+        <div class="base-char-list-section">
+          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;</h4>
+          <div id="base-char-list" class="base-char-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-character">
+        <p class="editor-desc">&#x30ac;&#x30c1;&#x30e3;&#x3084;&#x30b3;&#x30ec;&#x30af;&#x30b7;&#x30e7;&#x30f3;&#x306b;&#x8868;&#x793a;&#x3059;&#x308b;&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x767b;&#x9332;&#x3057;&#x307e;&#x3059;&#x3002;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x7d10;&#x3065;&#x3051;&#x308b;&#x3068;&#x3001;&#x672a;&#x8a2d;&#x5b9a;&#x306e;&#x30bb;&#x30ea;&#x30d5;&#x306f;&#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x5074;&#x306e;&#x5024;&#x3092;&#x6d41;&#x7528;&#x3067;&#x304d;&#x307e;&#x3059;</p>
+
+        <form id="character-form" class="editor-form">
+          <div class="editor-form-actions-top">
+            <button type="button" class="editor-inline-btn" id="character-form-clear-btn">&#x5165;&#x529b;&#x3092;&#x30af;&#x30ea;&#x30a2;</button>
+          </div>
+          <label>
+            &#x30d9;&#x30fc;&#x30b9;&#x30ad;&#x30e3;&#x30e9;&#x9078;&#x629e;
+            <select name="baseCharId" id="card-base-char-select">
+              <option value="">-- &#x9078;&#x629e;&#x306a;&#x3057; --</option>
+            </select>
+          </label>
+          <label>
+            &#x30ab;&#x30fc;&#x30c9;&#x540d;
+            <input name="name" type="text" maxlength="40" placeholder="&#x30ab;&#x30fc;&#x30c9;&#x540d;" required>
+          </label>
+          <label>
+            &#x30d5;&#x30a9;&#x30eb;&#x30c0;
+            <select name="folderId">
+              <option value="">-- &#x672a;&#x5206;&#x985e; --</option>
+            </select>
+          </label>
+          <label>
+            &#x30ad;&#x30e3;&#x30c3;&#x30c1;&#x30b3;&#x30d4;&#x30fc;
+            <input name="catch" type="text" maxlength="80" placeholder="&#x30ab;&#x30fc;&#x30c9;&#x306e;&#x4e00;&#x8a00;&#x8aac;&#x660e;" required>
+          </label>
+          <label>
+            &#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;
+            <select name="rarity" id="character-rarity-select"></select>
+          </label>
+          <label>
+            &#x5c5e;&#x6027;
+            <select name="attribute">
+              <option value="&#x708e;">&#x708e;</option>
+              <option value="&#x96f7;">&#x96f7;</option>
+              <option value="&#x98a8;">&#x98a8;</option>
+              <option value="&#x6c34;">&#x6c34;</option>
+              <option value="&#x5730;">&#x5730;</option>
+              <option value="&#x5149;">&#x5149;</option>
+              <option value="&#x95c7;">&#x95c7;</option>
+              <option value="&#x7121;">&#x7121;</option>
+            </select>
+          </label>
+          <label class="upload-field">
+            &#x30ab;&#x30fc;&#x30c9;&#x753b;&#x50cf;
+            <input name="image" type="file" accept="image/*">
+          </label>
+          <div class="editor-form-actions-inline">
+            <button type="button" class="editor-inline-btn" id="character-image-clear-btn">&#x753b;&#x50cf;&#x3092;&#x30af;&#x30ea;&#x30a2;</button>
+          </div>
+          <div class="editor-preview" id="char-preview" hidden>
+            <img id="char-preview-img" alt="&#x30ab;&#x30fc;&#x30c9;&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;">
+          </div>
+          <details class="editor-collapsible">
+            <summary>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x306e;&#x30bb;&#x30ea;&#x30d5;&#x8a2d;&#x5b9a;</summary>
+            <div class="voice-lines-editor">
+              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x30dc;&#x30a4;&#x30b9;</h4>
+              <div id="card-voice-line-fields" class="voice-line-fields"></div>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x30db;&#x30fc;&#x30e0;&#x30dc;&#x30a4;&#x30b9;</h4>
+              <div id="card-home-voice-line-fields" class="voice-line-fields"></div>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x3007;&#x3007;&#x306b;&#x3064;&#x3044;&#x3066;</h4>
+              <div id="card-home-opinion-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-card-home-opinion-btn">+ &#x9805;&#x76ee;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x304b;&#x3051;&#x3042;&#x3044;</h4>
+              <div id="card-home-conversation-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-card-home-conversation-btn">+ &#x304b;&#x3051;&#x3042;&#x3044;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+            <div class="voice-lines-editor">
+              <h4>&#x30ab;&#x30fc;&#x30c9;&#x56fa;&#x6709;&#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;</h4>
+              <div id="card-home-birthday-list" class="relation-line-list"></div>
+              <button type="button" class="btn-secondary" id="add-card-home-birthday-btn">+ &#x8a95;&#x751f;&#x65e5;&#x30bb;&#x30ea;&#x30d5;&#x3092;&#x8ffd;&#x52a0;</button>
+            </div>
+          </details>
+          <button type="submit" class="btn-primary">&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x4fdd;&#x5b58;</button>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30ab;&#x30fc;&#x30c9;</h4>
+          <div id="editor-character-list" class="editor-record-list editor-record-list-cards"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-equipment-card"></div>
+
+      <div class="editor-panel" id="editor-story">
+        <form id="story-form" class="editor-form">
+          <label>
+            &#x30bf;&#x30a4;&#x30c8;&#x30eb;
+            <input name="title" type="text" maxlength="60" placeholder="&#x7b2c;1&#x8a71; &#x306a;&#x3069;" required>
+          </label>
+          <label>
+            &#x7a2e;&#x5225;
+            <select name="type">
+              <option value="main">&#x30e1;&#x30a4;&#x30f3;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
+              <option value="event">&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
+              <option value="character">&#x30ad;&#x30e3;&#x30e9;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</option>
+            </select>
+          </label>
+          <label id="story-character-select-wrap" hidden>
+            &#x5bfe;&#x8c61;&#x30ab;&#x30fc;&#x30c9;
+            <select name="entryId" id="story-character-select">
+              <option value="">&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x9078;&#x629e;</option>
+            </select>
+          </label>
+          <label>
+            BGM
+            <select name="bgmAssetId" id="story-bgm-select">
+              <option value="">なし</option>
+            </select>
+          </label>
+          <label>
+            &#x4e26;&#x3073;&#x9806;
+            <input name="sortOrder" type="number" min="0" step="1" value="0">
+          </label>
+          <div class="story-variant-defaults">
+            <h4>&#x30a4;&#x30d9;&#x30f3;&#x30c8;&#x7acb;&#x3061;&#x7d75;&#x306e;&#x65e2;&#x5b9a;&#x8a2d;&#x5b9a;</h4>
+            <div id="story-variant-default-list" class="story-variant-default-list"></div>
+          </div>
+          <div class="story-scenes-editor">
+            <h4>&#x30b7;&#x30fc;&#x30f3;</h4>
+            <div id="scene-list" class="scene-list"></div>
+            <button type="button" class="btn-secondary" id="add-scene-btn">+ &#x30b7;&#x30fc;&#x30f3;&#x3092;&#x8ffd;&#x52a0;</button>
+          </div>
+          <button type="submit" class="btn-primary">&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;&#x3092;&#x4fdd;&#x5b58;</button>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30b9;&#x30c8;&#x30fc;&#x30ea;&#x30fc;</h4>
+          <div id="editor-story-list" class="editor-record-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-gacha">
+        <form id="gacha-form" class="editor-form">
+          <label>
+            &#x30ac;&#x30c1;&#x30e3;&#x7a2e;&#x5225;
+            <select name="gachaType" id="gacha-type-select">
+              <option value="character">&#x30ad;&#x30e3;&#x30e9;&#x30ac;&#x30c1;&#x30e3;</option>
+              <option value="equipment">&#x88c5;&#x5099;&#x30ac;&#x30c1;&#x30e3;</option>
+            </select>
+          </label>
+          <label>
+            &#x30ac;&#x30c1;&#x30e3;&#x540d;
+            <input name="title" type="text" maxlength="40" placeholder="&#x6625;&#x30d5;&#x30a7;&#x30b9;&#x30ac;&#x30c1;&#x30e3;" required>
+          </label>
+          <label>
+            &#x8aac;&#x660e;
+            <input name="description" type="text" maxlength="80" placeholder="SSR&#x6392;&#x51fa;&#x7387;&#x30a2;&#x30c3;&#x30d7; &#x306a;&#x3069;">
+          </label>
+          <label>
+            &#x30d0;&#x30ca;&#x30fc;&#x753b;&#x50cf;
+            <input name="bannerImage" type="file" accept="image/*">
+          </label>
+
+          <label>
+            &#x30ac;&#x30c1;&#x30e3;&#x8868;&#x793a;&#x65b9;&#x5f0f;
+            <select name="displayMode" id="gacha-display-mode">
+              <option value="featuredCards">&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;SSR&#x81ea;&#x52d5;&#x8868;&#x793a;</option>
+              <option value="manualImages">&#x4efb;&#x610f;&#x753b;&#x50cf;&#x3092;&#x8868;&#x793a;</option>
+            </select>
+          </label>
+          <div class="gacha-visual-editor" id="gacha-visual-editor">
+            <label>
+              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;1
+              <input name="heroImage1" type="file" accept="image/*">
+            </label>
+            <label>
+              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;2
+              <input name="heroImage2" type="file" accept="image/*">
+            </label>
+            <label>
+              &#x30ac;&#x30c1;&#x30e3;&#x753b;&#x50cf;3
+              <input name="heroImage3" type="file" accept="image/*">
+            </label>
+            <p class="editor-help">&#x81ea;&#x52d5;&#x8868;&#x793a;&#x3067;&#x306f;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;SSR&#x3092;&#x4f7f;&#x3044;&#x3001;&#x4efb;&#x610f;&#x753b;&#x50cf;&#x8868;&#x793a;&#x3067;&#x306f;&#x767b;&#x9332;&#x753b;&#x50cf;&#x3092;&#x6700;&#x5927;3&#x679a;&#x307e;&#x3067;&#x4e26;&#x3079;&#x307e;&#x3059;</p>
+          </div>
+
+          <p class="editor-note" id="gacha-type-note">&#x30ad;&#x30e3;&#x30e9;&#x30ac;&#x30c1;&#x30e3;&#x3067;&#x306f;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;&#x5019;&#x88dc;&#x306e;&#x30ab;&#x30fc;&#x30c9;&#x3092;&#x9078;&#x3079;&#x307e;&#x3059;</p>
+          <div class="gacha-pool-selector" id="gacha-pool-selector">
+            <h4 id="gacha-pool-title">&#x30ad;&#x30e3;&#x30e9;&#x30d4;&#x30c3;&#x30af;&#x30a2;&#x30c3;&#x30d7;</h4>
+            <div id="gacha-pool-chars" class="gacha-pool-chars"></div>
+          </div>
+
+          <h4>&#x6392;&#x51fa;&#x7387;</h4>
+          <div class="rate-inputs" id="gacha-rate-inputs"></div>
+
+          <button type="submit" class="btn-primary">&#x30ac;&#x30c1;&#x30e3;&#x3092;&#x4fdd;&#x5b58;</button>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>&#x767b;&#x9332;&#x6e08;&#x307f;&#x30ac;&#x30c1;&#x30e3;</h4>
+          <div id="editor-gacha-list" class="editor-record-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-music">
+        <p class="editor-desc">BGM をアップロードして、ホームで使う曲を選びます。</p>
+
+        <form id="music-form" class="editor-form">
+          <label>
+            BGM アップロード
+            <input name="musicFile" id="music-asset-file" type="file" accept="audio/*">
+          </label>
+          <button type="button" class="btn-secondary" id="music-asset-upload">BGM を追加</button>
+          <p class="editor-note">アップロードした BGM はこのプロジェクトで共有されます。まずはホーム BGM のみ設定できます。</p>
+
+          <label>
+            ホーム BGM
+            <select name="homeBgmAssetId" id="home-bgm-select"></select>
+          </label>
+          <label>
+            バトル BGM
+            <select name="battleBgmAssetId" id="battle-bgm-select"></select>
+          </label>
+
+          <button type="submit" class="btn-primary">BGM 設定を保存</button>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>登録済み BGM</h4>
+          <div id="music-asset-list" class="editor-record-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-announcement">
+        <p class="editor-desc">ホームに表示するお知らせを登録します。初期版はプロジェクト内お知らせのみ対応です。</p>
+
+        <form id="announcement-form" class="editor-form">
+          <label>
+            お知らせタイトル
+            <input name="title" type="text" maxlength="80" placeholder="アップデート情報 / 開催告知 など" required>
+          </label>
+          <label>
+            本文
+            <textarea name="body" rows="4" maxlength="800" placeholder="ユーザーに見せたい本文を入力"></textarea>
+          </label>
+          <label>
+            お知らせ画像
+            <input name="image" id="announcement-image-file" type="file" accept="image/*">
+          </label>
+          <div class="editor-preview" id="announcement-image-preview" hidden>
+            <img id="announcement-image-preview-img" alt="お知らせ画像プレビュー">
+          </div>
+          <div class="editor-form-actions-inline">
+            <button type="button" class="editor-inline-btn" id="announcement-image-clear-btn">画像をクリア</button>
+          </div>
+          <label>
+            公開状態
+            <select name="status">
+              <option value="draft">下書き</option>
+              <option value="scheduled">予約公開</option>
+              <option value="published">公開中</option>
+              <option value="archived">アーカイブ</option>
+            </select>
+          </label>
+          <label>
+            公開開始
+            <input name="startAt" type="datetime-local">
+          </label>
+          <label>
+            公開終了
+            <input name="endAt" type="datetime-local">
+          </label>
+          <label>
+            並び順
+            <input name="sortOrder" type="number" min="0" step="1" value="0">
+          </label>
+          <label>
+            リンク先
+            <select name="linkType">
+              <option value="none">なし</option>
+              <option value="story">ストーリー</option>
+              <option value="gacha">ガチャ</option>
+              <option value="url">外部URL</option>
+            </select>
+          </label>
+          <label>
+            リンク値
+            <input name="linkValue" type="text" maxlength="300" placeholder="URL やメモ用値">
+          </label>
+          <button type="submit" class="btn-primary">お知らせを保存</button>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>登録済みお知らせ</h4>
+          <div id="announcement-list" class="editor-record-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-title">
+        <p class="editor-desc">プレイヤーが使う称号を作成します。自作称号のほか、条件達成で手に入る称号もここで確認できます。</p>
+
+        <form id="title-form" class="editor-form">
+          <input type="hidden" name="titleId">
+          <label>
+            称号名
+            <input name="label" type="text" maxlength="80" placeholder="ソシャゲ好き など" required>
+          </label>
+          <label>
+            説明
+            <textarea name="description" rows="3" maxlength="160" placeholder="プロフィールや演出に添える説明"></textarea>
+          </label>
+          <label>
+            背景タイプ
+            <select name="backgroundType">
+              <option value="solid">1色塗りつぶし</option>
+              <option value="split">2色分割</option>
+            </select>
+          </label>
+          <label>
+            解放条件
+            <select name="unlockConditionType">
+              <option value="always">常時解放</option>
+              <option value="formation_pair">特定リーダー×サブリーダー</option>
+              <option value="formation_squad">特定キャラ3人以上で出撃</option>
+            </select>
+          </label>
+          <div class="title-condition-fields" id="title-condition-fields">
+            <div class="title-condition-group" id="title-condition-pair-fields" hidden>
+              <label>
+                リーダー
+                <select name="leaderBaseCharId" id="title-leader-base-char-select"></select>
+              </label>
+              <label>
+                サブリーダー
+                <select name="subLeaderBaseCharId" id="title-sub-leader-base-char-select"></select>
+              </label>
+            </div>
+            <div class="title-condition-group" id="title-condition-squad-fields" hidden>
+              <label>
+                対象キャラ1
+                <select name="squadBaseCharId1" id="title-squad-base-char-select-1"></select>
+              </label>
+              <label>
+                対象キャラ2
+                <select name="squadBaseCharId2" id="title-squad-base-char-select-2"></select>
+              </label>
+              <label>
+                対象キャラ3
+                <select name="squadBaseCharId3" id="title-squad-base-char-select-3"></select>
+              </label>
+              <label>
+                対象キャラ4
+                <select name="squadBaseCharId4" id="title-squad-base-char-select-4"></select>
+              </label>
+              <label>
+                対象キャラ5
+                <select name="squadBaseCharId5" id="title-squad-base-char-select-5"></select>
+              </label>
+            </div>
+          </div>
+          <label>
+            背景色A
+            <input name="colorA" type="color" value="#666666">
+          </label>
+          <label>
+            背景色B
+            <input name="colorB" type="color" value="#666666">
+          </label>
+          <label>
+            文字色
+            <input name="textColor" type="color" value="#ffffff">
+          </label>
+          <div class="editor-preview title-editor-preview" id="title-style-preview"></div>
+          <div class="editor-form-actions-inline">
+            <button type="submit" class="btn-primary" id="title-save-btn">称号を保存</button>
+            <button type="reset" class="btn-secondary">入力をリセット</button>
+          </div>
+        </form>
+
+        <div class="editor-list-section">
+          <h4>共有称号マスタ</h4>
+          <div id="title-list" class="editor-record-list"></div>
+        </div>
+        <div class="editor-list-section">
+          <h4>このプレイヤーの解放済み称号</h4>
+          <div id="title-unlocked-list" class="editor-record-list"></div>
+        </div>
+      </div>
+
+      <div class="editor-panel" id="editor-system">
+        <p class="editor-desc">&#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;&#x65b9;&#x5f0f;&#x3001;&#x88c5;&#x5099;&#x3001;&#x753b;&#x9762;&#x306e;&#x5411;&#x304d;&#x3001;&#x6226;&#x95d8;&#x30b7;&#x30b9;&#x30c6;&#x30e0;&#x3001;&#x6226;&#x95d8;&#x8868;&#x793a;&#x3092;&#x8abf;&#x6574;&#x3057;&#x307e;&#x3059;</p>
+
+        <form id="system-form" class="editor-form">
+          <section class="system-config-section system-title-config-section" id="system-title-config-section">
+            <div class="system-config-section-head">
+              <h4>タイトル画面</h4>
+              <p>起動時に表示するタイトル画面の有無、背景、ロゴ、開始文言を設定します。</p>
+            </div>
+            <label class="editor-check">
+              <input type="checkbox" name="titleScreenEnabled" id="system-title-screen-enabled">
+              タイトル画面を表示する
+            </label>
+            <label>
+              タイトル背景
+              <input type="file" name="titleScreenBackgroundFile" id="system-title-screen-background-file" accept="image/*">
+            </label>
+            <div class="system-title-image-preview-wrap">
+              <img class="system-title-image-preview" id="system-title-screen-background-preview" alt="タイトル背景プレビュー" hidden>
+              <button type="button" class="btn-secondary" id="system-title-screen-background-clear">背景画像をクリア</button>
+            </div>
+            <label>
+              タイトルロゴ
+              <input type="file" name="titleScreenLogoFile" id="system-title-screen-logo-file" accept="image/*">
+            </label>
+            <div class="system-title-image-preview-wrap">
+              <img class="system-title-image-preview system-title-logo-preview" id="system-title-screen-logo-preview" alt="タイトルロゴプレビュー" hidden>
+              <button type="button" class="btn-secondary" id="system-title-screen-logo-clear">ロゴ画像をクリア</button>
+            </div>
+            <label>
+              Press Start文言
+              <input type="text" name="titleScreenPressStartText" id="system-title-screen-press-start-text" maxlength="60" placeholder="Press Start">
+            </label>
+            <div class="system-preview system-title-preview-panel">
+              <h4>タイトルプレビュー</h4>
+              <div class="system-title-screen-preview" id="system-title-screen-preview">
+                <div class="system-title-screen-preview-bg" id="system-title-screen-preview-bg"></div>
+                <img class="system-title-screen-preview-logo" id="system-title-screen-preview-logo" alt="" hidden>
+                <p class="system-title-screen-preview-app-name" id="system-title-screen-preview-app-name">Socia Maker</p>
+                <p class="system-title-screen-preview-start" id="system-title-screen-preview-start">Press Start</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="system-config-section">
+            <div class="system-config-section-head">
+              <h4>ゲームシステム</h4>
+              <p>画面向き、レアリティ方式、装備ガチャ、戦闘表示をまとめて調整します。</p>
+            </div>
+            <label>
+              &#x753b;&#x9762;&#x5411;&#x304d;
+              <select name="orientation">
+                <option value="portrait">&#x7e26;&#x5411;&#x304d;</option>
+                <option value="landscape">&#x6a2a;&#x5411;&#x304d;</option>
+              </select>
+            </label>
+            <label>
+              ゲーム内フォント
+              <select name="fontPreset" id="system-font-preset-select">
+                <option value="zen-kaku-gothic-new">Zen Kaku Gothic New</option>
+                <option value="noto-sans-jp">Noto Sans JP</option>
+                <option value="m-plus-rounded-1c">M PLUS Rounded 1c</option>
+                <option value="yusei-magic">Yusei Magic</option>
+                <option value="dotgothic16">DotGothic16</option>
+              </select>
+            </label>
+            <label>
+              &#x30ec;&#x30a2;&#x30ea;&#x30c6;&#x30a3;&#x65b9;&#x5f0f;
+              <select name="rarityMode">
+                <option value="classic4">R&#x65b9;&#x5f0f;4&#x6bb5;&#x968e; (N / R / SR / SSR)</option>
+                <option value="stars5">&#x661f;5&#x6bb5;&#x968e; (&#x2605; / &#x2605;&#x2605; / &#x2605;&#x2605;&#x2605; / &#x2605;&#x2605;&#x2605;&#x2605; / &#x2605;&#x2605;&#x2605;&#x2605;&#x2605;)</option>
+              </select>
+            </label>
+            <label>
+              &#x88c5;&#x5099;
+              <select name="equipmentMode" id="system-equipment-mode-select">
+                <option value="disabled">&#x4f7f;&#x308f;&#x306a;&#x3044;</option>
+                <option value="database_only">&#x767b;&#x9332;&#x3060;&#x3051;</option>
+                <option value="enabled">&#x6a5f;&#x80fd;&#x3092;&#x6709;&#x52b9;&#x5316;</option>
+              </select>
+            </label>
+            <label>
+              &#x88c5;&#x5099;&#x30ac;&#x30c1;&#x30e3;
+              <select name="gachaCatalogMode" id="system-gacha-catalog-mode-select">
+                <option value="characters_only">&#x30ad;&#x30e3;&#x30e9;&#x306e;&#x307f;</option>
+                <option value="mixed_shared">&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x88c5;&#x5099; &#x540c;&#x3058;&#x30ac;&#x30c1;&#x30e3;</option>
+                <option value="split_catalogs">&#x30ad;&#x30e3;&#x30e9;&#x3068;&#x88c5;&#x5099; &#x5225;&#x30ac;&#x30c1;&#x30e3;</option>
+              </select>
+            </label>
+            <label>
+              &#x6226;&#x95d8;&#x30b7;&#x30b9;&#x30c6;&#x30e0;
+              <select name="battleMode" id="system-battle-mode-select">
+                <option value="fullAuto">&#x30d5;&#x30eb;&#x30aa;&#x30fc;&#x30c8;</option>
+                <option value="semiAuto">&#x30bb;&#x30df;&#x30aa;&#x30fc;&#x30c8;</option>
+              </select>
+            </label>
+            <label>
+              &#x6226;&#x95d8;&#x8868;&#x793a;
+              <select name="battleVisualMode" id="system-battle-visual-mode-select">
+                <option value="cardIllustration">&#x30ab;&#x30fc;&#x30c9;&#x30a4;&#x30e9;&#x30b9;&#x30c8;</option>
+                <option value="sdCharacter">SD&#x30ad;&#x30e3;&#x30e9;</option>
+              </select>
+            </label>
+
+            <div class="system-preview">
+              <h4>&#x30d7;&#x30ec;&#x30d3;&#x30e5;&#x30fc;</h4>
+              <div class="system-preview-list" id="system-rarity-preview"></div>
+            </div>
+          </section>
+
+          <p class="editor-note">&#x8a2d;&#x5b9a;&#x3092;&#x5207;&#x308a;&#x66ff;&#x3048;&#x308b;&#x3068;&#x3001;&#x30ab;&#x30fc;&#x30c9;&#x4f5c;&#x6210;&#x30d5;&#x30a9;&#x30fc;&#x30e0;&#x3084;&#x30ac;&#x30c1;&#x30e3;&#x6392;&#x51fa;&#x7387;&#x306e;&#x8868;&#x793a;&#x3082;&#x9023;&#x52d5;&#x3057;&#x3066;&#x5909;&#x308f;&#x308a;&#x307e;&#x3059;&#x3002;&#x88c5;&#x5099;&#x306f;&#x300c;&#x767b;&#x9332;&#x3060;&#x3051;&#x300d;&#x3067;&#x7de8;&#x96c6;&#x306e;&#x307f;&#x3001;&#x300c;&#x6a5f;&#x80fd;&#x3092;&#x6709;&#x52b9;&#x5316;&#x300d;&#x3067;&#x7de8;&#x6210;&#x306b;&#x3082;&#x8868;&#x793a;&#x3057;&#x307e;&#x3059;</p>
+          <button type="submit" class="btn-primary">&#x30b2;&#x30fc;&#x30e0;&#x30b7;&#x30b9;&#x30c6;&#x30e0;&#x3092;&#x4fdd;&#x5b58;</button>
+        </form>
+      </div>
+    </div>
+
