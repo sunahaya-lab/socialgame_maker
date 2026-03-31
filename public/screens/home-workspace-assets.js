@@ -30,7 +30,11 @@
     }
 
     function getTeamFolders() {
-      return getAllFolders().filter(folder => folder.kind === "team_owned" || folder.kind === "shared");
+      return getAllFolders().filter(folder => folder.kind === "team_owned");
+    }
+
+    function isLinkedTeamFolder(folder) {
+      return folder?.kind === "team_owned" && Array.isArray(folder.sourceRefs) && folder.sourceRefs.length > 0;
     }
 
     function getDefaultFolders() {
@@ -179,8 +183,8 @@
       const file = event.target.files?.[0];
       if (!file) return;
       const folder = getSelectedFolder();
-      if (!folder || folder.kind === "builtin" || folder.kind === "shared") {
-        showToast?.("ユーザーフォルダを選ぶと画像を追加できます");
+      if (!folder || folder.kind === "builtin" || isLinkedTeamFolder(folder)) {
+        showToast?.("個人素材またはチーム素材のフォルダを選ぶと画像を追加できます");
         event.target.value = "";
         return;
       }
@@ -221,7 +225,7 @@
       select.value = selectedFolderId || "";
       if (uploadWrap) {
         const selectedFolder = getSelectedFolder();
-        uploadWrap.hidden = !selectedFolder || selectedFolder.kind === "builtin" || selectedFolder.kind === "shared";
+        uploadWrap.hidden = !selectedFolder || selectedFolder.kind === "builtin" || isLinkedTeamFolder(selectedFolder);
       }
     }
 
@@ -252,7 +256,7 @@
             <button type="button" class="home-edit-folder-main" data-folder-select="${esc(folder.id)}" data-folder-group="${esc(group)}">
               <div class="home-edit-folder-main-top">
                 <strong>${esc(folder.name)}</strong>
-                <span>${group === "default" ? "標準" : group === "team" ? "共有" : "個人"}</span>
+                <span>${group === "default" ? "標準" : group === "team" ? "チーム" : "個人"}</span>
               </div>
               <div class="home-edit-folder-thumb-strip">${thumbs || '<span class="home-edit-folder-thumb is-empty"></span>'}</div>
             </button>

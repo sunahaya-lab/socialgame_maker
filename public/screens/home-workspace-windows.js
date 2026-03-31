@@ -22,10 +22,40 @@
       return document.querySelector(`[data-home-edit-window="${key}"]`);
     }
 
+    function getOverlayBounds() {
+      const overlay = document.getElementById("home-edit-overlay");
+      return {
+        width: overlay?.clientWidth || 480,
+        height: overlay?.clientHeight || 853
+      };
+    }
+
+    function getWindowRect(key) {
+      const el = getWindowElement(key);
+      return {
+        width: el?.offsetWidth || 420,
+        height: el?.offsetHeight || 320
+      };
+    }
+
+    function clampWindowPosition(key, x, y) {
+      const bounds = getOverlayBounds();
+      const rect = getWindowRect(key);
+      const maxX = Math.max(12, bounds.width - rect.width - 12);
+      const maxY = Math.max(12, bounds.height - rect.height - 12);
+      return {
+        x: Math.max(12, Math.min(Math.round(x), maxX)),
+        y: Math.max(12, Math.min(Math.round(y), maxY))
+      };
+    }
+
     function applyWindowState(key) {
       const state = windowState[key];
       const el = getWindowElement(key);
       if (!state || !el) return;
+      const clamped = clampWindowPosition(key, state.x, state.y);
+      state.x = clamped.x;
+      state.y = clamped.y;
       el.style.left = `${state.x}px`;
       el.style.top = `${state.y}px`;
       el.style.zIndex = String(state.z);
@@ -49,7 +79,9 @@
       const overlay = document.getElementById("home-edit-overlay");
       if (!state || !overlay) return;
 
-      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
+      const bounds = getOverlayBounds();
+      const viewportWidth = bounds.width;
+      const viewportHeight = bounds.height;
       const leftMargin = 18;
       const estimatedWidths = {
         builder: 430,
@@ -87,10 +119,11 @@
       const width = estimatedWidths[key] || 420;
       const rawX = preferredX[key] ?? centerStartX;
       const baseX = Math.max(leftMargin, Math.min(rawX, viewportWidth - width - 32));
-      const baseY = useLeftColumn ? (leftColumnY[key] || 96) : (rightColumnY[key] || 96);
+      const desiredY = useLeftColumn ? (leftColumnY[key] || 96) : (rightColumnY[key] || 96);
+      const clamped = clampWindowPosition(key, baseX, Math.min(desiredY, viewportHeight - 120));
 
-      state.x = baseX;
-      state.y = baseY;
+      state.x = clamped.x;
+      state.y = clamped.y;
       state.placed = true;
     }
 
@@ -123,8 +156,13 @@
       if (!draggingWindow) return;
       const state = windowState[draggingWindow.key];
       if (!state) return;
-      state.x = Math.round(event.clientX - draggingWindow.offsetX);
-      state.y = Math.round(event.clientY - draggingWindow.offsetY);
+      const clamped = clampWindowPosition(
+        draggingWindow.key,
+        event.clientX - draggingWindow.offsetX,
+        event.clientY - draggingWindow.offsetY
+      );
+      state.x = clamped.x;
+      state.y = clamped.y;
       state.placed = true;
       applyWindowState(draggingWindow.key);
     }

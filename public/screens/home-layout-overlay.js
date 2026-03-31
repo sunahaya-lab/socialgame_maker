@@ -1,6 +1,6 @@
 (function () {
-  const CANVAS_WIDTH = 480;
-  const CANVAS_HEIGHT = 853;
+  const CANVAS_WIDTH = 1080;
+  const CANVAS_HEIGHT = 1920;
 
   function createHomeLayoutOverlayModule(deps) {
     const {

@@ -13,6 +13,16 @@
 
     let selectedPartId = "";
 
+    function scaleLegacyX(value) {
+      const canvasWidth = Number(window.LayoutSchemaLib?.CANVAS_WIDTH) || 1080;
+      return Math.round((Number(value) || 0) * (canvasWidth / 480));
+    }
+
+    function scaleLegacyY(value) {
+      const canvasHeight = Number(window.LayoutSchemaLib?.CANVAS_HEIGHT) || 1920;
+      return Math.round((Number(value) || 0) * (canvasHeight / 853));
+    }
+
     function getSelectedPart() {
       return getCustomParts().find(part => part.id === selectedPartId) || null;
     }
@@ -26,10 +36,10 @@
         id: `home-part-${Date.now()}`,
         name: "新しいパーツ",
         role: "decorative",
-        x: 120,
-        y: 120,
-        w: 120,
-        h: 120,
+        x: scaleLegacyX(120),
+        y: scaleLegacyY(120),
+        w: scaleLegacyX(120),
+        h: scaleLegacyY(120),
         z: 50,
         visible: true,
         assetId: ""
@@ -44,10 +54,10 @@
         id: `home-part-${Date.now()}`,
         name: asset.name || "素材",
         role: "decorative",
-        x: 120,
-        y: 120,
-        w: clampNumber(asset.width, 32, 160),
-        h: clampNumber(asset.height, 32, 96),
+        x: scaleLegacyX(120),
+        y: scaleLegacyY(120),
+        w: clampNumber(scaleLegacyX(asset.width), scaleLegacyX(32), scaleLegacyX(160)),
+        h: clampNumber(scaleLegacyY(asset.height), scaleLegacyY(32), scaleLegacyY(96)),
         z: 50,
         visible: true,
         assetId: asset.type === "builtin" ? asset.id : `asset:${asset.id}`
